@@ -44,7 +44,8 @@ rays = torch.FloatTensor(rays).to(device)
 angles = torch.FloatTensor(angles).to(device)
 
 s = time.time()
-y = radon.forward(x, rays, angles)
+for i in range(1000):
+    y = radon.forward(x, rays, angles)
 e = time.time()
 print("Time", e - s)
 
@@ -54,7 +55,14 @@ y = y.cpu().numpy()
 vol_geom = astra.create_vol_geom(128, 128)
 proj_geom = astra.create_proj_geom('parallel', 1.0, 128, -angles.cpu().numpy())
 proj_id = astra.create_projector('cuda',proj_geom,vol_geom)
-sinogram_id, y_ = astra.create_sino(x.cpu().numpy(), proj_id)
+x_ = x.cpu().numpy()
+
+s = time.time()
+for i in range(1000):
+    sinogram_id, y_ = astra.create_sino(x.cpu().numpy(), proj_id)
+e = time.time()
+print("Astra Time", e - s)
+
 
 print("My", np.min(y), np.max(y))
 print("Astra", y_.shape, np.min(y_), np.max(y_))
