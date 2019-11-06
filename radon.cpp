@@ -16,7 +16,6 @@ torch::Tensor radon_forward(torch::Tensor x) {
     auto y = torch::zeros_like(x);
     copy_image_cuda(x.data<float>(), y.data<float>());
     return y;
-    //  std::cout << x.data<float>()[0] << std::endl;
 }
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
