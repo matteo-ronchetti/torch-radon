@@ -2,4 +2,6 @@
 build/
 dist/
 radon.egg-info/
+
 *.pyc
+astra.cu

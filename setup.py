@@ -1,6 +1,11 @@
 from setuptools import setup, Extension
-from torch.utils import cpp_extension
+from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 
 setup(name='radon',
-      ext_modules=[cpp_extension.CppExtension('radon', ['radon.cpp'])],
-      cmdclass={'build_ext': cpp_extension.BuildExtension})
+      ext_modules=[
+          CUDAExtension('lltm_cuda', [
+              'radon.cpp',
+              'radon_cuda.cu',
+          ])
+      ],
+      cmdclass={'build_ext': BuildExtension})
