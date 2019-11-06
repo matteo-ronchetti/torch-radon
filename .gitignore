@@ -5,3 +5,4 @@ radon.egg-info/
 
 *.pyc
 astra.cu
+test
