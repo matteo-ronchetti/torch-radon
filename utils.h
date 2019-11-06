@@ -3,7 +3,7 @@
 
 typedef unsigned int uint;
 
-cudaTextureObject_t create_texture(float* data, cudaArray*& cuArray, uint width, uint height, uint pitch){
+cudaTextureObject_t create_texture(const float* data, cudaArray*& cuArray, uint width, uint height, uint pitch){
     // Allocate CUDA array in device memory
     cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc(32, 0, 0, 0, cudaChannelFormatKindFloat);
 

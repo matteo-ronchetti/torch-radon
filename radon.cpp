@@ -5,6 +5,7 @@
 
 // CUDA forward declarations
 void copy_image_cuda(float* x, float* y);
+void radon_forward_cuda(const float* x, const float* rays, const float* angles, float* y, const int n_rays, const int n_angles);
 
 
 #define CHECK_CUDA(x) TORCH_CHECK(x.type().is_cuda(), #x " must be a CUDA tensor")
@@ -24,12 +25,15 @@ torch::Tensor radon_forward(torch::Tensor x, torch::Tensor rays, torch::Tensor a
     CHECK_INPUT(rays);
     CHECK_INPUT(angles);
 
+    const int n_rays = rays.size(0);
+    const int n_angles = angles.size(0);
+    
     // create output sinogram tensor
-    auto options = torch::TensorOptions().dtype(torch::kFloat32).device(x.device())
-    std::cout << x.size()[0] << std::endl;
-
-    auto y = torch::zeros(x);
-    //copy_image_cuda(x.data<float>(), y.data<float>());
+    auto options = torch::TensorOptions().dtype(torch::kFloat32).device(x.device());
+    auto y = torch::empty({n_angles, n_rays}, options);
+    
+    radon_forward_cuda(x.data<float>(), rays.data<float>(), angles.data<float>(), y.data<float>(), n_rays, n_angles);
+    
     return y;
 }
 

@@ -26,7 +26,7 @@ device = get_device()
 img = cv2.imread("phantom.png", cv2.IMREAD_GRAYSCALE).astype(np.float32)
 img = cv2.resize(img, (128, 128), interpolation=cv2.INTER_AREA)
 
-angles = np.linspace(0, 2*np.pi, 16).astype(np.float32)
+angles = np.linspace(0, 2*np.pi, 180).astype(np.float32)
 
 # compute rays
 s = img.shape[0] // 2
@@ -49,7 +49,7 @@ print("Time", e - s)
 
 y = y.cpu().numpy()
 print(y.shape, y.dtype)
-print("Error", np.linalg.norm(img - y)/np.linalg.norm(img))
+# print("Error", np.linalg.norm(img - y)/np.linalg.norm(img))
 
 print(np.min(y), np.max(y))
 y -= np.min(y)
