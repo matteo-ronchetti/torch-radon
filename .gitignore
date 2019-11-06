@@ -1,6 +1,7 @@
 .idea/
 build/
 dist/
+.ipynb_checkpoints/
 radon.egg-info/
 
 *.pyc
