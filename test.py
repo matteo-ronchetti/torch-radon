@@ -3,7 +3,7 @@ import cv2
 import numpy as np
 import radon
 import time
-
+import astra
 
 def rot(a):
     return np.asarray([
@@ -31,7 +31,8 @@ angles = np.linspace(0, 2*np.pi, 180).astype(np.float32)
 # compute rays
 s = img.shape[0] // 2
 locations = np.arange(2*s) - s + 0.5
-ys = np.sqrt((s-0.5)**2 - locations**2)
+print(locations[0], locations[-1])
+ys = np.sqrt(s**2 - locations**2)
 locations = locations.reshape(-1, 1)
 ys = ys.reshape(-1, 1)
 rays = np.hstack((locations, -ys, locations, ys))
@@ -48,15 +49,28 @@ e = time.time()
 print("Time", e - s)
 
 y = y.cpu().numpy()
-print(y.shape, y.dtype)
 # print("Error", np.linalg.norm(img - y)/np.linalg.norm(img))
 
-print(np.min(y), np.max(y))
+vol_geom = astra.create_vol_geom(128, 128)
+proj_geom = astra.create_proj_geom('parallel', 1.0, 128, -angles.cpu().numpy())
+proj_id = astra.create_projector('cuda',proj_geom,vol_geom)
+sinogram_id, y_ = astra.create_sino(x.cpu().numpy(), proj_id)
+
+print("My", np.min(y), np.max(y))
+print("Astra", y_.shape, np.min(y_), np.max(y_))
+print("Error", np.linalg.norm(y_ - y)/np.linalg.norm(y_))
+
+
+print()
 y -= np.min(y)
 y /= np.max(y) / 255
 y = y.astype(np.uint8)
-
 cv2.imwrite("res.png", y)
+
+y_ -= np.min(y_)
+y_ /= np.max(y_) / 255
+y_ = y_.astype(np.uint8)
+cv2.imwrite("astra_res.png", y_)
 
 # s = 64
 #

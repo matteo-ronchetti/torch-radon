@@ -14,17 +14,18 @@ __global__ void radon_forward_kernel(float* output, cudaTextureObject_t texObj, 
     for(int i = 0; i < n_angles; i++){
         // rotate ray
         float angle = angles[i];
-        float sx = rsx*cos(angle) - rsy*sin(angle) + 64 + 0.5f;
-        float sy = rsx*sin(angle) + rsy*cos(angle) + 64 + 0.5f;
-        float ex = rex*cos(angle) - rey*sin(angle) + 64 + 0.5f;
-        float ey = rex*sin(angle) + rey*cos(angle) + 64 + 0.5f;
+        float sx = rsx*cos(angle) - rsy*sin(angle) + 64;
+        float sy = rsx*sin(angle) + rsy*cos(angle) + 64;
+        float ex = rex*cos(angle) - rey*sin(angle) + 64;
+        float ey = rex*sin(angle) + rey*cos(angle) + 64;
     
         float vx = (ex-sx)/128;
         float vy = (ey-sy)/128;
+        float n = hypot(vx, vy);
 
         float tmp = 0.0;
         for(int j = 0; j < 128; j++){
-            tmp += tex2D<float>(texObj, sx+vx*j, sy+vy*j);
+            tmp += tex2D<float>(texObj, sx+vx*j, sy+vy*j)*n;
         }
         
         output[i*n_rays+ray_id] = tmp;
