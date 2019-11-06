@@ -3,20 +3,19 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 
-static texture<float, 2> gT_FanVolumeTexture;
-
-
-static bool bindVolumeDataTexture(float* data, cudaArray*& dataArray, unsigned int pitch, unsigned int width, unsigned int height)
+texture<float, 2> bindVolumeDataTexture(float* data, cudaArray*& dataArray, unsigned int pitch, unsigned int width, unsigned int height)
 {
+    texture<float, 2> my_tex;
+
 	cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<float>();
 	dataArray = 0;
 	cudaMallocArray(&dataArray, &channelDesc, width, height);
 	cudaMemcpy2DToArray(dataArray, 0, 0, data, pitch*sizeof(float), width*sizeof(float), height, cudaMemcpyDeviceToDevice);
 
-	gT_FanVolumeTexture.addressMode[0] = cudaAddressModeBorder;
-	gT_FanVolumeTexture.addressMode[1] = cudaAddressModeBorder;
-	gT_FanVolumeTexture.filterMode = cudaFilterModeLinear;
-	gT_FanVolumeTexture.normalized = false;
+	my_tex.addressMode[0] = cudaAddressModeBorder;
+	my_tex.addressMode[1] = cudaAddressModeBorder;
+	my_tex.filterMode = cudaFilterModeLinear;
+	my_tex.normalized = false;
 
 	// TODO: For very small sizes (roughly <=512x128) with few angles (<=180)
 	// not using an array is more efficient.
@@ -25,5 +24,29 @@ static bool bindVolumeDataTexture(float* data, cudaArray*& dataArray, unsigned i
 
 	// TODO: error value?
 
-	return true;
+	return my_tex;
+}
+
+__global__ void transformKernel(float* output, texture<float, 2> texObj) {
+    // Calculate texture coordinates
+    unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
+    unsigned int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+    // Read from texture and write to global memory
+    output[y * 128 + x] = tex2D(texObj, x+0.5, y+0.5);
+}
+
+torch::Tensor copy_image_cuda(torch::Tensor x){
+    cudaArray* tmp;
+    auto my_tex = bindVolumeDataTexture(x.data<float>(), tmp, 128, 128, 128);
+
+    auto y = torch::zeros_like(x);
+
+    // Invoke kernel
+    dim3 dimGrid(8, 8);
+    dim3 dimBlock(16, 16);
+
+    transformKernel<<<dimGrid, dimBlock>>>(y.data<float>(), my_tex);
+
+    return y;
 }
