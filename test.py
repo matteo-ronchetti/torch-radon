@@ -22,13 +22,28 @@ def get_device():
 
 device = get_device()
 
+# read test image
 img = cv2.imread("phantom.png", cv2.IMREAD_GRAYSCALE).astype(np.float32)
 img = cv2.resize(img, (128, 128), interpolation=cv2.INTER_AREA)
-print(img.shape)
+
+angles = np.linspace(0, 2*np.pi, 16).astype(np.float32)
+
+# compute rays
+s = img.shape[0] // 2
+locations = np.arange(2*s) - s + 0.5
+ys = np.sqrt((s-0.5)**2 - locations**2)
+locations = locations.reshape(-1, 1)
+ys = ys.reshape(-1, 1)
+rays = np.hstack((locations, -ys, locations, ys))
+print("Rays shape", rays.shape)
+
+# move to gpu
 x = torch.FloatTensor(img).to(device)
+rays = torch.FloatTensor(rays).to(device)
+angles = torch.FloatTensor(angles).to(device)
 
 s = time.time()
-y = radon.forward(x)
+y = radon.forward(x, rays, angles)
 e = time.time()
 print("Time", e - s)
 
@@ -52,10 +67,4 @@ cv2.imwrite("res.png", y)
 #     [0, -s, 1, 0],
 # ], dtype=np.float32)
 #
-# angles = np.linspace(0, 2*np.pi, 10)
-# locations = np.arange(2*s) - s + 0.5
-#
-# ys = np.sqrt((s-0.5)**2 - locations**2)
-# locations = locations.reshape(-1, 1)
-# ys = ys.reshape(-1, 1)
-# rays = np.hstack((locations, -ys, locations, ys))
+
