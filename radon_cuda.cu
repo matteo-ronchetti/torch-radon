@@ -86,14 +86,13 @@ void radon_backward_cuda(const float* x, const float* rays, const float* angles,
 }
 
 
-#define MIN(a,b) (((a)<(b))?(a):(b))
 __global__ void apply_filter(cufftComplex* sino, const int fft_size) {
     const uint x = blockIdx.x * blockDim.x + threadIdx.x;
     const uint y = blockIdx.y * blockDim.y + threadIdx.y;
 
     if(x < fft_size){
-        sino[fft_size*y + x].x *= 2*x;
-        sino[fft_size*y + x].y *= 2*x;
+        sino[fft_size*y + x].x *= float(x);
+        sino[fft_size*y + x].y *= float(x);
     }
 }
 

@@ -42,7 +42,7 @@ def astra_fbp(proj_id, s):
     vol_geom = astra.create_vol_geom(s, s)
     rec_id = astra.data2d.create('-vol', vol_geom)
 
-    # create configuration 
+    # create configuration
     cfg = astra.astra_dict('FBP_CUDA')
     cfg['ReconstructionDataId'] = rec_id
     cfg['ProjectionDataId'] = proj_id
@@ -52,7 +52,6 @@ def astra_fbp(proj_id, s):
     astra.algorithm.run(alg_id)
 
     return astra.data2d.get(rec_id)
-    
 
 def save(name, xx):
     x = xx.copy()
@@ -71,6 +70,7 @@ def main():
     img = cv2.resize(img, (128, 128), interpolation=cv2.INTER_AREA)
 
     angles = np.linspace(0, 2 * np.pi, 180).astype(np.float32)
+    print(angles.shape)
 
     # compute rays
     s = img.shape[0] // 2
@@ -98,8 +98,13 @@ def main():
     my_fbp = radon.backward(yf, rays, angles)
     e = time.time()
     my_fbp_time = e - s
+    my_fbp /= 256*128
+    my_fbp /= (2*angles.size(0))
+    my_fbp *= np.pi
     print("My FBP Time", my_fbp_time)
-
+    my_fbp = my_fbp[0].cpu().numpy()
+    save("fbp.png", my_fbp)
+    
     save("filtered_sino.png", yf[0].cpu().numpy())
     
     s = time.time()
@@ -107,7 +112,7 @@ def main():
     e = time.time()
     my_bp_time = e - s
     print("My BP Time", my_bp_time)
-    save("fbp.png", x_[0].cpu().numpy())
+    save("bp.png", x_[0].cpu().numpy())
     
     s = time.time()
     proj_id, y_ = astra_batch_fp(x, angles)
@@ -128,7 +133,7 @@ def main():
     e = time.time()
     astra_fbp_time = e - s
     print("Astra FBP Time", astra_fbp_time)
-    save("fbp.png", a_fbp)
+    save("astra_fbp.png", a_fbp)
 
 
     print("Speedup, fp:", astra_fp_time/my_fp_time, " bp:", astra_bp_time/my_bp_time, " total:", (astra_bp_time + astra_fp_time)/(my_bp_time + my_fp_time))
@@ -137,8 +142,9 @@ def main():
     
     print("Batch error", np.linalg.norm(y_ - y.cpu().numpy()) / np.linalg.norm(y_))
     print("Batch BP error", np.linalg.norm(ax_ - x_.cpu().numpy()) / np.linalg.norm(ax_))
+    print(np.max(a_fbp), np.max(my_fbp))
+    print("FBP error", np.linalg.norm(a_fbp - my_fbp) / np.linalg.norm(a_fbp))
 
-    
     _, ref = astra_single_fp(x[0], angles)
     error = np.linalg.norm(ref - y[0].cpu().numpy()) / np.linalg.norm(ref)
     print("My-ref Error", error)
