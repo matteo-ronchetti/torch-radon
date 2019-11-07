@@ -11,22 +11,26 @@ __global__ void radon_forward_kernel(float* output, cudaTextureObject_t texObj, 
     const float rsy = rays[ray_id*4+1];
     const float rex = rays[ray_id*4+2];
     const float rey = rays[ray_id*4+3];
+    const float v = img_size/2;
+
+    const float vx = (rex-rsx)/img_size;
+    const float vy = (rey-rsy)/img_size;
+    const float n = hypot(vx, vy);
 
     for(int i = 0; i < n_angles; i++){
         // rotate ray
         float angle = angles[i];
-        float sx = rsx*cos(angle) - rsy*sin(angle) + img_size/2;
-        float sy = rsx*sin(angle) + rsy*cos(angle) + img_size/2;
-        float ex = rex*cos(angle) - rey*sin(angle) + img_size/2;
-        float ey = rex*sin(angle) + rey*cos(angle) + img_size/2;
-
-        float vx = (ex-sx)/img_size;
-        float vy = (ey-sy)/img_size;
-        float n = hypot(vx, vy);
+        float cs = __cosf(angle);
+        float sn = __sinf(angle);
+        
+        float sx = rsx*cs - rsy*sn + v;
+        float sy = rsx*sn + rsy*cs + v;
+        float rvx = vx*cs - vy*sn;
+        float rvy = vx*sn + vy*cs;
 
         float tmp = 0.0;
         for(int j = 0; j < img_size; j++){
-            tmp += tex2DLayered<float>(texObj, sx+vx*j, sy+vy*j, batch_id);
+            tmp += tex2DLayered<float>(texObj, sx+rvx*j, sy+rvy*j, batch_id);
         }
 
         output[batch_id*n_rays*n_angles + i*n_rays + ray_id] = tmp*n;

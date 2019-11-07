@@ -74,22 +74,29 @@ def main():
     s = time.time()
     y = radon.forward(x, rays, angles)
     e = time.time()
-    print("My FP Time", e - s)
+    my_fp_time = e - s
+    print("My FP Time", my_fp_time)
 
     s = time.time()
     x_ = radon.backward(y, rays, angles)
     e = time.time()
-    print("My BP Time", e - s)
+    my_bp_time = e - s
+    print("My BP Time", my_bp_time)
     
     s = time.time()
     proj_id, y_ = astra_batch_fp(x, angles)
     e = time.time()
-    print("Astra FP Time", e - s)
+    astra_fp_time = e - s
+    print("Astra FP Time", astra_fp_time)
 
     s = time.time()
     ax_ = astra_batch_bp(proj_id, angles, 128, batch_size)
     e = time.time()
-    print("Astra BP Time", e - s)
+    astra_bp_time = e - s
+    print("Astra BP Time", astra_bp_time)
+    
+    print("Speedup, fp:", astra_fp_time/my_fp_time, " bp:", astra_bp_time/my_bp_time, " total:", (astra_bp_time + astra_fp_time)/(my_bp_time + my_fp_time))
+    
     save("astra_bp.png", ax_[0])
     
     print("Batch error", np.linalg.norm(y_ - y.cpu().numpy()) / np.linalg.norm(y_))
