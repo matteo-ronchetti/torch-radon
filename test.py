@@ -65,7 +65,7 @@ def main():
     rays = np.hstack((locations, -ys, locations, ys))
     print("Rays shape", rays.shape)
 
-    batch_size = 4
+    batch_size = 1024*2
     # move to gpu
     x = torch.FloatTensor(img).to(device).view(1, 128, 128).repeat(batch_size, 1, 1)
     rays = torch.FloatTensor(rays).to(device)
@@ -73,17 +73,23 @@ def main():
 
     s = time.time()
     y = radon.forward(x, rays, angles)
-    x_ = radon.backward(y, rays, angles)
     e = time.time()
-    print("My Time", e - s)
-    print(y.size(), x_.size())
-    save("bp.png", x_[0].cpu().numpy())
+    print("My FP Time", e - s)
 
     s = time.time()
+    x_ = radon.backward(y, rays, angles)
+    e = time.time()
+    print("My BP Time", e - s)
+    
+    s = time.time()
     proj_id, y_ = astra_batch_fp(x, angles)
+    e = time.time()
+    print("Astra FP Time", e - s)
+
+    s = time.time()
     ax_ = astra_batch_bp(proj_id, angles, 128, batch_size)
     e = time.time()
-    print("Astra Time", e - s)
+    print("Astra BP Time", e - s)
     save("astra_bp.png", ax_[0])
     
     print("Batch error", np.linalg.norm(y_ - y.cpu().numpy()) / np.linalg.norm(y_))

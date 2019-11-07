@@ -51,14 +51,16 @@ __global__ void radon_backward_kernel(float* output, cudaTextureObject_t texObj,
     const uint x = blockIdx.x * blockDim.x + threadIdx.x;
     const uint y = blockIdx.y * blockDim.y + threadIdx.y;
     const uint batch_id = blockIdx.z;
-
+    const float dx = (float)x - img_size/2  + 0.5;
+    const float dy = (float)y - img_size/2  + 0.5;
+    const float v = img_size/2;
     float tmp = 0.0;
 
     for(int i = 0; i < n_angles; i++){
+        // TODO cache angles
         float angle = angles[i];
-        float j = cos(angle) * ((float)x - img_size/2  + 0.5) + sin(angle) * ((float)y - img_size/2  + 0.5) + img_size/2;
-
-        tmp += tex2DLayered<float>(texObj, j, i+0.5, batch_id);
+        float j = __cosf(angle) * dx + __sinf(angle) * dy + v;
+        tmp += tex2DLayered<float>(texObj, j, i+0.5f, batch_id);
     }
 
     output[batch_id*img_size*img_size + y*img_size + x] = tmp;
