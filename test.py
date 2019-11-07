@@ -24,8 +24,22 @@ def astra_batch_fp(x, angles):
 
     return astra.creators.create_sino3d_gpu(phantom_id, proj_geom, vol_geom)
 
+def astra_batch_bp(proj_id, angles, s, bs):
+    vol_geom = astra.create_vol_geom(s, s, bs)
+    rec_id = astra.data3d.create('-vol', vol_geom)
 
-def save(name, x):
+    # Set up the parameters for a reconstruction algorithm using the GPU
+    cfg = astra.astra_dict('BP3D_CUDA')
+    cfg['ReconstructionDataId'] = rec_id
+    cfg['ProjectionDataId'] = proj_id
+
+    # Create the algorithm object from the configuration structure
+    alg_id = astra.algorithm.create(cfg)
+    astra.algorithm.run(alg_id, 1)
+    return astra.data3d.get(rec_id)
+
+def save(name, xx):
+    x = xx.copy()
     x -= np.min(x)
     x /= np.max(x) / 255
     x = x.astype(np.uint8)
@@ -66,12 +80,16 @@ def main():
     save("bp.png", x_[0].cpu().numpy())
 
     s = time.time()
-    _, y_ = astra_batch_fp(x, angles)
+    proj_id, y_ = astra_batch_fp(x, angles)
+    ax_ = astra_batch_bp(proj_id, angles, 128, batch_size)
     e = time.time()
     print("Astra Time", e - s)
-
+    save("astra_bp.png", ax_[0])
+    
     print("Batch error", np.linalg.norm(y_ - y.cpu().numpy()) / np.linalg.norm(y_))
+    print("Batch BP error", np.linalg.norm(ax_ - x_.cpu().numpy()) / np.linalg.norm(ax_))
 
+    
     _, ref = astra_single_fp(x[0], angles)
     error = np.linalg.norm(ref - y[0].cpu().numpy()) / np.linalg.norm(ref)
     print("My-ref Error", error)
