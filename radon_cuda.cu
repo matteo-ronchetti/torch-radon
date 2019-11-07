@@ -35,7 +35,7 @@ __global__ void radon_forward_kernel(float* output, cudaTextureObject_t texObj, 
 
 void radon_forward_cuda(const float* x, const float* rays, const float* angles, float* y, const int batch_size, const int img_size, const int n_rays, const int n_angles){
     cudaArray* tmp;
-    auto my_tex = create_texture(x, tmp, img_size, img_size, img_size);
+    auto my_tex = create_texture(x, tmp, batch_size, img_size, img_size);
 
     // Invoke kernel
     dim3 dimGrid(8, batch_size);

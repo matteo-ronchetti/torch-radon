@@ -25,7 +25,7 @@ rays = np.hstack((locations, -ys, locations, ys))
 print("Rays shape", rays.shape)
 
 # move to gpu
-x = torch.FloatTensor(img).to(device).view(1, 128, 128)
+x = torch.FloatTensor(img).to(device).view(1, 128, 128).repeat(10, 1, 1)
 rays = torch.FloatTensor(rays).to(device)
 angles = torch.FloatTensor(angles).to(device)
 
@@ -35,17 +35,17 @@ y = radon.forward(x, rays, angles)
 # e = time.time()
 # print("Time", e - s)
 print(y.size())
-y = y.cpu().numpy()[0]
+y = y.cpu().numpy()[9]
 # print("Error", np.linalg.norm(img - y)/np.linalg.norm(img))
 
 vol_geom = astra.create_vol_geom(128, 128)
 proj_geom = astra.create_proj_geom('parallel', 1.0, 128, -angles.cpu().numpy())
 proj_id = astra.create_projector('cuda', proj_geom, vol_geom)
-x_ = x.cpu().numpy()
+x_ = x.cpu().numpy()[0]
 
 # s = time.time()
 # for i in range(1000):
-sinogram_id, y_ = astra.create_sino(x.cpu().numpy(), proj_id)
+sinogram_id, y_ = astra.create_sino(x_, proj_id)
 # e = time.time()
 # print("Astra Time", e - s)
 
