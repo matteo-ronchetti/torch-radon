@@ -65,7 +65,7 @@ def main():
     rays = np.hstack((locations, -ys, locations, ys))
     print("Rays shape", rays.shape)
 
-    batch_size = 1024*2
+    batch_size = 16
     # move to gpu
     x = torch.FloatTensor(img).to(device).view(1, 128, 128).repeat(batch_size, 1, 1)
     rays = torch.FloatTensor(rays).to(device)
@@ -77,11 +77,18 @@ def main():
     my_fp_time = e - s
     print("My FP Time", my_fp_time)
 
+    f =  2 * np.abs(np.fft.fftfreq(256))
+    f = torch.FloatTensor(f).to(device)
+    yf = radon.filter_sinogram(y, f)
+    print(yf.shape)
+    save("filtered_sino.png", yf[0].cpu().numpy())
+    
     s = time.time()
-    x_ = radon.backward(y, rays, angles)
+    x_ = radon.backward(yf, rays, angles)
     e = time.time()
     my_bp_time = e - s
     print("My BP Time", my_bp_time)
+    save("fbp.png", x_[0].cpu().numpy())
     
     s = time.time()
     proj_id, y_ = astra_batch_fp(x, angles)

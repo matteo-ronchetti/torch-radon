@@ -6,7 +6,7 @@
 // CUDA forward declarations
 void radon_forward_cuda(const float* x, const float* rays, const float* angles, float* y, const int batch_size, const int img_size, const int n_rays, const int n_angles);
 void radon_backward_cuda(const float* x, const float* rays, const float* angles, float* y, const int batch_size, const int img_size, const int n_rays, const int n_angles);
-void radon_filter_sinogram_cuda(const float* x, float* y, const int batch_size, const int n_rays, const int n_angles);
+void radon_filter_sinogram_cuda(const float* x, const float* f, float* y, const int batch_size, const int n_rays, const int n_angles);
 
 
 #define CHECK_CUDA(x) TORCH_CHECK(x.type().is_cuda(), #x " must be a CUDA tensor")
@@ -59,7 +59,7 @@ torch::Tensor radon_backward(torch::Tensor x, torch::Tensor rays, torch::Tensor 
 }
 
 
-torch::Tensor radon_filter_sinogram(torch::Tensor x) {
+torch::Tensor radon_filter_sinogram(torch::Tensor x, torch::Tensor f) {
     CHECK_INPUT(x);
     const int batch_size = x.size(0);
     const int n_angles = x.size(1);
@@ -67,9 +67,9 @@ torch::Tensor radon_filter_sinogram(torch::Tensor x) {
 
     // create output image tensor
     auto options = torch::TensorOptions().dtype(torch::kFloat32).device(x.device());
-    auto y = torch::empty({batch_size, img_size, img_size}, options);
+    auto y = torch::empty({batch_size, n_angles, n_rays*2}, options);
 
-    radon_filter_sinogram_cuda(x.data<float>(), y.data<float>(), batch_size, n_rays, n_angles);
+    radon_filter_sinogram_cuda(x.data<float>(), f.data<float>(), y.data<float>(), batch_size, n_rays, n_angles);
 
     return y;
 }
@@ -78,4 +78,5 @@ torch::Tensor radon_filter_sinogram(torch::Tensor x) {
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("forward", &radon_forward, "Radon forward projection");
   m.def("backward", &radon_backward, "Radon backprojection");
+  m.def("filter_sinogram", &radon_filter_sinogram, "Radon backprojection");
 }
