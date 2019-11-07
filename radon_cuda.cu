@@ -1,4 +1,5 @@
 #include <iostream>
+#include <cufft.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include "utils.h"
@@ -22,7 +23,7 @@ __global__ void radon_forward_kernel(float* output, cudaTextureObject_t texObj, 
         float angle = angles[i];
         float cs = __cosf(angle);
         float sn = __sinf(angle);
-        
+
         float sx = rsx*cs - rsy*sn + v;
         float sy = rsx*sn + rsy*cs + v;
         float rvx = vx*cs - vy*sn;
@@ -84,6 +85,31 @@ void radon_backward_cuda(const float* x, const float* rays, const float* angles,
     cudaFreeArray(tmp);
 }
 
+
+void radon_filter_sinogram_cuda(const float* x, float* y, const int batch_size, const int n_rays, const int n_angles){
+    //TODO int padded_size = next_power_of_two(n_rays);
+    int padded_size = n_rays;
+    //TODO actual padding
+    cufftReal* padded_data = x;
+    cufftComplex* complex_data = nullptr;
+
+    std::cout << "float: " << sizeof(float) << std::endl;
+    std::cout << "cufftReal: " << sizeof(cufftReal) << std::endl;
+    std::cout << "cufftComplex: " << sizeof(cufftComplex) << std::endl;
+
+    cufftComplex *complex_data;
+    checkCudaErrors(cudaMalloc((void**)&complex_data, sizeof(cufftComplex)*n_angles*batch_size));
+
+    cufftHandle plan;
+    checkCudaErrors(cufftPlan1d(&plan, padded_size, CUFFT_R2C, batch_size*n_angles));
+
+    checkCudaErrors(cufftExecR2C(plan, padded_data, complex_data));
+
+    // TODO pad also y
+    checkCudaErrors(cufftExecC2R(plan, complex_data, y));
+
+    checkCudaErrors(cufftDestroy(plan));
+}
 
 int main(){
     std::cout << "Hello CUDA" << std::endl;
