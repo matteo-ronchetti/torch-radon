@@ -5,7 +5,7 @@
 
 typedef unsigned int uint;
 
-cudaTextureObject_t create_texture(const float* data, cudaArray*& cuArray, uint batch_size, uint img_size, uint pitch){
+cudaTextureObject_t create_texture(const float* data, cudaArray*& cuArray, uint batch_size, uint width, uint height, uint pitch){
     // Allocate a layered CUDA array
     cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc(32, 0, 0, 0, cudaChannelFormatKindFloat);
     const cudaExtent extent = make_cudaExtent(img_size, img_size, batch_size);
