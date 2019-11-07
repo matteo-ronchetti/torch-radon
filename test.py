@@ -38,6 +38,22 @@ def astra_batch_bp(proj_id, angles, s, bs):
     astra.algorithm.run(alg_id, 1)
     return astra.data3d.get(rec_id)
 
+def astra_fbp(proj_id, s):
+    vol_geom = astra.create_vol_geom(s, s)
+    rec_id = astra.data2d.create('-vol', vol_geom)
+
+    # create configuration 
+    cfg = astra.astra_dict('FBP_CUDA')
+    cfg['ReconstructionDataId'] = rec_id
+    cfg['ProjectionDataId'] = proj_id
+    cfg['option'] = { 'FilterType': 'Ram-Lak' }
+
+    alg_id = astra.algorithm.create(cfg)
+    astra.algorithm.run(alg_id)
+
+    return astra.data2d.get(rec_id)
+    
+
 def save(name, xx):
     x = xx.copy()
     x -= np.min(x)
@@ -77,14 +93,17 @@ def main():
     my_fp_time = e - s
     print("My FP Time", my_fp_time)
 
-    f =  2 * np.abs(np.fft.fftfreq(256))
-    f = torch.FloatTensor(f).to(device)
-    yf = radon.filter_sinogram(y, f)
-    print(yf.shape)
+    s = time.time()
+    yf = radon.filter_sinogram(y)
+    my_fbp = radon.backward(yf, rays, angles)
+    e = time.time()
+    my_fbp_time = e - s
+    print("My FBP Time", my_fbp_time)
+
     save("filtered_sino.png", yf[0].cpu().numpy())
     
     s = time.time()
-    x_ = radon.backward(yf, rays, angles)
+    x_ = radon.backward(y, rays, angles)
     e = time.time()
     my_bp_time = e - s
     print("My BP Time", my_bp_time)
@@ -95,13 +114,23 @@ def main():
     e = time.time()
     astra_fp_time = e - s
     print("Astra FP Time", astra_fp_time)
-
+    
     s = time.time()
     ax_ = astra_batch_bp(proj_id, angles, 128, batch_size)
     e = time.time()
     astra_bp_time = e - s
     print("Astra BP Time", astra_bp_time)
-    
+   
+
+    s = time.time()
+    proj_id, _ = astra_single_fp(x[0], angles)
+    a_fbp = astra_fbp(proj_id, 128)
+    e = time.time()
+    astra_fbp_time = e - s
+    print("Astra FBP Time", astra_fbp_time)
+    save("fbp.png", a_fbp)
+
+
     print("Speedup, fp:", astra_fp_time/my_fp_time, " bp:", astra_bp_time/my_bp_time, " total:", (astra_bp_time + astra_fp_time)/(my_bp_time + my_fp_time))
     
     save("astra_bp.png", ax_[0])

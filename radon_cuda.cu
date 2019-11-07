@@ -87,7 +87,7 @@ void radon_backward_cuda(const float* x, const float* rays, const float* angles,
 
 
 #define MIN(a,b) (((a)<(b))?(a):(b))
-__global__ void apply_filter(cufftComplex* sino, const float* f, const int fft_size) {
+__global__ void apply_filter(cufftComplex* sino, const int fft_size) {
     const uint x = blockIdx.x * blockDim.x + threadIdx.x;
     const uint y = blockIdx.y * blockDim.y + threadIdx.y;
 
@@ -108,7 +108,7 @@ unsigned int next_power_of_two(unsigned int v){
     return v;
 }
 
-void radon_filter_sinogram_cuda(const float* x, const float* f, float* y, const int batch_size, const int n_rays, const int n_angles){
+void radon_filter_sinogram_cuda(const float* x, float* y, const int batch_size, const int n_rays, const int n_angles){
     const int rows = batch_size*n_angles;
     const int padded_size = next_power_of_two(n_rays*2);
     // cuFFT only stores half of the coefficient because they are symmetric (see cuFFT documentation)
@@ -141,7 +141,7 @@ void radon_filter_sinogram_cuda(const float* x, const float* f, float* y, const 
     checkCudaErrors(cufftExecR2C(forward_plan, padded_data, complex_data));
 
     // filter in Fourier domain
-    apply_filter<<<dim3(fft_size/16 + 1, rows/16), dim3(16, 16)>>>(complex_data, f, fft_size);
+    apply_filter<<<dim3(fft_size/16 + 1, rows/16), dim3(16, 16)>>>(complex_data, fft_size);
 
     // do iFFT
     checkCudaErrors(cufftExecC2R(back_plan, complex_data, filtered_padded_sino));
