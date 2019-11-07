@@ -92,8 +92,8 @@ __global__ void apply_filter(cufftComplex* sino, const float* f, const int fft_s
     const uint y = blockIdx.y * blockDim.y + threadIdx.y;
 
     if(x < fft_size){
-        sino[fft_size*y + x].x *= x;
-        sino[fft_size*y + x].y *= x;
+        sino[fft_size*y + x].x *= 2*x;
+        sino[fft_size*y + x].y *= 2*x;
     }
 }
 
@@ -141,7 +141,7 @@ void radon_filter_sinogram_cuda(const float* x, const float* f, float* y, const 
     checkCudaErrors(cufftExecR2C(forward_plan, padded_data, complex_data));
 
     // filter in Fourier domain
-    // apply_filter<<<dim3(fft_size/16 + 1, rows/16), dim3(16, 16)>>>(complex_data, f, fft_size);
+    apply_filter<<<dim3(fft_size/16 + 1, rows/16), dim3(16, 16)>>>(complex_data, f, fft_size);
 
     // do iFFT
     checkCudaErrors(cufftExecC2R(back_plan, complex_data, filtered_padded_sino));
