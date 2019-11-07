@@ -91,8 +91,8 @@ __global__ void apply_filter(cufftComplex* sino,const float* f) {
     const uint x = blockIdx.x * blockDim.x + threadIdx.x;
     const uint y = blockIdx.y * blockDim.y + threadIdx.y;
 
-    const int numSensors = 256;
-    const float k = MIN(float(x), 256.0f - float(x)) / (float)numSensors;
+    const int numSensors = 128;
+    const float k = MIN(float(x), 128.0f - float(x)) / (float)numSensors;
 
     sino[numSensors*y + x].x *= k;
     sino[numSensors*y + x].y *= k;
@@ -117,7 +117,7 @@ void radon_filter_sinogram_cuda(const float* x, const float* f, float* y, const 
     checkCudaErrors(cufftExecR2C(forward_plan, padded_data, complex_data));
 
     // TODO è fatto a cazzo
-    apply_filter<<<dim3(16, n_angles), dim3(16, 16)>>>(complex_data, f);
+    apply_filter<<<dim3(8, n_angles), dim3(16, 16)>>>(complex_data, f);
 
     // TODO pad also y
     checkCudaErrors(cufftExecC2R(back_plan, complex_data, y));
