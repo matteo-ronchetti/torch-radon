@@ -61,13 +61,16 @@ torch::Tensor radon_backward(torch::Tensor x, torch::Tensor rays, torch::Tensor 
 
 torch::Tensor radon_filter_sinogram(torch::Tensor x, torch::Tensor f) {
     CHECK_INPUT(x);
+
     const int batch_size = x.size(0);
     const int n_angles = x.size(1);
     const int n_rays = x.size(2);
 
+    TORCH_CHECK((n_angles * batch_size) % 16 == 0, "(n_angles * batch_size) % 16 == 0")
+
     // create output image tensor
     auto options = torch::TensorOptions().dtype(torch::kFloat32).device(x.device());
-    auto y = torch::empty({batch_size, n_angles, n_rays*2}, options);
+    auto y = torch::empty({batch_size, n_angles, n_rays}, options);
 
     radon_filter_sinogram_cuda(x.data<float>(), f.data<float>(), y.data<float>(), batch_size, n_rays, n_angles);
 
