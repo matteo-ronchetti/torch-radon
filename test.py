@@ -58,7 +58,7 @@ def test_forward_projection(radon, astra, x, x_cpu, angles):
 def main():
     n_angles = 180
     img_size = 128
-    batch_size = 128
+    batch_size = 8
 
     print(f"Found GPU {torch.cuda.get_device_name(0)}")
     device = torch.device('cuda')
@@ -99,35 +99,44 @@ def main():
 
     print("\n\nTesting convolutional filter...")
     # load ramp filter
-    f = np.load("ramp-filter.npy") / 0.012281854 * np.pi/(2.88*2*n_angles)
+    f = np.load("ramp-filter.npy") # / 0.012281854 * np.pi/(2.88*2*n_angles)
+    print("filter sum", np.sum(f))
     pad = f.shape[0] // 2
     conv_filter = torch.FloatTensor(f.reshape(1, 1, 1, -1)).to(device)
     conv_filter.requires_grad = True
     
-    sinogram = radon.forward(x, angles)
-    
-    # apply filter to sinogram
-    filtered_sinogram = F.conv2d(sinogram.view(batch_size, 1, n_angles, img_size), conv_filter, padding=(0, pad)).view(batch_size, n_angles, img_size)
-    print(filtered_sinogram.size())
-    fs = filtered_sinogram[0].detach().cpu().numpy()
-    x_ = x[0].cpu().numpy()
-    print(np.min(fs), np.max(fs), np.min(x_), np.max(x_))
-    print(fs.shape, x_.shape)
-    print(np.linalg.norm(fs)/ np.linalg.norm(x_))
+    s = time.time()
+    for _ in range(1):
+        sinogram = radon.forward(x, angles)
 
-    save("filtered_sinogram.png", fs)
+        # apply filter to sinogram
+        filtered_sinogram = F.conv2d(sinogram.view(batch_size, 1, n_angles, img_size), conv_filter, padding=(0, pad)).view(batch_size, n_angles, img_size)
+        #print(filtered_sinogram.size())
+#         fs = filtered_sinogram[0].detach().cpu().numpy()
+#         x_ = x[0].cpu().numpy()
+#         print(np.min(fs), np.max(fs), np.min(x_), np.max(x_))
+#         print(fs.shape, x_.shape)
+#         print(np.linalg.norm(fs)/ np.linalg.norm(x_))
 
-    # backproject
-    fbp = radon.backprojection(filtered_sinogram, angles)
-    save("fbp.png", fbp[0].detach().cpu().numpy())
-    
-    print(fbp[0].size(), x[0].size())
-    print(np.linalg.norm(fbp[0].detach().cpu().numpy()) / np.linalg.norm(x[0].cpu().numpy()))
-    
-    loss = F.mse_loss(fbp, x)
-    print(loss.item())
-    loss.backward()
+#         save("filtered_sinogram.png", fs)
 
+        # backproject
+        fbp = radon.backprojection(filtered_sinogram, angles)
+        fbp += -8235.569
+        fbp /= (45317.203 -8235.569)/255.0
+        fs = fbp[0].detach().cpu().numpy()
+        print(np.min(fs), np.max(fs))
+#         save("fbp.png", fbp[0].detach().cpu().numpy())
+
+#         print(fbp[0].size(), x[0].size())
+#         print(np.linalg.norm(fbp[0].detach().cpu().numpy()) / np.linalg.norm(x[0].cpu().numpy()))
+
+        loss = F.mse_loss(fbp/255, x/255)
+        print(loss.item())
+        loss.backward()
+    e = time.time()
+    print(e-s)
+        
     # s = time.time()
     # yf = radon.filter_sinogram(y)
     # my_fbp = radon.backward(yf, rays, angles)
