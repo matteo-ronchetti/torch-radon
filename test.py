@@ -1,57 +1,11 @@
 import torch
+import torch.nn.functional as F
 import cv2
 import numpy as np
-import radon
 import time
-import astra
+from torch_radon import Radon
+from astra_wrapper import AstraWrapper
 
-
-def astra_single_fp(x, angles):
-    vol_geom = astra.create_vol_geom(128, 128)
-    proj_geom = astra.create_proj_geom('parallel', 1.0, 128, -angles.cpu().numpy())
-    proj_id = astra.create_projector('cuda', proj_geom, vol_geom)
-    x_ = x.cpu().numpy()
-
-    return astra.create_sino(x_, proj_id)
-
-
-def astra_batch_fp(x, angles):
-    x_ = x.cpu().numpy()
-
-    vol_geom = astra.create_vol_geom(x.size(1), x.size(2), x.size(0))
-    phantom_id = astra.data3d.create('-vol', vol_geom, data=x_)
-    proj_geom = astra.create_proj_geom('parallel3d', 1.0, 1.0, x_.shape[0], x_.shape[1], angles.cpu().numpy())
-
-    return astra.creators.create_sino3d_gpu(phantom_id, proj_geom, vol_geom)
-
-def astra_batch_bp(proj_id, angles, s, bs):
-    vol_geom = astra.create_vol_geom(s, s, bs)
-    rec_id = astra.data3d.create('-vol', vol_geom)
-
-    # Set up the parameters for a reconstruction algorithm using the GPU
-    cfg = astra.astra_dict('BP3D_CUDA')
-    cfg['ReconstructionDataId'] = rec_id
-    cfg['ProjectionDataId'] = proj_id
-
-    # Create the algorithm object from the configuration structure
-    alg_id = astra.algorithm.create(cfg)
-    astra.algorithm.run(alg_id, 1)
-    return astra.data3d.get(rec_id)
-
-def astra_fbp(proj_id, s):
-    vol_geom = astra.create_vol_geom(s, s)
-    rec_id = astra.data2d.create('-vol', vol_geom)
-
-    # create configuration
-    cfg = astra.astra_dict('FBP_CUDA')
-    cfg['ReconstructionDataId'] = rec_id
-    cfg['ProjectionDataId'] = proj_id
-    cfg['option'] = { 'FilterType': 'Ram-Lak' }
-
-    alg_id = astra.algorithm.create(cfg)
-    astra.algorithm.run(alg_id)
-
-    return astra.data2d.get(rec_id)
 
 def save(name, xx):
     x = xx.copy()
@@ -61,95 +15,148 @@ def save(name, xx):
     cv2.imwrite(name, x)
 
 
+def relative_error(ref, x):
+    return np.linalg.norm(ref - x) / np.linalg.norm(ref)
+
+
+def test_backward_projection(radon, astra, my_fp, astra_fp_id, angles, img_size, batch_size):
+    s = time.time()
+    my_bp = radon.backward(my_fp, angles)
+    e = time.time()
+    my_bp_time = e - s
+    save("backprojection.png", my_bp[0].cpu().numpy())
+
+    s = time.time()
+    astra_bp = astra.backproject(astra_fp_id, angles, img_size, batch_size)
+    e = time.time()
+    astra_bp_time = e - s
+
+    error = relative_error(astra_bp, my_bp.cpu().numpy())
+
+    return error, my_bp_time, astra_bp_time
+
+
+def test_forward_projection(radon, astra, x, x_cpu, angles):
+    s = time.time()
+    my_fp = radon.forward(x, angles)
+    e = time.time()
+    my_fp_time = e - s
+    save("sinogram.png", my_fp[0].cpu().numpy())
+
+    s = time.time()
+    astra_fp_id, astra_fp = astra.forward(x_cpu)
+    e = time.time()
+    astra_fp_time = e - s
+
+    error = relative_error(astra_fp, my_fp.cpu().numpy())
+
+    return error, my_fp_time, astra_fp_time, my_fp, astra_fp_id
+
+
 def main():
+    n_angles = 180
+    img_size = 128
+    batch_size = 16
+
     print(f"Found GPU {torch.cuda.get_device_name(0)}")
     device = torch.device('cuda')
 
     # read test image
     img = cv2.imread("phantom.png", cv2.IMREAD_GRAYSCALE).astype(np.float32)
-    img = cv2.resize(img, (128, 128), interpolation=cv2.INTER_AREA)
+    img = cv2.resize(img, (img_size, img_size), interpolation=cv2.INTER_AREA)
 
-    angles = np.linspace(0, 2 * np.pi, 180).astype(np.float32)
-    print(angles.shape)
+    angles = np.linspace(0, 2 * np.pi, n_angles).astype(np.float32)
 
-    # compute rays
-    s = img.shape[0] // 2
-    locations = np.arange(2 * s) - s + 0.5
-    ys = np.sqrt(s ** 2 - locations ** 2)
-    locations = locations.reshape(-1, 1)
-    ys = ys.reshape(-1, 1)
-    rays = np.hstack((locations, -ys, locations, ys))
-    print("Rays shape", rays.shape)
+    radon = Radon(img_size).to(device)
+    astra = AstraWrapper(angles)
 
-    batch_size = 16
     # move to gpu
-    x = torch.FloatTensor(img).to(device).view(1, 128, 128).repeat(batch_size, 1, 1)
-    rays = torch.FloatTensor(rays).to(device)
+    x = torch.FloatTensor(img).to(device).view(1, img_size, img_size).repeat(batch_size, 1, 1)
+    x_cpu = x.cpu().numpy()
     angles = torch.FloatTensor(angles).to(device)
 
-    s = time.time()
-    y = radon.forward(x, rays, angles)
-    e = time.time()
-    my_fp_time = e - s
+    # Check if results are close to what astra produces
+    with torch.no_grad():
+        print("Testing FP...")
+        error, my_fp_time, astra_fp_time, my_fp, astra_fp_id = test_forward_projection(radon, astra, x, x_cpu, angles)
+        print("FP error", error)
+
+        print("\n\nTesting BP...")
+        error, my_bp_time, astra_bp_time = test_backward_projection(radon, astra, my_fp, astra_fp_id, angles, img_size,
+                                                                    batch_size)
+        print("BP error", error)
+
+    # print timings
+    print("\n\n SPEED RESULTS")
     print("My FP Time", my_fp_time)
-
-    s = time.time()
-    yf = radon.filter_sinogram(y)
-    my_fbp = radon.backward(yf, rays, angles)
-    e = time.time()
-    my_fbp_time = e - s
-    my_fbp /= 256*128
-    my_fbp /= (2*angles.size(0))
-    my_fbp *= np.pi
-    print("My FBP Time", my_fbp_time)
-    my_fbp = my_fbp[0].cpu().numpy()
-    save("fbp.png", my_fbp)
-    
-    save("filtered_sino.png", yf[0].cpu().numpy())
-    
-    s = time.time()
-    x_ = radon.backward(y, rays, angles)
-    e = time.time()
-    my_bp_time = e - s
-    print("My BP Time", my_bp_time)
-    save("bp.png", x_[0].cpu().numpy())
-    
-    s = time.time()
-    proj_id, y_ = astra_batch_fp(x, angles)
-    e = time.time()
-    astra_fp_time = e - s
     print("Astra FP Time", astra_fp_time)
-    
-    s = time.time()
-    ax_ = astra_batch_bp(proj_id, angles, 128, batch_size)
-    e = time.time()
-    astra_bp_time = e - s
+    print("My BP Time", my_bp_time)
     print("Astra BP Time", astra_bp_time)
-   
+    print("Speedup, fp:", astra_fp_time / my_fp_time, " bp:", astra_bp_time / my_bp_time, " total:",
+          (astra_bp_time + astra_fp_time) / (my_bp_time + my_fp_time))
 
-    s = time.time()
-    proj_id, _ = astra_single_fp(x[0], angles)
-    a_fbp = astra_fbp(proj_id, 128)
-    e = time.time()
-    astra_fbp_time = e - s
-    print("Astra FBP Time", astra_fbp_time)
-    save("astra_fbp.png", a_fbp)
+    print("\n\nTesting convolutional filter...")
+    # load ramp filter
+    f = np.load("ramp-filter.npy")
+    pad = f.shape[0] // 2
+    conv_filter = torch.FloatTensor(f.reshape(1, 1, 1, -1))
 
+    # apply filter to sinogram
+    filtered_sinogram = F.conv2d(my_fp, conv_filter, padding=pad)
+    save("filtered_sinogram.png", filtered_sinogram[0].cpu().numpy())
 
-    print("Speedup, fp:", astra_fp_time/my_fp_time, " bp:", astra_bp_time/my_bp_time, " total:", (astra_bp_time + astra_fp_time)/(my_bp_time + my_fp_time))
-    
-    save("astra_bp.png", ax_[0])
-    
-    print("Batch error", np.linalg.norm(y_ - y.cpu().numpy()) / np.linalg.norm(y_))
-    print("Batch BP error", np.linalg.norm(ax_ - x_.cpu().numpy()) / np.linalg.norm(ax_))
-    print(np.max(a_fbp), np.max(my_fbp))
-    print("FBP error", np.linalg.norm(a_fbp - my_fbp) / np.linalg.norm(a_fbp))
+    # backproject
+    fbp = radon.backprojection(filtered_sinogram, angles)
+    save("fbp.png", fbp[0].cpu().numpy())
 
-    _, ref = astra_single_fp(x[0], angles)
-    error = np.linalg.norm(ref - y[0].cpu().numpy()) / np.linalg.norm(ref)
-    print("My-ref Error", error)
-    error = np.linalg.norm(ref - y_[0]) / np.linalg.norm(ref)
-    print("Astra-ref Error", error)
+    # s = time.time()
+    # yf = radon.filter_sinogram(y)
+    # my_fbp = radon.backward(yf, rays, angles)
+    # e = time.time()
+    # my_fbp_time = e - s
+    # my_fbp /= 256 * 128
+    # my_fbp /= (2 * angles.size(0))
+    # my_fbp *= np.pi
+    #
+    # print("My FBP Time", my_fbp_time)
+    # my_fbp = my_fbp[0].cpu().numpy()
+    # save("fbp.png", my_fbp)
+    #
+    # save("filtered_sino.png", yf[0].cpu().numpy())
+    #
+    # s = time.time()
+    # x_ = radon.backward(y, rays, angles)
+    # e = time.time()
+    # my_bp_time = e - s
+    # print("My BP Time", my_bp_time)
+    # save("bp.png", x_[0].cpu().numpy())
+    #
+    # s = time.time()
+    # proj_id, y_ = astra_batch_fp(x, angles)
+    # e = time.time()
+    # astra_fp_time = e - s
+    # print("Astra FP Time", astra_fp_time)
+    #
+    # s = time.time()
+    # proj_id, _ = astra_single_fp(x[0], angles)
+    # a_fbp = astra_fbp(proj_id, 128)
+    # e = time.time()
+    # astra_fbp_time = e - s
+    # print("Astra FBP Time", astra_fbp_time)
+    # save("astra_fbp.png", a_fbp)
+    #
+    # save("astra_bp.png", ax_[0])
+    #
+    # print("Batch error", np.linalg.norm(y_ - y.cpu().numpy()) / np.linalg.norm(y_))
+    # print("Batch BP error", np.linalg.norm(ax_ - x_.cpu().numpy()) / np.linalg.norm(ax_))
+    # print(np.max(a_fbp), np.max(my_fbp))
+    # print("FBP error", np.linalg.norm(a_fbp - my_fbp) / np.linalg.norm(a_fbp))
+    #
+    # _, ref = astra_single_fp(x[0], angles)
+    # error = np.linalg.norm(ref - y[0].cpu().numpy()) / np.linalg.norm(ref)
+    # print("My-ref Error", error)
+    # error = np.linalg.norm(ref - y_[0]) / np.linalg.norm(ref)
+    # print("Astra-ref Error", error)
 
 
 main()

@@ -1,9 +1,9 @@
 .idea/
-build/
-dist/
 .ipynb_checkpoints/
-radon.egg-info/
+
+torch_radon/build/
+torch_radon/dist/
+torch_radon/radon.egg-info/
 
 *.pyc
-astra.cu
 test
