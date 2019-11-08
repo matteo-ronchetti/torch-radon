@@ -1,9 +1,9 @@
 from setuptools import setup, Extension
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 
-setup(name='radon',
+setup(name='torch_radon',
       ext_modules=[
-          CUDAExtension('radon', [
+          CUDAExtension('torch_radon_cuda', [
               'radon.cpp',
               'radon_cuda.cu',
           ])

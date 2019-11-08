@@ -2,7 +2,7 @@
 #include <cufft.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
-#include "utils.h"
+#include "include/utils.h"
 
 __global__ void radon_forward_kernel(float* output, cudaTextureObject_t texObj, const float* rays, const float* angles, const int img_size, const int n_rays, const int n_angles) {
     // Calculate texture coordinates

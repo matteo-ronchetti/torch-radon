@@ -21,13 +21,13 @@ def relative_error(ref, x):
 
 def test_backward_projection(radon, astra, my_fp, astra_fp_id, angles, img_size, batch_size):
     s = time.time()
-    my_bp = radon.backward(my_fp, angles)
+    my_bp = radon.backprojection(my_fp, angles)
     e = time.time()
     my_bp_time = e - s
     save("backprojection.png", my_bp[0].cpu().numpy())
 
     s = time.time()
-    astra_bp = astra.backproject(astra_fp_id, angles, img_size, batch_size)
+    astra_bp = astra.backproject(astra_fp_id, img_size, batch_size)
     e = time.time()
     astra_bp_time = e - s
 
@@ -97,17 +97,22 @@ def main():
 
     print("\n\nTesting convolutional filter...")
     # load ramp filter
-    f = np.load("ramp-filter.npy")
+    f = np.load("ramp-filter.npy") * np.pi/(2*n_angles)
     pad = f.shape[0] // 2
-    conv_filter = torch.FloatTensor(f.reshape(1, 1, 1, -1))
+    conv_filter = torch.FloatTensor(f.reshape(1, 1, 1, -1)).to(device)
 
     # apply filter to sinogram
-    filtered_sinogram = F.conv2d(my_fp, conv_filter, padding=pad)
-    save("filtered_sinogram.png", filtered_sinogram[0].cpu().numpy())
+    filtered_sinogram = F.conv2d(my_fp.view(batch_size, 1, n_angles, img_size), conv_filter, padding=(0, pad)).view(batch_size, n_angles, img_size)
+    print(filtered_sinogram.size())
+    save("filtered_sinogram.png", filtered_sinogram[0, 0].cpu().numpy())
 
     # backproject
     fbp = radon.backprojection(filtered_sinogram, angles)
     save("fbp.png", fbp[0].cpu().numpy())
+    
+    loss = F.mse_loss(fbp, x)
+    print(loss.item())
+    loss.backward()
 
     # s = time.time()
     # yf = radon.filter_sinogram(y)
