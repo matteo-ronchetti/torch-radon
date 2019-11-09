@@ -1,6 +1,7 @@
 radon.cpp
 radon_cuda.cu
 setup.py
+torch_radon.py
 torch_radon.egg-info/PKG-INFO
 torch_radon.egg-info/SOURCES.txt
 torch_radon.egg-info/dependency_links.txt
