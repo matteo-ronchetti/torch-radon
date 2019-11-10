@@ -17,7 +17,7 @@ class RadonForward(Function):
     @staticmethod
     def backward(ctx, grad_x):
         rays, angles = ctx.saved_variables
-        return torch_radon_cuda.backward(grad_x, rays, angles)
+        return torch_radon_cuda.backward(grad_x, rays, angles), None, None
 
 
 class RadonBackprojection(Function):

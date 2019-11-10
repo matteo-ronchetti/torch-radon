@@ -5,12 +5,22 @@ class AstraWrapper:
     def __init__(self, angles):
         self.angles = angles
 
+        self.projectors = []
+        self.algorithms = []
+        self.data2d = []
+        self.data3d = []
+
     def forward(self, x):
         vol_geom = astra.create_vol_geom(x.shape[1], x.shape[2], x.shape[0])
         phantom_id = astra.data3d.create('-vol', vol_geom, data=x)
         proj_geom = astra.create_proj_geom('parallel3d', 1.0, 1.0, x.shape[0], x.shape[1], self.angles)
 
-        return astra.creators.create_sino3d_gpu(phantom_id, proj_geom, vol_geom)
+        proj_id, y = astra.creators.create_sino3d_gpu(phantom_id, proj_geom, vol_geom)
+
+        self.projectors.append(proj_id)
+        self.data3d.append(phantom_id)
+
+        return proj_id, y
 
     def backproject(self, proj_id, s, bs):
         vol_geom = astra.create_vol_geom(s, s, bs)
@@ -24,12 +34,18 @@ class AstraWrapper:
         # Create the algorithm object from the configuration structure
         alg_id = astra.algorithm.create(cfg)
         astra.algorithm.run(alg_id, 1)
+
+        self.algorithms.append(alg_id)
+        self.data3d.append(rec_id)
+
         return astra.data3d.get(rec_id)
 
     def forward_single(self, x):
         vol_geom = astra.create_vol_geom(x.shape[0], x.shape[1])
         proj_geom = astra.create_proj_geom('parallel', 1.0, x.shape[0], -self.angles)
         proj_id = astra.create_projector('cuda', proj_geom, vol_geom)
+
+        self.projectors.append(proj_id)
 
         return astra.create_sino(x, proj_id)
 
@@ -48,5 +64,22 @@ class AstraWrapper:
         alg_id = astra.algorithm.create(cfg)
         astra.algorithm.run(alg_id)
 
+        self.projectors.append(proj_id)
+        self.algorithms.append(alg_id)
+        self.data2d.append(rec_id)
+
         return astra.data2d.get(rec_id)
 
+    def __del__(self):
+        # clean all astra stuff
+        for pid in self.projectors:
+            astra.projector.delete(pid)
+
+        for pid in self.algorithms:
+            astra.algorithm.delete(pid)
+
+        for pid in self.data2d:
+            astra.data2d.delete(pid)
+
+        for pid in self.data3d:
+            astra.data3d.delete(pid)

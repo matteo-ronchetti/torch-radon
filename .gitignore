@@ -1,10 +1,10 @@
 .idea/
 .ipynb_checkpoints/
 
-torch_radon/build/
-torch_radon/dist/
-torch_radon/radon.egg-info/
-torch_radon/torch_radon.egg-info/
+build/
+dist/
+radon.egg-info/
+torch_radon.egg-info/
 
 *.pyc
 test
