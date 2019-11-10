@@ -1,7 +1,0 @@
-radon.cpp
-radon_cuda.cu
-setup.py
-radon.egg-info/PKG-INFO
-radon.egg-info/SOURCES.txt
-radon.egg-info/dependency_links.txt
-radon.egg-info/top_level.txt
