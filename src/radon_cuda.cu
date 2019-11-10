@@ -43,7 +43,8 @@ void radon_forward_cuda(const float* x, const float* rays, const float* angles, 
     auto my_tex = create_texture(x, tmp, batch_size, img_size, img_size, img_size);
 
     // Invoke kernel
-    dim3 dimGrid(8, batch_size);
+    const int grid_size = img_size / 16;
+    dim3 dimGrid(grid_size, batch_size);
     dim3 dimBlock(16);
 
     radon_forward_kernel<<<dimGrid, dimBlock>>>(y, my_tex, rays, angles, img_size, n_rays, n_angles);
@@ -77,7 +78,8 @@ void radon_backward_cuda(const float* x, const float* rays, const float* angles,
     auto my_tex = create_texture(x, tmp, batch_size, n_rays, n_angles, n_rays);
 
     // Invoke kernel
-    dim3 dimGrid(8, 8, batch_size);
+    const int grid_size = img_size / 16;
+    dim3 dimGrid(grid_size, grid_size, batch_size);
     dim3 dimBlock(16, 16);
 
     radon_backward_kernel<<<dimGrid, dimBlock>>>(y, my_tex, rays, angles, img_size, n_rays, n_angles);
