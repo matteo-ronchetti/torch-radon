@@ -5,7 +5,7 @@
 #include "utils.h"
 #include "texture.h"
 
-__global__ void radon_forward_kernel_fast(float* __restrict__ output, cudaTextureObject_t texObj, const float* __restrict__ rays, const float* __restrict__ angles,
+__global__ void radon_forward_kernel(float* __restrict__ output, cudaTextureObject_t texObj, const float* __restrict__ rays, const float* __restrict__ angles,
                                      const int img_size, const int n_rays, const int n_angles) {
     // Calculate texture coordinates
     const uint ray_id = blockIdx.x * blockDim.x + threadIdx.x;
@@ -35,9 +35,6 @@ __global__ void radon_forward_kernel_fast(float* __restrict__ output, cudaTextur
     float tmp = 0.0;
     for (int j = 0; j < img_size; j++) {
         tmp += tex2DLayered<float>(texObj, sx + rvx * j, sy + rvy * j, batch_id);
-        /*tmp += tex2DLayered<float>(texObj, sx + rvx * (j + 1), sy + rvy * (j + 1), batch_id);
-        tmp += tex2DLayered<float>(texObj, sx + rvx * (j + 2), sy + rvy * (j + 2), batch_id);
-        tmp += tex2DLayered<float>(texObj, sx + rvx * (j + 3), sy + rvy * (j + 3), batch_id);*/
     }
 
     output[batch_id * n_rays * n_angles + angle_id * n_rays + ray_id] = tmp * n;
@@ -45,7 +42,7 @@ __global__ void radon_forward_kernel_fast(float* __restrict__ output, cudaTextur
 
 __global__ void radon_backward_kernel(float *output, cudaTextureObject_t texObj, const float *rays, const float *angles,
                                       const int img_size, const int n_rays, const int n_angles) {
-    
+
     __shared__ float s_sin[128];
     __shared__ float s_cos[128];
 
@@ -54,13 +51,13 @@ __global__ void radon_backward_kernel(float *output, cudaTextureObject_t texObj,
     const uint y = blockIdx.y * blockDim.y + threadIdx.y;
     const uint batch_id = blockIdx.z;
     const uint tid = threadIdx.y * 16 + threadIdx.x;
-    
+
     if(tid < 128){
         s_sin[tid] = __sinf(angles[tid]);
         s_cos[tid] = __cosf(angles[tid]);
     }
     __syncthreads();
-    
+
     const float v = img_size / 2;
     const float dx = (float) x - v + 0.5;
     const float dy = (float) y - v + 0.5;
@@ -69,12 +66,6 @@ __global__ void radon_backward_kernel(float *output, cudaTextureObject_t texObj,
     for (int i = 0; i < n_angles; i++) {
         float j = s_cos[i] * dx + s_sin[i] * dy + v;
         tmp += tex2DLayered<float>(texObj, j, i + 0.5f, batch_id);
-        /*j = s_cos[i+1] * dx + s_sin[i+1] * dy + v;
-        tmp += tex2DLayered<float>(texObj, j, i + 0.5f, batch_id);
-        j = s_cos[i+2] * dx + s_sin[i+2] * dy + v;
-        tmp += tex2DLayered<float>(texObj, j, i + 0.5f, batch_id);
-        j = s_cos[i+3] * dx + s_sin[i+3] * dy + v;
-        tmp += tex2DLayered<float>(texObj, j, i + 0.5f, batch_id);*/
     }
 
     output[batch_id * img_size * img_size + y * img_size + x] = tmp;
@@ -91,7 +82,7 @@ void radon_forward_cuda(const float *x, const float *rays, const float *angles, 
     dim3 dimGrid(grid_size, n_angles/16, batch_size);
     dim3 dimBlock(16, 16);
 
-    radon_forward_kernel_fast <<< dimGrid, dimBlock >>> (y, tex_cache.texObj, rays, angles, img_size, n_rays, n_angles);
+    radon_forward_kernel <<< dimGrid, dimBlock >>> (y, tex_cache.texObj, rays, angles, img_size, n_rays, n_angles);
 }
 
 void radon_backward_cuda(const float *x, const float *rays, const float *angles, float *y, TextureCache tex_cache, const int batch_size, const int img_size, const int n_rays, const int n_angles) {
