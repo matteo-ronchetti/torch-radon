@@ -1,9 +1,25 @@
-#include <iostream>
+#ifndef TORCH_RADON_UTILS_H
+#define TORCH_RADON_UTILS_H
+
+#include <stdlib.h>
+#include <stdio.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
-#include "cuda_helper.h"
+
 
 typedef unsigned int uint;
+
+#define checkCudaErrors(val)  check_cuda((val), #val, __FILE__, __LINE__)
+
+template<typename T> void check(T result, const char* func, const char* file, const int line){
+    if (result){
+        fprintf(stderr, "CUDA error at %s (%s:%d) error code: %d, error string: %s\n",
+                func, file, line, static_cast<unsigned int>(result), cuGetErrorName(result));
+        cudaDeviceReset();
+        exit(EXIT_FAILURE);
+    }
+}
+
 
 cudaTextureObject_t
 create_texture(const float *data, cudaArray *&cuArray, uint batch_size, uint width, uint height, uint pitch) {
@@ -45,3 +61,5 @@ create_texture(const float *data, cudaArray *&cuArray, uint batch_size, uint wid
 
     return texObj;
 }
+
+#endif

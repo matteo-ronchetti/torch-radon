@@ -1,6 +1,6 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
-#include "cuda_helper.h"
+#include "utils.h"
 
 typedef unsigned int uint;
 

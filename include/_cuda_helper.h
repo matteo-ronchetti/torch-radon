@@ -890,8 +890,7 @@ static const char *_cudaGetErrorEnum(NppStatus error)
 template< typename T >
 void check(T result, char const *const func, const char *const file, int const line)
 {
-    if (result)
-    {
+    if (result){
         fprintf(stderr, "CUDA error at %s:%d code=%d(%s) \"%s\" \n",
                 file, line, static_cast<unsigned int>(result), _cudaGetErrorEnum(result), func);
         DEVICE_RESET
@@ -1027,11 +1026,11 @@ inline int gpuGetMaxGflopsDeviceId()
     int max_perf_device    = 0;
     int device_count       = 0, best_SM_arch      = 0;
     int devices_prohibited = 0;
-    
+
     unsigned long long max_compute_perf = 0;
     cudaDeviceProp deviceProp;
     cudaGetDeviceCount(&device_count);
-    
+
     checkCudaErrors(cudaGetDeviceCount(&device_count));
 
     if (device_count == 0)
