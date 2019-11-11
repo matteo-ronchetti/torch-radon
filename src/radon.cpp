@@ -1,7 +1,8 @@
 #include <torch/extension.h>
-
 #include <iostream>
 #include <vector>
+
+#include "texture.h"
 
 // CUDA forward declarations
 void radon_forward_cuda(const float* x, const float* rays, const float* angles, float* y, const int batch_size, const int img_size, const int n_rays, const int n_angles);
@@ -14,7 +15,7 @@ void radon_filter_sinogram_cuda(const float* x, float* y, const int batch_size, 
 #define CHECK_INPUT(x) CHECK_CUDA(x); CHECK_CONTIGUOUS(x)
 
 
-torch::Tensor radon_forward(torch::Tensor x, torch::Tensor rays, torch::Tensor angles) {
+torch::Tensor radon_forward(torch::Tensor x, torch::Tensor rays, torch::Tensor angles, TextureCache tex_cache) {
     CHECK_INPUT(x);
     CHECK_INPUT(rays);
     CHECK_INPUT(angles);
@@ -30,13 +31,13 @@ torch::Tensor radon_forward(torch::Tensor x, torch::Tensor rays, torch::Tensor a
     auto options = torch::TensorOptions().dtype(torch::kFloat32).device(x.device());
     auto y = torch::empty({batch_size, n_angles, n_rays}, options);
 
-    radon_forward_cuda(x.data<float>(), rays.data<float>(), angles.data<float>(), y.data<float>(),
+    radon_forward_cuda(x.data<float>(), rays.data<float>(), angles.data<float>(), y.data<float>(), tex_cache,
                        batch_size, img_size, n_rays, n_angles);
 
     return y;
 }
 
-torch::Tensor radon_backward(torch::Tensor x, torch::Tensor rays, torch::Tensor angles) {
+torch::Tensor radon_backward(torch::Tensor x, torch::Tensor rays, torch::Tensor angles, TextureCache tex_cache) {
     CHECK_INPUT(x);
     CHECK_INPUT(rays);
     CHECK_INPUT(angles);
@@ -52,13 +53,13 @@ torch::Tensor radon_backward(torch::Tensor x, torch::Tensor rays, torch::Tensor 
     auto options = torch::TensorOptions().dtype(torch::kFloat32).device(x.device());
     auto y = torch::empty({batch_size, img_size, img_size}, options);
 
-    radon_backward_cuda(x.data<float>(), rays.data<float>(), angles.data<float>(), y.data<float>(),
+    radon_backward_cuda(x.data<float>(), rays.data<float>(), angles.data<float>(), y.data<float>(), tex_cache,
                        batch_size, img_size, n_rays, n_angles);
 
     return y;
 }
 
-
+/*
 torch::Tensor radon_filter_sinogram(torch::Tensor x) {
     CHECK_INPUT(x);
 
@@ -76,10 +77,11 @@ torch::Tensor radon_filter_sinogram(torch::Tensor x) {
 
     return y;
 }
-
+*/
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("forward", &radon_forward, "Radon forward projection");
   m.def("backward", &radon_backward, "Radon backprojection");
   m.def("filter_sinogram", &radon_filter_sinogram, "Radon backprojection");
+  py::class_<TextureCache>(m, "TextureCache").def(py::init<>());
 }

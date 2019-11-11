@@ -5,7 +5,8 @@
 
 typedef unsigned int uint;
 
-cudaTextureObject_t create_texture(const float* data, cudaArray*& cuArray, uint batch_size, uint width, uint height, uint pitch){
+cudaTextureObject_t
+create_texture(const float *data, cudaArray *&cuArray, uint batch_size, uint width, uint height, uint pitch) {
     // Allocate a layered CUDA array
     cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc(32, 0, 0, 0, cudaChannelFormatKindFloat);
     const cudaExtent extent = make_cudaExtent(width, height, batch_size);
@@ -13,9 +14,9 @@ cudaTextureObject_t create_texture(const float* data, cudaArray*& cuArray, uint 
 
     // copy data into array
     cudaMemcpy3DParms myparms = {0};
-    myparms.srcPos = make_cudaPos(0,0,0);
-    myparms.dstPos = make_cudaPos(0,0,0);
-    myparms.srcPtr = make_cudaPitchedPtr((void*) data, pitch * sizeof(float), width, height);
+    myparms.srcPos = make_cudaPos(0, 0, 0);
+    myparms.dstPos = make_cudaPos(0, 0, 0);
+    myparms.srcPtr = make_cudaPitchedPtr((void *) data, pitch * sizeof(float), width, height);
     myparms.dstArray = cuArray;
     myparms.extent = extent;
     myparms.kind = cudaMemcpyDeviceToDevice;
@@ -32,10 +33,10 @@ cudaTextureObject_t create_texture(const float* data, cudaArray*& cuArray, uint 
     // Specify texture object parameters
     cudaTextureDesc texDesc;
     memset(&texDesc, 0, sizeof(texDesc));
-    texDesc.addressMode[0]   = cudaAddressModeBorder;
-    texDesc.addressMode[1]   = cudaAddressModeBorder;
-    texDesc.filterMode       = cudaFilterModeLinear;
-    texDesc.readMode         = cudaReadModeElementType;
+    texDesc.addressMode[0] = cudaAddressModeBorder;
+    texDesc.addressMode[1] = cudaAddressModeBorder;
+    texDesc.filterMode = cudaFilterModeLinear;
+    texDesc.readMode = cudaReadModeElementType;
     texDesc.normalizedCoords = 0;
 
     // Create texture object
