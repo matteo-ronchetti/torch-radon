@@ -9,18 +9,18 @@
 
 typedef unsigned int uint;
 
-#define checkCudaErrors(val)  check_cuda((val), #val, __FILE__, __LINE__)
-
-template<typename T> void check(T result, const char* func, const char* file, const int line){
+template<typename T> void check_cuda(T result, const char* func, const char* file, const int line){
     if (result){
         fprintf(stderr, "CUDA error at %s (%s:%d) error code: %d, error string: %s\n",
-                func, file, line, static_cast<unsigned int>(result), cuGetErrorName(result));
+                func, file, line, static_cast<unsigned int>(result), cudaGetErrorString(result));
         cudaDeviceReset();
         exit(EXIT_FAILURE);
     }
 }
 
+#define checkCudaErrors(val)  check_cuda((val), #val, __FILE__, __LINE__)
 
+/*
 cudaTextureObject_t
 create_texture(const float *data, cudaArray *&cuArray, uint batch_size, uint width, uint height, uint pitch) {
     // Allocate a layered CUDA array
@@ -60,6 +60,6 @@ create_texture(const float *data, cudaArray *&cuArray, uint batch_size, uint wid
     checkCudaErrors(cudaCreateTextureObject(&texObj, &resDesc, &texDesc, NULL));
 
     return texObj;
-}
+}*/
 
 #endif
