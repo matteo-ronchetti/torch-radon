@@ -5,9 +5,9 @@
 #include "texture.h"
 
 // CUDA forward declarations
-void radon_forward_cuda(const float* x, const float* rays, const float* angles, float* y, const int batch_size, const int img_size, const int n_rays, const int n_angles);
-void radon_backward_cuda(const float* x, const float* rays, const float* angles, float* y, const int batch_size, const int img_size, const int n_rays, const int n_angles);
-void radon_filter_sinogram_cuda(const float* x, float* y, const int batch_size, const int n_rays, const int n_angles);
+void radon_forward_cuda(const float* x, const float* rays, const float* angles, float* y, TextureCache tex_cache, const int batch_size, const int img_size, const int n_rays, const int n_angles);
+void radon_backward_cuda(const float* x, const float* rays, const float* angles, float* y, TextureCache tex_cache, const int batch_size, const int img_size, const int n_rays, const int n_angles);
+//void radon_filter_sinogram_cuda(const float* x, float* y, const int batch_size, const int n_rays, const int n_angles);
 
 
 #define CHECK_CUDA(x) TORCH_CHECK(x.type().is_cuda(), #x " must be a CUDA tensor")
@@ -82,6 +82,8 @@ torch::Tensor radon_filter_sinogram(torch::Tensor x) {
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("forward", &radon_forward, "Radon forward projection");
   m.def("backward", &radon_backward, "Radon backprojection");
-  m.def("filter_sinogram", &radon_filter_sinogram, "Radon backprojection");
-  py::class_<TextureCache>(m, "TextureCache").def(py::init<>());
+  //m.def("filter_sinogram", &radon_filter_sinogram, "Radon backprojection");
+  py::class_<TextureCache>(m, "TextureCache")
+      .def(py::init<>())
+      .def("python_free", &TextureCache::python_free);
 }

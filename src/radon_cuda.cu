@@ -44,8 +44,8 @@ void radon_forward_cuda(const float *x, const float *rays, const float *angles, 
                         const int img_size, const int n_rays, const int n_angles) {
 //    cudaArray *tmp;
 //    auto my_tex = create_texture(x, tmp, batch_size, img_size, img_size, img_size);
-    tex_cache.put(x, batch_size, img_size, img_size, img_size));
-    auto my_tex = tex_cache.get();
+    tex_cache.put(x, batch_size, img_size, img_size, img_size);
+    auto my_tex = tex_cache.texObj;
 
     // Invoke kernel
     const int grid_size = img_size / 16;
@@ -78,12 +78,11 @@ __global__ void radon_backward_kernel(float *output, cudaTextureObject_t texObj,
     output[batch_id * img_size * img_size + y * img_size + x] = tmp;
 }
 
-void radon_backward_cuda(const float *x, const float *rays, const float *angles, float *y, const int batch_size,
-                         const int img_size, const int n_rays, const int n_angles) {
+void radon_backward_cuda(const float *x, const float *rays, const float *angles, float *y, TextureCache tex_cache, const int batch_size, const int img_size, const int n_rays, const int n_angles) {
 //    cudaArray *tmp;
 //    auto my_tex = create_texture(x, tmp, batch_size, n_rays, n_angles, n_rays);
-    tex_cache.put(x, batch_size, n_rays, n_angles, n_rays));
-    auto my_tex = tex_cache.get();
+    tex_cache.put(x, batch_size, n_rays, n_angles, n_rays);
+    auto my_tex = tex_cache.texObj;
 
     // Invoke kernel
     const int grid_size = img_size / 16;

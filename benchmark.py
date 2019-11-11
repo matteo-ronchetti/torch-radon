@@ -19,26 +19,31 @@ def bench(batch_size, image_size, n_angles=180, sample_size=50):
     e = time.time()
     astra_time = (e - s) / sample_size
 
-    radon = Radon(image_size).to(device)
-    x = torch.FloatTensor(x).to(device)
-    angles = torch.FloatTensor(angles).to(device)
+    with torch.no_grad():
+        radon = Radon(image_size).to(device)
+        x = torch.FloatTensor(x)
+        angles = torch.FloatTensor(angles).to(device)
 
-    s = time.time()
-    for i in range(sample_size):
-        _ = radon.forward(x, angles)
-    e = time.time()
-    our_time = (e - s) / sample_size
+        s = time.time()
+        for i in range(sample_size):
+            x_ = x.to(device)
+            y = radon.forward(x_, angles)
+            y_ = y.cpu()
+        e = time.time()
+        our_time = (e - s) / sample_size
 
     return our_time, astra_time
 
 
 def main():
+    print("BENCHMARKING FORWARD PROJECTION")
     for image_size in [64, 128]:  # , 256, 512]:
         for n_angles in [180]:
+            print(f"Image size: {image_size}, Angles: {n_angles}")
+            print("-------------------------------------------------------")
             for batch_size in [1, 8, 16, 32, 64, 128, 256, 512]:
                 our_time, astra_time = bench(batch_size, image_size, n_angles)
-                print(image_size, n_angles, batch_size, batch_size / our_time, batch_size / astra_time,
-                      astra_time / our_time)
-            print("===========")
+                print(f"Batch size: {batch_size}, Our: {batch_size / our_time} imgs/sec, Astra: {batch_size / astra_time} imgs/sec, speedup: {astra_time / our_time}")
+            print("=======================================================")
 
 main()

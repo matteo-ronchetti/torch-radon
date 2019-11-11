@@ -2,6 +2,7 @@
 #include <cuda_runtime.h>
 #include "cuda_helper.h"
 
+typedef unsigned int uint;
 
 class TextureCache{
     cudaArray* array = nullptr;
@@ -52,7 +53,7 @@ class TextureCache{
         checkCudaErrors(cudaCreateTextureObject(&texObj, &resDesc, &texDesc, NULL));
     }
 
-    void put(onst float *data, uint b, uint w, uint h, uint pitch){
+    void put(const float *data, uint b, uint w, uint h, uint pitch){
         // only reallocate when required
         if(this->batch_size != b || this->width != w ||  this->height != h){
             this->allocate(b, w, h);
@@ -64,13 +65,12 @@ class TextureCache{
         myparms.dstPos = make_cudaPos(0, 0, 0);
         myparms.srcPtr = make_cudaPitchedPtr((void *) data, pitch * sizeof(float), width, height);
         myparms.dstArray = this->array;
-        myparms.extent = extent;
+        myparms.extent = make_cudaExtent(width, height, batch_size);
         myparms.kind = cudaMemcpyDeviceToDevice;
         checkCudaErrors(cudaMemcpy3D(&myparms));
     }
 
-    ~TextureCache(){
-        std::cout << "Destroying texture cache" << std::endl;
+    void python_free(){
         this->free();
     }
-}
+};

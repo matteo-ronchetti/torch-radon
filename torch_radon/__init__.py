@@ -10,28 +10,31 @@ class RadonForward(Function):
     @staticmethod
     def forward(ctx, x, rays, angles, tex_cache, back_tex_cache):
         sinogram = torch_radon_cuda.forward(x, rays, angles, tex_cache)
-        ctx.save_for_backward(rays, angles, back_tex_cache)
+        ctx.back_tex_cache = back_tex_cache
+        ctx.save_for_backward(rays, angles)
 
         return sinogram
 
     @staticmethod
     def backward(ctx, grad_x):
-        rays, angles, tex_cache = ctx.saved_variables
-        return torch_radon_cuda.backward(grad_x, rays, angles, tex_cache), None, None
+        print(ctx.needs_input_grad)
+        rays, angles = ctx.saved_variables
+        return torch_radon_cuda.backward(grad_x, rays, angles, ctx.back_tex_cache), None, None, None, None
 
 
 class RadonBackprojection(Function):
     @staticmethod
     def forward(ctx, x, rays, angles, tex_cache, back_tex_cache):
-        image = torch_radon_cuda.backward(x, rays, angles, tex_cache)
-        ctx.save_for_backward(rays, angles, back_tex_cache)
+        image = torch_radon_cuda.backward(x, rays, angles, back_tex_cache)
+        ctx.tex_cache = tex_cache
+        ctx.save_for_backward(rays, angles)
 
         return image
 
     @staticmethod
     def backward(ctx, grad_x):
-        rays, angles, tex_cache = ctx.saved_variables
-        return torch_radon_cuda.forward(grad_x, rays, angles, tex_cache), None, None
+        rays, angles = ctx.saved_variables
+        return torch_radon_cuda.forward(grad_x, rays, angles, ctx.tex_cache), None, None, None, None
 
 
 class Radon(nn.Module):
@@ -44,11 +47,15 @@ class Radon(nn.Module):
         self.fp_tex_cache = torch_radon_cuda.TextureCache()
         self.bp_tex_cache = torch_radon_cuda.TextureCache()
 
+    def __del__(self):
+        self.fp_tex_cache.python_free()
+        self.bp_tex_cache.python_free()
+    
     def forward(self, imgs, angles):
-        return RadonForward.apply(imgs, self.rays, angles)
+        return RadonForward.apply(imgs, self.rays, angles, self.fp_tex_cache, self.bp_tex_cache)
 
     def backprojection(self, sinogram, angles):
-        return RadonBackprojection.apply(sinogram, self.rays, angles)
+        return RadonBackprojection.apply(sinogram, self.rays, angles, self.fp_tex_cache, self.bp_tex_cache)
 
     @staticmethod
     def _compute_rays(resolution):

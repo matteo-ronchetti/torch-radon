@@ -1,5 +1,5 @@
-from utils import generate_random_images, relative_error
-from astra_wrapper import AstraWrapper
+from .utils import generate_random_images, relative_error
+from .astra_wrapper import AstraWrapper
 from nose.tools import assert_less
 import torch
 import numpy as np
@@ -12,7 +12,7 @@ full_angles = np.linspace(0, 2 * np.pi, 180).astype(np.float32)
 limited_angles = np.linspace(0.2 * np.pi, 0.5 * np.pi, 50).astype(np.float32)
 sparse_angles = np.linspace(0, 2 * np.pi, 18).astype(np.float32)
 
-params = []
+params = [] #[(device, 8, 128, full_angles)]
 for batch_size in [1, 8, 16, 32, 64, 128, 256, 512]:
     for image_size in [64, 128, 256, 512]:
         for angles in [full_angles, limited_angles, sparse_angles]:
