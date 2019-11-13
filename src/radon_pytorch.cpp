@@ -2,12 +2,9 @@
 #include <iostream>
 #include <vector>
 
-#include "texture.h"
-
-// CUDA forward declarations
-void radon_forward_cuda(const float* x, const float* rays, const float* angles, float* y, TextureCache tex_cache, const  int batch_size, const int img_size, const int n_rays, const int n_angles);
-void radon_backward_cuda(const float* x, const float* rays, const float* angles, float* y, TextureCache tex_cache, const  int batch_size, const int img_size, const int n_rays, const int n_angles);
-//void radon_filter_sinogram_cuda(const float* x, float* y, const int batch_size, const int n_rays, const int n_angles);
+#include "radon_forward.h"
+#include "radon_backprojection.h"
+#include "radon_noise.h"
 
 
 #define CHECK_CUDA(x) TORCH_CHECK(x.type().is_cuda(), #x " must be a CUDA tensor")

@@ -2,6 +2,9 @@
 #include <cufft.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
+#include <curand_kernel.h>
+#include <curand.h>
+
 #include "utils.h"
 #include "texture.h"
 
@@ -18,8 +21,9 @@ __global__ void radon_forward_kernel(float* __restrict__ output, cudaTextureObje
     const float rey = rays[ray_id * 4 + 3];
     const float v = img_size / 2; //
 
-    const float vx = (rex - rsx) / img_size; //
-    const float vy = (rey - rsy) / img_size; //
+    const uint n_steps = __float2uint_ru(hypot(rex - rsx, rey - rsy)) + 1; //
+    const float vx = (rex - rsx) / n_steps; //
+    const float vy = (rey - rsy) / n_steps; //
     const float n = hypot(vx, vy); //
 
     // rotate ray
@@ -33,7 +37,7 @@ __global__ void radon_forward_kernel(float* __restrict__ output, cudaTextureObje
     float rvy = vx * sn + vy * cs;
 
     float tmp = 0.0;
-    for (int j = 0; j < img_size; j++) {
+    for (uint j = 0; j < n_steps; j++) {
         tmp += tex2DLayered<float>(texObj, sx + rvx * j, sy + rvy * j, batch_id);
     }
 
@@ -43,16 +47,16 @@ __global__ void radon_forward_kernel(float* __restrict__ output, cudaTextureObje
 __global__ void radon_backward_kernel(float *output, cudaTextureObject_t texObj, const float *rays, const float *angles,
                                       const int img_size, const int n_rays, const int n_angles) {
 
-    __shared__ float s_sin[128];
-    __shared__ float s_cos[128];
+    __shared__ float s_sin[256];
+    __shared__ float s_cos[256];
 
-    // Calculate texture coordinates
+    // Calculate image coordinates
     const uint x = blockIdx.x * blockDim.x + threadIdx.x;
     const uint y = blockIdx.y * blockDim.y + threadIdx.y;
     const uint batch_id = blockIdx.z;
-    const uint tid = threadIdx.y * 16 + threadIdx.x;
+    const uint tid = threadIdx.y * blockDim.x + threadIdx.x;
 
-    if(tid < 128){
+    if(tid < n_angles){
         s_sin[tid] = __sinf(angles[tid]);
         s_cos[tid] = __cosf(angles[tid]);
     }
@@ -61,14 +65,43 @@ __global__ void radon_backward_kernel(float *output, cudaTextureObject_t texObj,
     const float v = img_size / 2;
     const float dx = (float) x - v + 0.5;
     const float dy = (float) y - v + 0.5;
-    float tmp = 0.0;
 
-    for (int i = 0; i < n_angles; i++) {
-        float j = s_cos[i] * dx + s_sin[i] * dy + v;
-        tmp += tex2DLayered<float>(texObj, j, i + 0.5f, batch_id);
+    float tmp = 0.0;
+    const float r = hypot(dx, dy);
+
+    if(r <= 64){
+        for (int i = 0; i < n_angles; i++) {
+            float j = s_cos[i] * dx + s_sin[i] * dy + v;
+            tmp += tex2DLayered<float>(texObj, j, i + 0.5f, batch_id);
+        }
     }
 
     output[batch_id * img_size * img_size + y * img_size + x] = tmp;
+}
+
+__global__ void initialize_random_states(curandState *state, const uint seed){
+    const uint sequence_id = threadIdx.x + blockIdx.x * blockDim.x;
+    curand_init(seed, sequence_id, 0, &state[sequence_id]);
+}
+
+__global__ void radon_sinogram_noise(float* sinogram, curandState *state, const float sino_max, const float signal, const uint width, const uint height){
+    const uint x = blockIdx.x * blockDim.x + threadIdx.x;
+    const uint y = blockIdx.y * blockDim.y + threadIdx.y;
+    const uint tid = y * blockDim.x * gridDim.x + x;
+    const uint y_step = blockDim.y * gridDim.y;
+
+    // load curand state in local memory
+    curandState localState = state[tid];
+
+    // loop through down the sinogram adding noise
+    for(uint yy = y; yy < height; yy += y_step){
+        uint pos = yy * width + x;
+        float reading = curand_poisson(&localState, signal * exp(-sinogram[pos]/sino_max));
+        sinogram[pos] = -sino_max * log(reading / signal);
+    }
+
+    // save curand state back in global memory
+    state[tid] = localState;
 }
 
 
@@ -102,8 +135,6 @@ int main() {
     std::cout << "cufftReal: " << sizeof(cufftReal) << std::endl;
     std::cout << "cufftComplex: " << sizeof(cufftComplex) << std::endl;
     std::cout << "Hello CUDA" << std::endl;
-
-
 }
 
 
