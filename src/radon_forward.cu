@@ -44,6 +44,7 @@ __global__ void radon_forward_kernel(float* __restrict__ output, cudaTextureObje
     output[batch_id * n_rays * n_angles + angle_id * n_rays + ray_id] = tmp * n;
 }
 
+/*
 __global__ void radon_backward_kernel(float *output, cudaTextureObject_t texObj, const float *rays, const float *angles,
                                       const int img_size, const int n_rays, const int n_angles) {
 
@@ -102,7 +103,7 @@ __global__ void radon_sinogram_noise(float* sinogram, curandState *state, const 
 
     // save curand state back in global memory
     state[tid] = localState;
-}
+}*/
 
 
 void radon_forward_cuda(const float *x, const float *rays, const float *angles, float *y, TextureCache tex_cache, const int batch_size,
@@ -118,6 +119,7 @@ void radon_forward_cuda(const float *x, const float *rays, const float *angles, 
     radon_forward_kernel <<< dimGrid, dimBlock >>> (y, tex_cache.texObj, rays, angles, img_size, n_rays, n_angles);
 }
 
+/*
 void radon_backward_cuda(const float *x, const float *rays, const float *angles, float *y, TextureCache tex_cache, const int batch_size, const int img_size, const int n_rays, const int n_angles) {
     // copy x into CUDA Array (allocating it if needed) and bind to texture
     tex_cache.put(x, batch_size, n_rays, n_angles, n_rays);
@@ -128,15 +130,7 @@ void radon_backward_cuda(const float *x, const float *rays, const float *angles,
     dim3 dimBlock(16, 16);
 
     radon_backward_kernel <<< dimGrid, dimBlock >>> (y, tex_cache.texObj, rays, angles, img_size, n_rays, n_angles);
-}
-
-int main() {
-    std::cout << "float: " << sizeof(float) << std::endl;
-    std::cout << "cufftReal: " << sizeof(cufftReal) << std::endl;
-    std::cout << "cufftComplex: " << sizeof(cufftComplex) << std::endl;
-    std::cout << "Hello CUDA" << std::endl;
-}
-
+}*/
 
 /*
 __global__ void apply_filter(cufftComplex *sino, const int fft_size) {

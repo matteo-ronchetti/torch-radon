@@ -47,8 +47,8 @@ class Radon(nn.Module):
         self.bp_tex_cache = torch_radon_cuda.TextureCache()
 
     def __del__(self):
-        self.fp_tex_cache.python_free()
-        self.bp_tex_cache.python_free()
+        self.fp_tex_cache.free()
+        self.bp_tex_cache.free()
     
     def forward(self, imgs, angles):
         return RadonForward.apply(imgs, self.rays, angles, self.fp_tex_cache, self.bp_tex_cache)
