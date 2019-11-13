@@ -5,6 +5,7 @@ build/
 dist/
 radon.egg-info/
 torch_radon.egg-info/
+objs/
 
 *.pyc
 test

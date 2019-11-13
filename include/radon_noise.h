@@ -1,7 +1,21 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <curand.h>
+#include <curand_kernel.h>
 #include "utils.h"
+
+class RadonNoiseGenerator{
+    curandState *states = nullptr;
+
+public:
+    RadonNoiseGenerator(const uint seed);
+
+    void set_seed(const uint seed);
+
+    void add_noise(float* sinogram, const float signal, const uint width, const uint height);
+
+    void free();
+};
 
 //class RandomStates{
 //    curandState *states = nullptr;

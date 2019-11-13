@@ -79,8 +79,14 @@ torch::Tensor radon_filter_sinogram(torch::Tensor x) {
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("forward", &radon_forward, "Radon forward projection");
   m.def("backward", &radon_backward, "Radon backprojection");
-  //m.def("filter_sinogram", &radon_filter_sinogram, "Radon backprojection");
   py::class_<TextureCache>(m, "TextureCache")
       .def(py::init<>())
-      .def("python_free", &TextureCache::python_free);
+      .def("free", &TextureCache::free);
+  py::class_<RadonNoiseGenerator>(m, "RadonNoiseGenerator")
+      .def(py::init<const uint>())
+      .def("set_seed", &RadonNoiseGenerator::set_seed)
+      .def("free", &RadonNoiseGenerator::free);
+
+  //m.def("filter_sinogram", &radon_filter_sinogram, "Radon backprojection");
+
 }
