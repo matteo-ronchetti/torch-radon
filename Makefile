@@ -31,8 +31,8 @@ $(OBJ_DIR)/cuda/%.o: $(SRC_DIR)/%.cu | $(OBJ_DIR)
 
 $(OBJ_DIR)/cuda/libradon.so: $(CU_OBJS)
 	#gcc -fPIC -shared -o $@ -L/usr/local/cuda/lib64 -lcuda -lcudart $(CU_OBJS)
-	$(NVCC) $(FLAGS) -dlink $(CU_OBJS) -o radon.o
-	g++ -shared $(CU_OBJS) radon.o -o $@
+	$(NVCC) $(FLAGS) -dlink $(CU_OBJS) -o $(OBJ_DIR)/cuda/radon.o
+	g++ -shared $(CU_OBJS) $(OBJ_DIR)/cuda/radon.o -o $@
 
 
 install: all
