@@ -14,13 +14,14 @@ FLAGS += $(foreach includedir,$(INCLUDE_DIRS),-I$(includedir))
 # FLAGS += -gencode arch=compute_61,code=sm_61
 # FLAGS += -gencode arch=compute_70,code=sm_70
 FLAGS += -gencode arch=compute_75,code=sm_75
+FLAGS += -DNDEBUG -O3
 
 SRC_DIR := ./src
 OBJ_DIR := ./objs
 CU_SRCS := $(wildcard $(SRC_DIR)/*.cu)
 CU_OBJS := $(patsubst $(SRC_DIR)/%.cu,$(OBJ_DIR)/cuda/%.o,$(CU_SRCS))
 
-all: $(OBJ_DIR)/cuda/libradon.so | $(OBJ_DIR)
+all: $(OBJ_DIR)/cuda/libradon.a | $(OBJ_DIR)
 
 $(OBJ_DIR):
 	mkdir -p $@
@@ -29,10 +30,11 @@ $(OBJ_DIR):
 $(OBJ_DIR)/cuda/%.o: $(SRC_DIR)/%.cu | $(OBJ_DIR)
 	$(NVCC) $(FLAGS) -dc $< -o $@
 
-$(OBJ_DIR)/cuda/libradon.so: $(CU_OBJS)
+$(OBJ_DIR)/cuda/libradon.a: $(CU_OBJS)
 	#gcc -fPIC -shared -o $@ -L/usr/local/cuda/lib64 -lcuda -lcudart $(CU_OBJS)
-	$(NVCC) $(FLAGS) -dlink $(CU_OBJS) -o $(OBJ_DIR)/cuda/radon.o
-	g++ -shared $(CU_OBJS) $(OBJ_DIR)/cuda/radon.o -o $@
+	#$(NVCC) $(FLAGS) -dlink $(CU_OBJS) -o $(OBJ_DIR)/cuda/radon.o
+	ar rc $@ $(ALL_OBJS) $(CU_OBJS)
+	#g++ -shared $(CU_OBJS) $(OBJ_DIR)/cuda/radon.o -o $@
 
 
 install: all

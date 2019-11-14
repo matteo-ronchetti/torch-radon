@@ -108,6 +108,9 @@ __global__ void radon_sinogram_noise(float* sinogram, curandState *state, const 
 
 void radon_forward_cuda(const float *x, const float *rays, const float *angles, float *y, TextureCache tex_cache, const int batch_size,
                         const int img_size, const int n_rays, const int n_angles) {
+    // TODO check if this improves performance
+    checkCudaErrors(cudaFuncSetCacheConfig(radon_forward_kernel, cudaFuncCachePreferL1));
+
     // copy x into CUDA Array (allocating it if needed) and bind to texture
     tex_cache.put(x, batch_size, img_size, img_size, img_size);
 

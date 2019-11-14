@@ -28,7 +28,7 @@ torch::Tensor radon_forward(torch::Tensor x, torch::Tensor rays, torch::Tensor a
     auto options = torch::TensorOptions().dtype(torch::kFloat32).device(x.device());
     auto y = torch::empty({batch_size, n_angles, n_rays}, options);
 
-    radon_forward_cuda(x.data<float>(), rays.data<float>(), angles.data<float>(), y.data<float>(), tex_cache,
+    radon_forward_cuda(x.data_ptr<float>(), rays.data_ptr<float>(), angles.data_ptr<float>(), y.data_ptr<float>(), tex_cache,
                        batch_size, img_size, n_rays, n_angles);
 
     return y;
@@ -50,7 +50,7 @@ torch::Tensor radon_backward(torch::Tensor x, torch::Tensor rays, torch::Tensor 
     auto options = torch::TensorOptions().dtype(torch::kFloat32).device(x.device());
     auto y = torch::empty({batch_size, img_size, img_size}, options);
 
-    radon_backward_cuda(x.data<float>(), rays.data<float>(), angles.data<float>(), y.data<float>(), tex_cache,
+    radon_backward_cuda(x.data_ptr<float>(), rays.data_ptr<float>(), angles.data_ptr<float>(), y.data_ptr<float>(), tex_cache,
                        batch_size, img_size, n_rays, n_angles);
 
     return y;
