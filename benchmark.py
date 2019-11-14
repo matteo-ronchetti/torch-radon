@@ -38,7 +38,7 @@ def bench(batch_size, image_size, n_angles=180, sample_size=50):
 def main():
     print("BENCHMARKING FORWARD PROJECTION")
     for image_size in [64, 128]:  # , 256, 512]:
-        for n_angles in [180]:
+        for n_angles in [128]:
             print(f"Image size: {image_size}, Angles: {n_angles}")
             print("-------------------------------------------------------")
             for batch_size in [1, 8, 16, 32, 64, 128, 256, 512]:

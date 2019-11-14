@@ -33,7 +33,7 @@ __global__ void radon_backward_kernel(float *output, cudaTextureObject_t texObj,
     float tmp = 0.0;
     const float r = hypot(dx, dy);
 
-    if(r <= 64){
+    if(r <= v){
         for (int i = 0; i < n_angles; i++) {
             float j = s_cos[i] * dx + s_sin[i] * dy + v;
             tmp += tex2DLayered<float>(texObj, j, i + 0.5f, batch_id);

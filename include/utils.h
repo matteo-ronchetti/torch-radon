@@ -9,6 +9,10 @@
 
 typedef unsigned int uint;
 
+inline int roundup_div(const int x, const int y){
+    return x/y + (x % y != 0);
+}
+
 template<typename T> void check_cuda(T result, const char* func, const char* file, const int line){
     if (result){
         fprintf(stderr, "CUDA error at %s (%s:%d) error code: %d, error string: %s\n",

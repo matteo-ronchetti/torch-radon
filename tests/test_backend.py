@@ -1,4 +1,4 @@
-from .utils import generate_random_images, relative_error
+from .utils import generate_random_images, relative_error, circle_mask
 from .astra_wrapper import AstraWrapper
 from nose.tools import assert_less
 import torch
@@ -29,6 +29,7 @@ def test_error(device, batch_size, image_size, angles):
 
     astra_fp_id, astra_fp = astra.forward(x)
     astra_bp = astra.backproject(astra_fp_id, image_size, batch_size)
+    astra_bp *= circle_mask(image_size)
 
     # our implementation
     radon = Radon(image_size).to(device)

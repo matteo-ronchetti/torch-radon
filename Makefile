@@ -28,7 +28,8 @@ $(OBJ_DIR):
 	mkdir -p $@/cuda
 
 $(OBJ_DIR)/cuda/%.o: $(SRC_DIR)/%.cu | $(OBJ_DIR)
-	$(NVCC) $(FLAGS) -dc $< -o $@
+	#$(NVCC) $(FLAGS) -M $< -o ${@:.o=.d} -odir $(@D)
+	$(NVCC) $(FLAGS) -c $< -o $@
 
 $(OBJ_DIR)/cuda/libradon.a: $(CU_OBJS)
 	#gcc -fPIC -shared -o $@ -L/usr/local/cuda/lib64 -lcuda -lcudart $(CU_OBJS)
