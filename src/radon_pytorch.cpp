@@ -56,7 +56,7 @@ torch::Tensor radon_backward(torch::Tensor x, torch::Tensor rays, torch::Tensor 
     return y;
 }
 
-torch::Tensor radon_add_noise(torch::Tensor x, RadonNoiseGenerator noise_generator, const float signal) {
+void radon_add_noise(torch::Tensor x, RadonNoiseGenerator noise_generator, const float signal) {
     CHECK_INPUT(x);
 
     const int height = x.size(0) * x.size(1);

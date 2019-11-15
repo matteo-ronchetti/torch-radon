@@ -1,4 +1,5 @@
 #include "radon_noise.h"
+#include <iostream>
 
 __global__ void initialize_random_states(curandState *state, const uint seed){
     const uint sequence_id = threadIdx.x + blockIdx.x * blockDim.x;
@@ -19,9 +20,12 @@ __global__ void radon_sinogram_noise(float* sinogram, curandState *state, const 
         uint pos = yy * width + x;
         // measured signal = signal * exp(-sinogram[pos])
         // then apply poisson noise
-        float reading = curand_poisson(&localState, signal * exp(-sinogram[pos]));
+        float mu = signal * __expf(-sinogram[pos]);
+        float var = __fsqrt_rn(mu);
+        float reading = fmaxf(curand_normal(&localState)*var + mu, 1.0f);
+        //float reading = fmaxf(curand_poisson(&localState, signal * expf(-sinogram[pos])), 1.0f);
         // convert back to sinogram scale
-        sinogram[pos] = -log(reading / signal);
+        sinogram[pos] = -__logf(reading / signal);
     }
 
     // save curand state back in global memory
@@ -30,18 +34,17 @@ __global__ void radon_sinogram_noise(float* sinogram, curandState *state, const 
 
 RadonNoiseGenerator::RadonNoiseGenerator(const uint seed){
     // allocate random states
-    checkCudaErrors(cudaMalloc((void **)&states, 4096 * sizeof(curandState)));
+    checkCudaErrors(cudaMalloc((void **)&states, 16*2*4096 * sizeof(curandState)));
 
     this->set_seed(seed);
 }
 
 void RadonNoiseGenerator::set_seed(const uint seed){
-    initialize_random_states<<<32,128>>>(states, seed);
+    initialize_random_states<<<64,128>>>(states, seed);
 }
 
 void RadonNoiseGenerator::add_noise(float* sinogram, const float signal, const uint width, const uint height){
-    // TODO consider case width > 1024
-    radon_sinogram_noise<<<dim3(1, 4), dim3(width, 1024/width)>>>(sinogram, states, signal, width, height);
+    radon_sinogram_noise<<<dim3(width/64, 32*1024/width), dim3(64, 4)>>>(sinogram, states, signal, width, height);
 }
 
 void RadonNoiseGenerator::free(){
