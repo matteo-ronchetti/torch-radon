@@ -49,7 +49,7 @@ class Radon(nn.Module):
     def __del__(self):
         self.fp_tex_cache.free()
         self.bp_tex_cache.free()
-    
+
     def forward(self, imgs, angles):
         return RadonForward.apply(imgs, self.rays, angles, self.fp_tex_cache, self.bp_tex_cache)
 
@@ -65,3 +65,17 @@ class Radon(nn.Module):
         ys = ys.reshape(-1, 1)
         rays = np.hstack((locations, -ys, locations, ys))
         return torch.FloatTensor(rays)
+
+
+class RadonNoiseGenerator:
+    def __init__(self, seed=-1):
+        if seed < 0:
+            seed = np.random.get_state()[1][0]
+
+        self._generator = torch_radon_cuda.RadonNoiseGenerator(seed)
+
+    def add_noise(self, x, signal):
+        torch_radon_cuda.add_noise(x, self._generator, signal)
+
+    def __del__(self):
+        self._generator.free()

@@ -1,13 +1,13 @@
 from tests.astra_wrapper import AstraWrapper
 from tests.utils import generate_random_images, relative_error, circle_mask
-import time
+import cv2
 import numpy as np
 import torch
-from torch_radon import Radon
+from torch_radon import Radon, RadonNoiseGenerator
 
 device = torch.device('cuda')
 
-batch_size = 32
+batch_size = 16
 image_size = 128
 n_angles = 180
 
@@ -25,7 +25,19 @@ with torch.no_grad():
     x_ = x.to(device)
     y = radon.forward(x_, angles) #.cpu().numpy()
     z = radon.backprojection(y, angles)
-    
-print(relative_error(a_y, y.cpu().numpy()))
+
 a_bp *= circle_mask(image_size)
-print(relative_error(a_bp, z.cpu().numpy()))
+
+print("Forward relative error", relative_error(a_y, y.cpu().numpy()))
+print("Back relative error", relative_error(a_bp, z.cpu().numpy()))
+
+sinogram_delta = (a_y[0] - y[0].cpu().numpy())**2
+sinogram_delta /= np.max(sinogram_delta)/255
+cv2.imwrite("sinogram_delta.png", sinogram_delta.astype(np.uint8))
+
+radon_noise = RadonNoiseGenerator()
+
+for signal in [1e1, 1e2, 1e4, 1e30]:
+    yn = y.clone()
+    radon_noise.add_noise(yn, signal)
+    print(signal, torch.mean((y - yn)**2))
