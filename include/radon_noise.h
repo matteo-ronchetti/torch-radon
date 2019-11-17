@@ -12,7 +12,7 @@ public:
 
     void set_seed(const uint seed);
 
-    void add_noise(float* sinogram, const float signal, const uint width, const uint height);
+    void add_noise(float* sinogram, const float signal, const float density_normalization, const bool approximate, const uint width, const uint height);
 
     void free();
 };

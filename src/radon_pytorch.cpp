@@ -56,13 +56,13 @@ torch::Tensor radon_backward(torch::Tensor x, torch::Tensor rays, torch::Tensor 
     return y;
 }
 
-void radon_add_noise(torch::Tensor x, RadonNoiseGenerator noise_generator, const float signal) {
+void radon_add_noise(torch::Tensor x, RadonNoiseGenerator noise_generator, const float signal, const float density_normalization, const bool approximate) {
     CHECK_INPUT(x);
 
     const int height = x.size(0) * x.size(1);
     const int width = x.size(2);
 
-    noise_generator.add_noise(x.data<float>(), signal, width, height);
+    noise_generator.add_noise(x.data<float>(), signal, density_normalization, approximate, width, height);
 }
 
 

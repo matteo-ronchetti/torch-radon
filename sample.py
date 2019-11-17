@@ -1,4 +1,4 @@
-from tests.astra_wrapper import AstraWrapper
+# from tests.astra_wrapper import AstraWrapper
 from tests.utils import generate_random_images, relative_error, circle_mask
 import cv2
 import numpy as np
@@ -36,11 +36,10 @@ with torch.no_grad():
 # cv2.imwrite("sinogram_delta.png", sinogram_delta.astype(np.uint8))
 
 radon_noise = RadonNoiseGenerator()
-y /= 73
+print(torch.min(y), torch.max(y))
 
 for signal in [1e2, 1e3, 1e4, 1e8]:
-    yn = y.clone()
-    radon_noise.add_noise(yn, signal)
-    print(torch.min(y), torch.max(y))
-    print(torch.min(yn), torch.max(yn))
-    print(signal, torch.mean((y - yn)**2).item())
+    for approximate in [True, False]:
+        yn = y.clone()
+        radon_noise.add_noise(yn, signal, 100.0, approximate)
+        print(signal, approximate, torch.mean((y - yn)**2).item(), torch.min(yn), torch.max(yn))

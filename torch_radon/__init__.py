@@ -74,8 +74,8 @@ class RadonNoiseGenerator:
 
         self._generator = torch_radon_cuda.RadonNoiseGenerator(seed)
 
-    def add_noise(self, x, signal):
-        torch_radon_cuda.add_noise(x, self._generator, signal)
+    def add_noise(self, x, signal, density_normalization, approximate=False):
+        torch_radon_cuda.add_noise(x, self._generator, signal, density_normalization, approximate)
 
     def __del__(self):
         self._generator.free()
