@@ -30,7 +30,7 @@ template<bool approximate> __global__ void radon_sinogram_noise(float* sinogram,
         }
 
         // convert back to sinogram scale
-        sinogram[pos] = (signal -__logf(reading)) * density_normalization;
+        sinogram[pos] = fmaxf((signal -__logf(reading)), 0.0f) * density_normalization;
     }
 
     // save curand state back in global memory

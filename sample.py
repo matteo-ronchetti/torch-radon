@@ -5,13 +5,22 @@ import numpy as np
 import torch
 from torch_radon import Radon, RadonNoiseGenerator
 
+
+def normalize(x):
+    x -= np.min(x)
+    x /= np.max(x)
+    x *= 255
+    return x.astype(np.uint8)
+
+
 device = torch.device('cuda')
 
 batch_size = 16
 image_size = 128
 n_angles = 256
 
-x = generate_random_images(batch_size, image_size)
+x = cv2.resize(cv2.imread("phantom.png", 0), (image_size, image_size), interpolation=cv2.INTER_CUBIC)
+#x = generate_random_images(batch_size, image_size)
 angles = np.linspace(0, np.pi, n_angles).astype(np.float32)
 
 # astra = AstraWrapper(angles)
@@ -20,7 +29,7 @@ angles = np.linspace(0, np.pi, n_angles).astype(np.float32)
 
 with torch.no_grad():
     radon = Radon(image_size).to(device)
-    x = torch.FloatTensor(x)
+    x = torch.FloatTensor(x).view(1, image_size, image_size) / 255
     angles = torch.FloatTensor(angles).to(device)
     x_ = x.to(device)
     y = radon.forward(x_, angles) #.cpu().numpy()
@@ -38,8 +47,10 @@ with torch.no_grad():
 radon_noise = RadonNoiseGenerator()
 print(torch.min(y), torch.max(y))
 
-for signal in [1e2, 1e3, 1e4, 1e8]:
+for signal in [2, 3, 4, 8, 10, 12, 14]:
     for approximate in [True, False]:
         yn = y.clone()
         radon_noise.add_noise(yn, signal, 100.0, approximate)
+        z = radon.backprojection(yn, angles)[0].cpu().numpy()
+        cv2.imwrite("noised.png", normalize(z))
         print(signal, approximate, torch.mean((y - yn)**2).item(), torch.min(yn), torch.max(yn))
