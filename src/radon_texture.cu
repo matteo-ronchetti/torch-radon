@@ -47,7 +47,7 @@ void TextureCache::put(const float *data, uint b, uint w, uint h, uint pitch){
     if(this->batch_size != b || this->width != w ||  this->height != h){
         //std::cout << "Alloc" << std::endl;
         std::cout << this->batch_size << " " << b << " " <<  this->width  << " " <<  w  << " " <<  this->height  << " " <<  h << std::endl;
-        //this->allocate(b, w, h);
+        this->allocate(b, w, h);
     }
 
     // copy data into array
