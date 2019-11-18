@@ -12,7 +12,7 @@
 #define CHECK_INPUT(x) CHECK_CUDA(x); CHECK_CONTIGUOUS(x)
 
 
-torch::Tensor radon_forward(torch::Tensor x, torch::Tensor rays, torch::Tensor angles, TextureCache tex_cache) {
+torch::Tensor radon_forward(torch::Tensor x, torch::Tensor rays, torch::Tensor angles, TextureCache& tex_cache) {
     CHECK_INPUT(x);
     CHECK_INPUT(rays);
     CHECK_INPUT(angles);
@@ -34,7 +34,7 @@ torch::Tensor radon_forward(torch::Tensor x, torch::Tensor rays, torch::Tensor a
     return y;
 }
 
-torch::Tensor radon_backward(torch::Tensor x, torch::Tensor rays, torch::Tensor angles, TextureCache tex_cache) {
+torch::Tensor radon_backward(torch::Tensor x, torch::Tensor rays, torch::Tensor angles, TextureCache& tex_cache) {
     CHECK_INPUT(x);
     CHECK_INPUT(rays);
     CHECK_INPUT(angles);

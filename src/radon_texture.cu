@@ -1,8 +1,10 @@
 #include "texture.h"
+#include <iostream>
 
 TextureCache::TextureCache(){}
 
 void TextureCache::free(){
+    //std::cout << "Free" << std::endl;
     if(this->array != nullptr){
         checkCudaErrors(cudaFreeArray(this->array));
         checkCudaErrors(cudaDestroyTextureObject(this->texObj));
@@ -43,7 +45,9 @@ void TextureCache::allocate(uint b, uint w, uint h){
 void TextureCache::put(const float *data, uint b, uint w, uint h, uint pitch){
     // only reallocate when required
     if(this->batch_size != b || this->width != w ||  this->height != h){
-        this->allocate(b, w, h);
+        //std::cout << "Alloc" << std::endl;
+        std::cout << this->batch_size << " " << b << " " <<  this->width  << " " <<  w  << " " <<  this->height  << " " <<  h << std::endl;
+        //this->allocate(b, w, h);
     }
 
     // copy data into array
