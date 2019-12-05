@@ -51,10 +51,36 @@ class Radon(nn.Module):
         self.bp_tex_cache.free()
 
     def forward(self, imgs, angles):
-        return RadonForward.apply(imgs, self.rays, angles, self.fp_tex_cache, self.bp_tex_cache)
+        # if input has shape BATCH x CHANNELS x W x H reshape to BATCH*CHANNELS x W x H
+        old_shape = None
+        if len(imgs.size()) == 4:
+            old_shape = imgs.size()
+            imgs = imgs.view(-1, old_shape[-2], old_shape[-1])
+
+        # apply radon transform
+        y = RadonForward.apply(imgs, self.rays, angles, self.fp_tex_cache, self.bp_tex_cache)
+
+        # return to old shape
+        if old_shape is not None:
+            y = y.view(old_shape[0], old_shape[1], -1, old_shape[-1])
+
+        return y
 
     def backprojection(self, sinogram, angles):
-        return RadonBackprojection.apply(sinogram, self.rays, angles, self.fp_tex_cache, self.bp_tex_cache)
+        # if input has shape BATCH x CHANNELS x ANGLES x W reshape to BATCH*CHANNELS x ANGLES x W
+        old_shape = None
+        if len(sinogram.size()) == 4:
+            old_shape = sinogram.size()
+            sinogram = sinogram.view(-1, old_shape[-2], old_shape[-1])
+
+        # apply radon transform
+        y = RadonBackprojection.apply(sinogram, self.rays, angles, self.fp_tex_cache, self.bp_tex_cache)
+
+        # return to old shape
+        if old_shape is not None:
+            y = y.view(old_shape[0], old_shape[1], -1, old_shape[-1])
+
+        return y
 
     @staticmethod
     def _compute_rays(resolution):

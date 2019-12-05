@@ -12,9 +12,9 @@ full_angles = np.linspace(0, 2 * np.pi, 180).astype(np.float32)
 limited_angles = np.linspace(0.2 * np.pi, 0.5 * np.pi, 50).astype(np.float32)
 sparse_angles = np.linspace(0, 2 * np.pi, 18).astype(np.float32)
 
-params = [] #[(device, 8, 128, full_angles)]
-for batch_size in [1, 8, 16, 32, 64, 128, 256, 512]:
-    for image_size in [128, 256, 512]:
+params = []  # [(device, 8, 128, full_angles)]
+for batch_size in [1, 8, 16, 32, 64, 128]:  # , 256, 512]:
+    for image_size in [128, 256]:  # , 512]:
         for angles in [full_angles, limited_angles, sparse_angles]:
             params.append((device, batch_size, image_size, angles))
 

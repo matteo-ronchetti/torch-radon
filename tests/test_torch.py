@@ -6,7 +6,7 @@ from unittest import TestCase
 from .utils import generate_random_images
 
 
-class TestGradient(TestCase):
+class TestTorch(TestCase):
     def test_differentiation(self):
         device = torch.device('cuda')
         x = torch.FloatTensor(1, 64, 64).to(device)
@@ -19,7 +19,22 @@ class TestGradient(TestCase):
         y = radon.forward(x, angles)
         z = torch.mean(radon.backprojection(y, angles))
         z.backward()
-        
+
+    def test_shapes(self):
+        """
+        Check using channels is ok
+        """
+        device = torch.device('cuda')
+        x = torch.FloatTensor(2, 3, 64, 64).to(device)
+        angles = torch.FloatTensor(np.linspace(0, 2 * np.pi, 10).astype(np.float32)).to(device)
+        radon = Radon(64).to(device)
+
+        y = radon.forward(x, angles)
+        self.assertEqual(y.size(), (2, 3, 10, 64))
+        z = radon.backprojection(y, angles)
+        self.assertEqual(z.size(), (2, 3, 64, 64))
+
+
 #     def test_gradients(self):
 #         device = torch.device('cuda')
 #         radon = Radon(64).to(device)
