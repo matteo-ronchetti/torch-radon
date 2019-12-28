@@ -1,9 +1,11 @@
 # Computational Tomography in Pytorch
 This package is a CUDA implementation of transforms needed for
-working with computed tomography in Pytorch. Main features:
+working with computed tomography in Pytorch.
+
+Main features:
  - All operations work directly on Pytorch GPU tensors.
  - Forward and back projections are differentiable and integrated with Pytorch `.backward()`.
- - Faster than Astra Toolbox, way faster if you consider that this implementation doesn't require to copy intermediate results to CPU
+ - Faster than Astra Toolbox. Waaay faster if you consider that this implementation doesn't require to copy intermediate results to CPU.
 
 ## Example
 Simple example that uses Pytorch models to filter both the sinogram and the image
@@ -57,7 +59,7 @@ loss.backward()
 ### Precompiled packages
 TODO
 ### Build from source
-You need to have installed CUDA and Pytorch, then run:
+You need to have CUDA and Pytorch installed, then run:
 ```shell script
 git clone https://github.com/matteo-ronchetti/torch-radon.git
 cd torch-radon
