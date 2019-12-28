@@ -20,7 +20,7 @@ __global__ void radon_backward_kernel(float *output, cudaTextureObject_t texObj,
     const uint batch_id = blockIdx.z;
     const uint tid = threadIdx.y * blockDim.x + threadIdx.x;
 
-    if(tid < n_angles){
+    if (tid < n_angles) {
         s_sin[tid] = __sinf(angles[tid]);
         s_cos[tid] = __cosf(angles[tid]);
     }
@@ -33,7 +33,7 @@ __global__ void radon_backward_kernel(float *output, cudaTextureObject_t texObj,
     float tmp = 0.0;
     const float r = hypot(dx, dy);
 
-    if(r <= v){
+    if (r <= v) {
         for (int i = 0; i < n_angles; i++) {
             float j = s_cos[i] * dx + s_sin[i] * dy + v;
             tmp += tex2DLayered<float>(texObj, j, i + 0.5f, batch_id);
@@ -43,7 +43,8 @@ __global__ void radon_backward_kernel(float *output, cudaTextureObject_t texObj,
     output[batch_id * img_size * img_size + y * img_size + x] = tmp;
 }
 
-void radon_backward_cuda(const float *x, const float *rays, const float *angles, float *y, TextureCache& tex_cache, const int batch_size, const int img_size, const int n_rays, const int n_angles) {
+void radon_backward_cuda(const float *x, const float *rays, const float *angles, float *y, TextureCache &tex_cache,
+                         const int batch_size, const int img_size, const int n_rays, const int n_angles) {
     // copy x into CUDA Array (allocating it if needed) and bind to texture
     tex_cache.put(x, batch_size, n_rays, n_angles, n_rays);
 
@@ -52,17 +53,66 @@ void radon_backward_cuda(const float *x, const float *rays, const float *angles,
     dim3 dimGrid(grid_size, grid_size, batch_size);
     dim3 dimBlock(16, 16);
 
-    radon_backward_kernel <<< dimGrid, dimBlock >>> (y, tex_cache.texObj, rays, angles, img_size, n_rays, n_angles);
+    radon_backward_kernel << < dimGrid, dimBlock >> > (y, tex_cache.texObj, rays, angles, img_size, n_rays, n_angles);
+
+    //checkCudaErrors(cudaDeviceSynchronize());
 }
 
-/*
-__global__ void apply_filter(cufftComplex *sino, const int fft_size) {
+
+static const char *_cudaGetErrorEnum(cufftResult error) {
+    switch (error) {
+        case CUFFT_SUCCESS:
+            return "CUFFT_SUCCESS";
+
+        case CUFFT_INVALID_PLAN:
+            return "CUFFT_INVALID_PLAN";
+
+        case CUFFT_ALLOC_FAILED:
+            return "CUFFT_ALLOC_FAILED";
+
+        case CUFFT_INVALID_TYPE:
+            return "CUFFT_INVALID_TYPE";
+
+        case CUFFT_INVALID_VALUE:
+            return "CUFFT_INVALID_VALUE";
+
+        case CUFFT_INTERNAL_ERROR:
+            return "CUFFT_INTERNAL_ERROR";
+
+        case CUFFT_EXEC_FAILED:
+            return "CUFFT_EXEC_FAILED";
+
+        case CUFFT_SETUP_FAILED:
+            return "CUFFT_SETUP_FAILED";
+
+        case CUFFT_INVALID_SIZE:
+            return "CUFFT_INVALID_SIZE";
+
+        case CUFFT_UNALIGNED_DATA:
+            return "CUFFT_UNALIGNED_DATA";
+    }
+
+    return "<unknown>";
+}
+
+#define cufftSafeCall(err)      __cufftSafeCall(err, __FILE__, __LINE__)
+
+inline void __cufftSafeCall(cufftResult err, const char *file, const int line) {
+    if (CUFFT_SUCCESS != err) {
+        fprintf(stderr, "CUFFT error in file '%s', line %d\n %s\nerror %d: %s\nterminating!\n", __FILE__, __LINE__, err,
+                _cudaGetErrorEnum(err));
+        cudaDeviceReset();
+    }
+}
+
+
+__global__ void apply_filter(cufftComplex *sino, const int fft_size, const float scaling) {
     const uint x = blockIdx.x * blockDim.x + threadIdx.x;
     const uint y = blockIdx.y * blockDim.y + threadIdx.y;
 
     if (x < fft_size) {
-        sino[fft_size * y + x].x *= float(x);
-        sino[fft_size * y + x].y *= float(x);
+        sino[fft_size * y + x].x *= float(x) / scaling;
+        sino[fft_size * y + x].y *= float(x) / scaling;
     }
 }
 
@@ -78,7 +128,7 @@ unsigned int next_power_of_two(unsigned int v) {
     return v;
 }
 
-void radon_filter_sinogram_cuda(const float *x, float *y, const int batch_size, const int n_rays, const int n_angles) {
+void radon_filter_sinogram_cuda(const float *x, float *y, const int batch_size, const int n_angles, const int n_rays) {
     const int rows = batch_size * n_angles;
     const int padded_size = next_power_of_two(n_rays * 2);
     // cuFFT only stores half of the coefficient because they are symmetric (see cuFFT documentation)
@@ -105,23 +155,22 @@ void radon_filter_sinogram_cuda(const float *x, float *y, const int batch_size, 
 
     // create plans for FFT and iFFT
     cufftHandle forward_plan, back_plan;
-    checkCudaErrors(cufftPlan1d(&forward_plan, padded_size, CUFFT_R2C, rows));
-    checkCudaErrors(cufftPlan1d(&back_plan, padded_size, CUFFT_C2R, rows));
+    cufftSafeCall(cufftPlan1d(&forward_plan, padded_size, CUFFT_R2C, rows));
+    cufftSafeCall(cufftPlan1d(&back_plan, padded_size, CUFFT_C2R, rows));
 
     // do FFT
-    checkCudaErrors(cufftExecR2C(forward_plan, padded_data, complex_data));
+    cufftSafeCall(cufftExecR2C(forward_plan, padded_data, complex_data));
 
     // filter in Fourier domain
-    apply_filter << < dim3(fft_size / 16 + 1, rows / 16), dim3(16, 16) >> > (complex_data, fft_size);
+    apply_filter << < dim3(fft_size / 16 + 1, rows / 16), dim3(16, 16) >> > (complex_data, fft_size, padded_size*padded_size);
 
     // do iFFT
-    checkCudaErrors(cufftExecC2R(back_plan, complex_data, filtered_padded_sino));
+    cufftSafeCall(cufftExecC2R(back_plan, complex_data, filtered_padded_sino));
 
     // copy unpadded result in y
     checkCudaErrors(cudaMemcpy2D(y, sizeof(float) * n_rays, filtered_padded_sino, sizeof(float) * padded_size,
                                  sizeof(float) * n_rays, rows, cudaMemcpyDeviceToDevice));
 
-    checkCudaErrors(cufftDestroy(forward_plan));
-    checkCudaErrors(cufftDestroy(back_plan));
+    cufftSafeCall(cufftDestroy(forward_plan));
+    cufftSafeCall(cufftDestroy(back_plan));
 }
-*/

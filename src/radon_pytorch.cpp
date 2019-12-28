@@ -65,13 +65,29 @@ void radon_add_noise(torch::Tensor x, RadonNoiseGenerator noise_generator, const
     noise_generator.add_noise(x.data_ptr<float>(), signal, density_normalization, approximate, width, height);
 }
 
+torch::Tensor radon_filter_sinogram(torch::Tensor x) {
+    CHECK_INPUT(x);
+
+    const int batch_size = x.size(0);
+    const int n_angles = x.size(1);
+    const int n_rays = x.size(2);
+
+    // create output sinogram tensor
+    auto options = torch::TensorOptions().dtype(torch::kFloat32).device(x.device());
+    auto y = torch::empty({batch_size, n_angles, n_rays}, options);
+
+    radon_filter_sinogram_cuda(x.data_ptr<float>(), y.data_ptr<float>(), batch_size, n_angles, n_rays);
+
+    return y;
+}
+
 
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("forward", &radon_forward, "Radon forward projection");
   m.def("backward", &radon_backward, "Radon backprojection");
   m.def("add_noise", &radon_add_noise, "Add noise to sinogram");
-
+  m.def("filter_sinogram", &radon_filter_sinogram, "Radon backprojection");
 
   py::class_<TextureCache>(m, "TextureCache")
       .def(py::init<>())
@@ -81,7 +97,5 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
       .def(py::init<const uint>())
       .def("set_seed", &RadonNoiseGenerator::set_seed)
       .def("free", &RadonNoiseGenerator::free);
-
-  //m.def("filter_sinogram", &radon_filter_sinogram, "Radon backprojection");
 
 }

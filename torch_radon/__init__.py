@@ -83,6 +83,10 @@ class Radon(nn.Module):
         return y
 
     @staticmethod
+    def filter_sinogram(sinogram):
+        return torch_radon_cuda.filter_sinogram(sinogram)
+
+    @staticmethod
     def _compute_rays(resolution):
         s = resolution // 2
         locations = np.arange(2 * s) - s + 0.5

@@ -30,6 +30,7 @@ class AstraWrapper:
         cfg = astra.astra_dict('BP3D_CUDA')
         cfg['ReconstructionDataId'] = rec_id
         cfg['ProjectionDataId'] = proj_id
+        cfg['FilterType'] = "ram-lak"
 
         # Create the algorithm object from the configuration structure
         alg_id = astra.algorithm.create(cfg)
