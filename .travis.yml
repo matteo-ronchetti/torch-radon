@@ -6,4 +6,4 @@ services:
 before_install:
   - docker pull pytorch/pytorch
 script:
-  - docker run -v $(pwd):/code pytorch/pytorch ls /code
+  - docker run -v $(pwd):/code pytorch/pytorch bash /code/docker_build.sh
