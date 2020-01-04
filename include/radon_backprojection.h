@@ -5,5 +5,3 @@ void radon_backward_cuda(
         float *y, TextureCache &tex_cache, const int batch_size,
         const int img_size, const int n_rays, const int n_angles
 );
-
-void radon_filter_sinogram_cuda(const float *x, float *y, const int batch_size, const int n_angles, const int n_rays);

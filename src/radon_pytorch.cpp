@@ -5,6 +5,7 @@
 #include "radon_forward.h"
 #include "radon_backprojection.h"
 #include "radon_noise.h"
+#include "filtering.h"
 
 
 #define CHECK_CUDA(x) TORCH_CHECK(x.type().is_cuda(), #x " must be a CUDA tensor")

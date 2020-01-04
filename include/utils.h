@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <cuda.h>
+#include <cufft.h>
 #include <cuda_runtime.h>
 
 
@@ -11,6 +12,17 @@ typedef unsigned int uint;
 
 inline int roundup_div(const int x, const int y){
     return x/y + (x % y != 0);
+}
+
+inline unsigned int next_power_of_two(unsigned int v) {
+    v--;
+    v |= v >> 1;
+    v |= v >> 2;
+    v |= v >> 4;
+    v |= v >> 8;
+    v |= v >> 16;
+    v++;
+    return v;
 }
 
 template<typename T> void check_cuda(T result, const char* func, const char* file, const int line){
@@ -24,46 +36,56 @@ template<typename T> void check_cuda(T result, const char* func, const char* fil
 
 #define checkCudaErrors(val)  check_cuda((val), #val, __FILE__, __LINE__)
 
-/*
-cudaTextureObject_t
-create_texture(const float *data, cudaArray *&cuArray, uint batch_size, uint width, uint height, uint pitch) {
-    // Allocate a layered CUDA array
-    cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc(32, 0, 0, 0, cudaChannelFormatKindFloat);
-    const cudaExtent extent = make_cudaExtent(width, height, batch_size);
-    checkCudaErrors(cudaMalloc3DArray(&cuArray, &channelDesc, extent, cudaArrayLayered));
+static const char *_cudaGetErrorEnum(cufftResult error) {
+    switch (error) {
+        case CUFFT_SUCCESS:
+            return "CUFFT_SUCCESS";
 
-    // copy data into array
-    cudaMemcpy3DParms myparms = {0};
-    myparms.srcPos = make_cudaPos(0, 0, 0);
-    myparms.dstPos = make_cudaPos(0, 0, 0);
-    myparms.srcPtr = make_cudaPitchedPtr((void *) data, pitch * sizeof(float), width, height);
-    myparms.dstArray = cuArray;
-    myparms.extent = extent;
-    myparms.kind = cudaMemcpyDeviceToDevice;
-    checkCudaErrors(cudaMemcpy3D(&myparms));
-//    cudaMemcpy2DToArray(cuArray, 0, 0, data, pitch*sizeof(float), width*sizeof(float), height, cudaMemcpyDeviceToDevice);
+        case CUFFT_INVALID_PLAN:
+            return "CUFFT_INVALID_PLAN";
 
-    // Specify texture
-    cudaResourceDesc resDesc;
-    memset(&resDesc, 0, sizeof(resDesc));
-    resDesc.resType = cudaResourceTypeArray;
-    resDesc.res.array.array = cuArray;
-    //resDesc.array = cuArray;
+        case CUFFT_ALLOC_FAILED:
+            return "CUFFT_ALLOC_FAILED";
 
-    // Specify texture object parameters
-    cudaTextureDesc texDesc;
-    memset(&texDesc, 0, sizeof(texDesc));
-    texDesc.addressMode[0] = cudaAddressModeBorder;
-    texDesc.addressMode[1] = cudaAddressModeBorder;
-    texDesc.filterMode = cudaFilterModeLinear;
-    texDesc.readMode = cudaReadModeElementType;
-    texDesc.normalizedCoords = 0;
+        case CUFFT_INVALID_TYPE:
+            return "CUFFT_INVALID_TYPE";
 
-    // Create texture object
-    cudaTextureObject_t texObj = 0;
-    checkCudaErrors(cudaCreateTextureObject(&texObj, &resDesc, &texDesc, NULL));
+        case CUFFT_INVALID_VALUE:
+            return "CUFFT_INVALID_VALUE";
 
-    return texObj;
-}*/
+        case CUFFT_INTERNAL_ERROR:
+            return "CUFFT_INTERNAL_ERROR";
+
+        case CUFFT_EXEC_FAILED:
+            return "CUFFT_EXEC_FAILED";
+
+        case CUFFT_SETUP_FAILED:
+            return "CUFFT_SETUP_FAILED";
+
+        case CUFFT_INVALID_SIZE:
+            return "CUFFT_INVALID_SIZE";
+
+        case CUFFT_UNALIGNED_DATA:
+            return "CUFFT_UNALIGNED_DATA";
+
+        case CUFFT_INCOMPLETE_PARAMETER_LIST:
+            return "CUFFT_INCOMPLETE_PARAMETER_LIST";
+
+        default:
+            return "OTHER_ERROR";
+    }
+
+    return "<unknown>";
+}
+
+#define cufftSafeCall(err)      __cufftSafeCall(err, __FILE__, __LINE__)
+
+inline void __cufftSafeCall(cufftResult err, const char *file, const int line) {
+    if (CUFFT_SUCCESS != err) {
+        fprintf(stderr, "CUFFT error in file '%s', line %d\nerror %d: %s\nterminating!\n", __FILE__, __LINE__, err,
+                _cudaGetErrorEnum(err));
+        cudaDeviceReset();
+    }
+}
 
 #endif
