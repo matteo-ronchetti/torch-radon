@@ -87,6 +87,10 @@ class Radon(nn.Module):
         return torch_radon_cuda.filter_sinogram(sinogram)
 
     @staticmethod
+    def readings_lookup(sensor_readings, lookup_table):
+        return torch_radon_cuda.readings_lookup(sensor_readings, lookup_table)
+
+    @staticmethod
     def _compute_rays(resolution):
         s = resolution // 2
         locations = np.arange(2 * s) - s + 0.5
@@ -106,6 +110,9 @@ class RadonNoiseGenerator:
 
     def add_noise(self, x, signal, density_normalization, approximate=False):
         torch_radon_cuda.add_noise(x, self._generator, signal, density_normalization, approximate)
+
+    def emulate_readings(self, x, signal, density_normalization):
+        return torch_radon_cuda.emulate_sensor_readings(x, self._generator, signal, density_normalization)
 
     def __del__(self):
         self._generator.free()

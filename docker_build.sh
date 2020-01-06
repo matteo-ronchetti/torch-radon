@@ -1,4 +1,5 @@
 cd /code
-ls
+PATH=/opt/conda/bin/:$PATH
 
+python --version
 make install

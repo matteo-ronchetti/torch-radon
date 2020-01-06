@@ -28,15 +28,10 @@ $(OBJ_DIR):
 	mkdir -p $@/cuda
 
 $(OBJ_DIR)/cuda/%.o: $(SRC_DIR)/%.cu | $(OBJ_DIR)
-	#$(NVCC) $(FLAGS) -M $< -o ${@:.o=.d} -odir $(@D)
 	$(NVCC) $(FLAGS) -c $< -o $@
 
 $(OBJ_DIR)/cuda/libradon.a: $(CU_OBJS)
-	#gcc -fPIC -shared -o $@ -L/usr/local/cuda/lib64 -lcuda -lcudart $(CU_OBJS)
-	#$(NVCC) $(FLAGS) -dlink $(CU_OBJS) -o $(OBJ_DIR)/cuda/radon.o
 	ar rc $@ $(ALL_OBJS) $(CU_OBJS)
-	#g++ -shared $(CU_OBJS) $(OBJ_DIR)/cuda/radon.o -o $@
-
 
 install: all
 	rm -r build || true

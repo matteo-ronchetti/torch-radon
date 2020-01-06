@@ -37,15 +37,37 @@ template<bool approximate> __global__ void radon_sinogram_noise(float* sinogram,
     state[tid] = localState;
 }
 
+__global__ void radon_emulate_readings(const float* sinogram, int* readings, curandState *state, const float signal, const float density_normalization, const uint width, const uint height){
+    const uint x = blockIdx.x * blockDim.x + threadIdx.x;
+    const uint y = blockIdx.y * blockDim.y + threadIdx.y;
+    const uint tid = y * blockDim.x * gridDim.x + x;
+    const uint y_step = blockDim.y * gridDim.y;
+
+    // load curand state in local memory
+    curandState localState = state[tid];
+
+    // loop down the sinogram adding noise
+    for(uint yy = y; yy < height; yy += y_step){
+        uint pos = yy * width + x;
+        // measured signal = signal * exp(-sinogram[pos])
+        // then apply poisson noise
+        float mu = __expf(signal - sinogram[pos]/density_normalization);
+        readings[pos] = curand_poisson(&localState, mu);
+    }
+
+    // save curand state back in global memory
+    state[tid] = localState;
+}
+
 RadonNoiseGenerator::RadonNoiseGenerator(const uint seed){
     // allocate random states
-    checkCudaErrors(cudaMalloc((void **)&states, 16*2*4096 * sizeof(curandState)));
+    checkCudaErrors(cudaMalloc((void **)&states, 128*1024 * sizeof(curandState)));
 
     this->set_seed(seed);
 }
 
 void RadonNoiseGenerator::set_seed(const uint seed){
-    initialize_random_states<<<64,128>>>(states, seed);
+    initialize_random_states<<<128,1024>>>(states, seed);
 }
 
 void RadonNoiseGenerator::add_noise(float* sinogram, const float signal, const float density_normalization, const bool approximate, const uint width, const uint height){
@@ -56,8 +78,29 @@ void RadonNoiseGenerator::add_noise(float* sinogram, const float signal, const f
     }
 }
 
+void RadonNoiseGenerator::emulate_readings(const float* sinogram, int* readings, const float signal, const float density_normalization, const uint width, const uint height){
+    radon_emulate_readings<<<dim3(width/64, 32*1024/width), dim3(64, 4)>>>(sinogram, readings, states, signal, density_normalization, width, height);
+}
+
 void RadonNoiseGenerator::free(){
     if(this->states != nullptr){
         checkCudaErrors(cudaFree(this->states));
     }
+}
+
+__global__ void lookup_kernel(const int* readings, float *result, const float* lookup_table, const uint lookup_size, const uint width, const uint height){
+    // TODO use shared memory
+    const uint x = blockIdx.x * blockDim.x + threadIdx.x;
+    const uint y = blockIdx.y * blockDim.y + threadIdx.y;
+    const uint y_step = blockDim.y * gridDim.y;
+
+    for(uint yy = y; yy < height; yy += y_step){
+        uint pos = yy * width + x;
+        int index = min(readings[pos], lookup_size);
+        result[pos] = lookup_table[index];
+    }
+}
+
+void readings_lookup_cuda(const int* x, float*  y,const float* lookup_table, const uint lookup_size, const uint width, const uint height){
+    lookup_kernel<<<dim3(width/64, 32*1024/width), dim3(64, 4)>>>(x, y, lookup_table, lookup_size, width, height);
 }
