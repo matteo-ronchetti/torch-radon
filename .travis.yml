@@ -6,6 +6,7 @@ before_install:
 script:
 - docker run -v $(pwd):/code matteoronchetti/radon-build bash /code/docker_build.sh
 deploy:
+  skip_cleanup: true
   provider: s3
   region: eu-west-1
   bucket: rosh-public
@@ -14,7 +15,7 @@ deploy:
   dot_match: false
   acl: public_read
   overwrite: true
-  edge: false
+  edge: true
   access_key_id:
     secure: N4VvbyMDH4Z499NxveYegavMFdk+n+VGybHcLISWAKlHMZjq8FTwwJ8MpbUjW+rjyDsb0GiK1sI4wzkagZ5CECJiVT2LYs4bzrdy3ZzE6IT6uQH1KcwKF1IWh+IGVNQtJWYBOF2oBSL1wn3Fx+gCEyNxh5SgRIbPBU+UIQ594TTiGfCN2rSacwOahtE9rnainUcHY0ZuFxEvI1BBA7r32FxPQaNfRCDythTZ6PGGCCGjPZtmL6uLKZRxi6RCcJQ5zgg723XPRl8KCrJCvsH7EJDyJ5XoerluXJtUVXlUFe6LCSQvmLjUItHVl7tC5cC9IM1VJuV6yJXqYGkyjFwdJpTTw70SIr8iv+wqpTfvXrGg7kcLYbPkrFWzQtf7pBPLE9lB2Ki7Gch31lWumq/l2v3jWvZVTvBD8nubYyvoKR6dlY8+OO9DMB8GGnU6nAatSZAS+7iHTdMjvNB/gKUY8z+51mL8X0RgQDnE3xSt2hRB9eBqKAQCX/Cj+IAqVUPnruGsPPBCCqw30YNUSsfcoENjoCDN7wRDyU8HC03dkcC3/zLYu25PHLCMHh1YQWzXrNBewwh663vNwQT2YYcdXOV14Z15BHk0eIAY8K/9GbM3RoDLQr03UQ6fbY1WylAwtAKsz61dMT6v+Xj3RGXCUJtHfCxgoJZCNRMKhPc+mq4=
   secret_access_key:
