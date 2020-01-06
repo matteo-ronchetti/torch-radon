@@ -2,4 +2,6 @@ cd /code
 PATH=/opt/conda/bin/:$PATH
 
 python --version
-make install
+make
+python setup.py bdist_wheel
+

@@ -22,7 +22,7 @@ setup(name='torch_radon',
                         library_dirs=["objs/cuda"],
                         libraries=["radon"],
                         # strip debug symbols
-                        #extra_link_args=['-Wl,--strip-all']
+                        extra_link_args=['-Wl,--strip-all']
                         )
       ],
       cmdclass={'build_ext': BuildExtension},
