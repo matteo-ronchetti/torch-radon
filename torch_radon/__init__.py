@@ -1,118 +1,69 @@
 import numpy as np
-from torch import nn
-from torch.autograd import Function
-import torch
-
 import torch_radon_cuda
+import torch
+from torch import nn
+
+from .differentiable_functions import RadonForward, RadonBackprojection
+from .utils import compute_rays, normalize_shape
 
 
-class RadonForward(Function):
-    @staticmethod
-    def forward(ctx, x, rays, angles, tex_cache, back_tex_cache):
-        sinogram = torch_radon_cuda.forward(x, rays, angles, tex_cache)
-        ctx.back_tex_cache = back_tex_cache
-        ctx.save_for_backward(rays, angles)
-
-        return sinogram
-
-    @staticmethod
-    def backward(ctx, grad_x):
-        rays, angles = ctx.saved_variables
-        return torch_radon_cuda.backward(grad_x, rays, angles, ctx.back_tex_cache), None, None, None, None
-
-
-class RadonBackprojection(Function):
-    @staticmethod
-    def forward(ctx, x, rays, angles, tex_cache, back_tex_cache):
-        image = torch_radon_cuda.backward(x, rays, angles, back_tex_cache)
-        ctx.tex_cache = tex_cache
-        ctx.save_for_backward(rays, angles)
-
-        return image
-
-    @staticmethod
-    def backward(ctx, grad_x):
-        rays, angles = ctx.saved_variables
-        return torch_radon_cuda.forward(grad_x, rays, angles, ctx.tex_cache), None, None, None, None
-
-
-class Radon(nn.Module):
-    def __init__(self, resolution):
-        super().__init__()
+class Radon:
+    def __init__(self, resolution, device=None):
         assert resolution % 2 == 0, "Resolution must be even"
-        self.rays = nn.Parameter(self._compute_rays(resolution), requires_grad=False)
+        if device is None:
+            device = torch.device('cuda')
+
+        self.rays = compute_rays(resolution, device)
 
         # caches used to avoid reallocation of resources
         self.fp_tex_cache = torch_radon_cuda.TextureCache()
         self.bp_tex_cache = torch_radon_cuda.TextureCache()
 
+        self.noise_generator = None
+
+    @normalize_shape
+    def forward(self, imgs, angles):
+        return RadonForward.apply(imgs, self.rays, angles, self.fp_tex_cache, self.bp_tex_cache)
+
+    @normalize_shape
+    def backprojection(self, sinogram, angles):
+        return RadonBackprojection.apply(sinogram, self.rays, angles, self.fp_tex_cache, self.bp_tex_cache)
+
+    @staticmethod
+    @normalize_shape
+    def filter_sinogram(sinogram):
+        return torch_radon_cuda.filter_sinogram(sinogram)
+
+    @normalize_shape
+    def add_noise(self, x, signal, density_normalization, approximate=False):
+        if self.noise_generator is None:
+            self.set_seed()
+
+        torch_radon_cuda.add_noise(x, self.noise_generator, signal, density_normalization, approximate)
+
+    @normalize_shape
+    def emulate_readings(self, x, signal, density_normalization):
+        if self.noise_generator is None:
+            self.set_seed()
+
+        return torch_radon_cuda.emulate_sensor_readings(x, self.noise_generator, signal, density_normalization)
+
+    @normalize_shape
+    def readings_lookup(self, sensor_readings, lookup_table):
+        return torch_radon_cuda.readings_lookup(sensor_readings, lookup_table)
+
+    def set_seed(self, seed=-1):
+        if seed < 0:
+            seed = np.random.get_state()[1][0]
+
+        if self.noise_generator is not None:
+            self.noise_generator.free()
+
+        self.noise_generator = torch_radon_cuda.RadonNoiseGenerator(seed)
+
     def __del__(self):
         self.fp_tex_cache.free()
         self.bp_tex_cache.free()
 
-    def forward(self, imgs, angles):
-        # if input has shape BATCH x CHANNELS x W x H reshape to BATCH*CHANNELS x W x H
-        old_shape = None
-        if len(imgs.size()) == 4:
-            old_shape = imgs.size()
-            imgs = imgs.view(-1, old_shape[-2], old_shape[-1])
-
-        # apply radon transform
-        y = RadonForward.apply(imgs, self.rays, angles, self.fp_tex_cache, self.bp_tex_cache)
-
-        # return to old shape
-        if old_shape is not None:
-            y = y.view(old_shape[0], old_shape[1], -1, old_shape[-1])
-
-        return y
-
-    def backprojection(self, sinogram, angles):
-        # if input has shape BATCH x CHANNELS x ANGLES x W reshape to BATCH*CHANNELS x ANGLES x W
-        old_shape = None
-        if len(sinogram.size()) == 4:
-            old_shape = sinogram.size()
-            sinogram = sinogram.view(-1, old_shape[-2], old_shape[-1])
-
-        # apply radon transform
-        y = RadonBackprojection.apply(sinogram, self.rays, angles, self.fp_tex_cache, self.bp_tex_cache)
-
-        # return to old shape
-        if old_shape is not None:
-            y = y.view(old_shape[0], old_shape[1], -1, old_shape[-1])
-
-        return y
-
-    @staticmethod
-    def filter_sinogram(sinogram):
-        return torch_radon_cuda.filter_sinogram(sinogram)
-
-    @staticmethod
-    def readings_lookup(sensor_readings, lookup_table):
-        return torch_radon_cuda.readings_lookup(sensor_readings, lookup_table)
-
-    @staticmethod
-    def _compute_rays(resolution):
-        s = resolution // 2
-        locations = np.arange(2 * s) - s + 0.5
-        ys = np.sqrt(s ** 2 - locations ** 2) + 0.5
-        locations = locations.reshape(-1, 1)
-        ys = ys.reshape(-1, 1)
-        rays = np.hstack((locations, -ys, locations, ys))
-        return torch.FloatTensor(rays)
-
-
-class RadonNoiseGenerator:
-    def __init__(self, seed=-1):
-        if seed < 0:
-            seed = np.random.get_state()[1][0]
-
-        self._generator = torch_radon_cuda.RadonNoiseGenerator(seed)
-
-    def add_noise(self, x, signal, density_normalization, approximate=False):
-        torch_radon_cuda.add_noise(x, self._generator, signal, density_normalization, approximate)
-
-    def emulate_readings(self, x, signal, density_normalization):
-        return torch_radon_cuda.emulate_sensor_readings(x, self._generator, signal, density_normalization)
-
-    def __del__(self):
-        self._generator.free()
+        if self.noise_generator is not None:
+            self.noise_generator.free()

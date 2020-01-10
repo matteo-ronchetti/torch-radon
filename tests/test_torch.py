@@ -13,12 +13,13 @@ class TestTorch(TestCase):
         x.requires_grad = True
         angles = torch.FloatTensor(np.linspace(0, 2 * np.pi, 10).astype(np.float32)).to(device)
 
-        radon = Radon(64).to(device)
+        radon = Radon(64, device)
 
         # check that backward is implemented for fp and bp
         y = radon.forward(x, angles)
         z = torch.mean(radon.backprojection(y, angles))
         z.backward()
+        self.assertIsNotNone(x.grad)
 
     def test_shapes(self):
         """
@@ -27,7 +28,7 @@ class TestTorch(TestCase):
         device = torch.device('cuda')
         x = torch.FloatTensor(2, 3, 64, 64).to(device)
         angles = torch.FloatTensor(np.linspace(0, 2 * np.pi, 10).astype(np.float32)).to(device)
-        radon = Radon(64).to(device)
+        radon = Radon(64, device)
 
         y = radon.forward(x, angles)
         self.assertEqual(y.size(), (2, 3, 10, 64))
