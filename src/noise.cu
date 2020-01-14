@@ -96,7 +96,7 @@ __global__ void lookup_kernel(const int* readings, float *result, const float* l
 
     for(uint yy = y; yy < height; yy += y_step){
         uint pos = yy * width + x;
-        int index = min(readings[pos], lookup_size);
+        int index = min(readings[pos], lookup_size-1);
         result[pos] = lookup_table[index];
     }
 }
