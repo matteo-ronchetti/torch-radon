@@ -29,9 +29,8 @@ class Radon:
     def backprojection(self, sinogram, angles):
         return RadonBackprojection.apply(sinogram, self.rays, angles, self.fp_tex_cache, self.bp_tex_cache)
 
-    @staticmethod
     @normalize_shape
-    def filter_sinogram(sinogram):
+    def filter_sinogram(self, sinogram):
         return torch_radon_cuda.filter_sinogram(sinogram)
 
     @normalize_shape

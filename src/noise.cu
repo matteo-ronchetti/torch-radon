@@ -1,4 +1,4 @@
-#include "radon_noise.h"
+#include "noise.h"
 #include <iostream>
 
 __global__ void initialize_random_states(curandState *state, const uint seed){

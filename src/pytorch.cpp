@@ -2,9 +2,9 @@
 #include <iostream>
 #include <vector>
 
-#include "radon_forward.h"
-#include "radon_backprojection.h"
-#include "radon_noise.h"
+#include "forward.h"
+#include "backprojection.h"
+#include "noise.h"
 #include "filtering.h"
 
 
@@ -130,21 +130,12 @@ m.def("emulate_sensor_readings", &emulate_sensor_readings, "Emulate sensor readi
 m.def("readings_lookup", &readings_lookup, "Emulate sensor readings");
 m.def("filter_sinogram", &radon_filter_sinogram, "Radon backprojection");
 
-py::class_<TextureCache>(m,
-"TextureCache")
-.
+py::class_<TextureCache>(m,"TextureCache")
+    .def (py::init<>())
+    .def("free", &TextureCache::free);
 
-def (py::init<>())
-
-.def("free", &TextureCache::free);
-
-py::class_<RadonNoiseGenerator>(m,
-"RadonNoiseGenerator")
-.
-
-def (py::init<const uint>())
-
-.def("set_seed", &RadonNoiseGenerator::set_seed)
-.def("free", &RadonNoiseGenerator::free);
-
+py::class_<RadonNoiseGenerator>(m, "RadonNoiseGenerator")
+    .def(py::init<const uint>())
+    .def("set_seed", &RadonNoiseGenerator::set_seed)
+    .def("free", &RadonNoiseGenerator::free);
 }
