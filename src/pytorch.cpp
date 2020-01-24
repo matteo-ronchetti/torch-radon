@@ -13,6 +13,19 @@
 #define CHECK_INPUT(x) CHECK_CUDA(x); CHECK_CONTIGUOUS(x)
 
 
+torch::Tensor sinofilter(torch::Tensor x, torch::Tensor w){
+    const int batch_size = x.size(0);
+    const int channels = x.size(1);
+    const int img_size = x.size(2);
+
+    auto options = torch::TensorOptions().dtype(torch::kFloat32).device(x.device());
+    auto y = torch::zeros({batch_size, channels, img_size, img_size}, options);
+
+    sinofilter_cuda(x.data_ptr<float>(), w.data_ptr<float>(), y.data_ptr<float>(), batch_size, channels, img_size);
+    return y;
+}
+
+
 torch::Tensor radon_forward(torch::Tensor x, torch::Tensor rays, torch::Tensor angles, TextureCache &tex_cache) {
     CHECK_INPUT(x);
     CHECK_INPUT(rays);
@@ -129,6 +142,7 @@ m.def("add_noise", &radon_add_noise, "Add noise to sinogram");
 m.def("emulate_sensor_readings", &emulate_sensor_readings, "Emulate sensor readings");
 m.def("readings_lookup", &readings_lookup, "Emulate sensor readings");
 m.def("filter_sinogram", &radon_filter_sinogram, "Radon backprojection");
+m.def("sinofilter", &sinofilter, "Radon backprojection");
 
 py::class_<TextureCache>(m,"TextureCache")
     .def (py::init<>())

@@ -9,8 +9,8 @@ from parameterized import parameterized
 device = torch.device('cuda')
 
 full_angles = np.linspace(0, 2 * np.pi, 180).astype(np.float32)
-limited_angles = np.linspace(0.2 * np.pi, 0.5 * np.pi, 50).astype(np.float32)
-sparse_angles = np.linspace(0, 2 * np.pi, 18).astype(np.float32)
+limited_angles = np.linspace(0.2 * np.pi, 0.5 * np.pi, 40).astype(np.float32)
+sparse_angles = np.linspace(0, 2 * np.pi, 20).astype(np.float32)
 
 params = []  # [(device, 8, 128, full_angles)]
 for batch_size in [1, 8, 16, 32]:  # , 64, 128]:  # , 256, 512]:
@@ -42,7 +42,7 @@ def test_error(device, batch_size, image_size, angles):
     forward_error = relative_error(astra_fp, our_fp.cpu().numpy())
     back_error = relative_error(astra_bp, our_bp.cpu().numpy())
 
-    print(batch_size, image_size, forward_error, back_error)
+    print(batch_size, image_size, len(angles), forward_error, back_error)
     assert_less(forward_error, 1e-2)
     assert_less(back_error, 5e-3)
 

@@ -1,13 +1,24 @@
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <math.h>
+#include <time.h>
+#include <sys/time.h>
 #include <iostream>
-#include <cufft.h>
-#include <cuda.h>
-#include <cuda_runtime.h>
-#include <curand_kernel.h>
-#include <curand.h>
 
-#include "utils.h"
+using namespace std;
 
 #define WIDTH 4                      // The vector-width (in number of floats)
+
+//#define TSM 128                      // The tile-size in dimension M
+//#define TSN 128                      // The tile-size in dimension N
+//#define TSK 16                       // The tile-size in dimension K
+//#define WPTM 8                       // The amount of work-per-thread in dimension M
+//#define WPTN 8                       // The amount of work-per-thread in dimension N
+//#define RTSM (TSM/WPTM)              // The reduced tile-size in dimension M (== number of threads)
+//#define RTSN (TSN/WPTN)              // The reduced tile-size in dimension N (== number of threads)
+//#define LPTA ((TSK*WPTM*WPTN)/(TSN)) // The amount of loads-per-thread for A
+//#define LPTB ((TSK*WPTM*WPTN)/(TSM)) // The amount of loads-per-thread for B
 
 #if WIDTH == 1
 typedef float floatX;
@@ -16,6 +27,37 @@ typedef float2 floatX;
 #elif WIDTH == 4
 typedef float4 floatX;
 #endif
+
+//#define MOD2(x, y) ((x) % (y))
+//#define DIV2(x, y) ((x) / (y))
+
+
+__global__ void simple_kernel(const float *X, const float *W, float *Y, const int N, const int channels) {
+    const int b = blockIdx.z / channels;
+    const int c = blockIdx.z % channels;
+    const int c_offset = c * N * N;
+    const int bc_offset = (b * channels * N * N + c * N * N);
+
+    const int x = blockIdx.x * 16 + threadIdx.x;
+    const int y = blockIdx.y * 16 + threadIdx.y;
+
+    __shared__ float L[16][16];
+    __shared__ float R[16][16];
+
+    float tmp = 0.0f;
+    for (int tile = 0; tile < N / 16; tile++) {
+        L[threadIdx.y][threadIdx.x] = X[bc_offset + y * N + (tile * 16 + threadIdx.x)];
+        R[threadIdx.y][threadIdx.x] = W[c_offset + x * N + (tile * 16 + threadIdx.y)];
+
+        __syncthreads();
+        for (int k = 0; k < 16; k++) {
+            tmp += L[threadIdx.y][k] * R[k][threadIdx.x];
+        }
+        __syncthreads();
+    }
+
+    Y[bc_offset + y * N + x] = tmp;
+}
 
 template<int TS, int work_per_thread>
 __global__ void fast_kernel(const floatX *A, const floatX *B, float *C, const int N, const int channels) {
@@ -125,8 +167,7 @@ __global__ void fast_kernel(const floatX *A, const floatX *B, float *C, const in
     }
 }
 
-
-void sinofilter_cuda(const float* sinogram, const float* filters, float* res, const int batch_size, const int channels, const int img_size){
+void filter_sinogram(const float* sinogram, const float* filters, float* res, const int batch_size, const int channels, const int img_size){
     // TODO handle not power of two image sizes
 
     if(img_size == 64){
@@ -137,62 +178,68 @@ void sinofilter_cuda(const float* sinogram, const float* filters, float* res, co
         dim3 blocks(img_size / tile_size, img_size / tile_size, batch_size * channels);
         dim3 threads(tile_size / work_per_thread, tile_size / work_per_thread);
         fast_kernel<tile_size, work_per_thread> <<<blocks, threads>>>
-        ((const floatX *) sinogram, (const floatX *) filters, res, img_size, channels);
+                ((const floatX *) sinogram, (const floatX *) filters, res, img_size, channels);
     }
 }
 
+int main() {
+    cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeEightByte);
+    cudaDeviceSetCacheConfig(cudaFuncCachePreferEqual);
 
-__global__ void apply_filter(cufftComplex *sino, const int fft_size, const float scaling) {
-    const uint x = blockIdx.x * blockDim.x + threadIdx.x;
-    const uint y = blockIdx.y * blockDim.y + threadIdx.y;
+    const int batch = 16;
+    const int channels = 8;
+    const int N = 256;
+    float *A, *B, *C;
 
-    if (x < fft_size) {
-        sino[fft_size * y + x].x *= float(x) / scaling;
-        sino[fft_size * y + x].y *= float(x) / scaling;
+    cudaMalloc((void **) &A, batch * channels * N * N * sizeof(float));
+    cudaMalloc((void **) &B, batch * channels * N * N * sizeof(float));
+    cudaMalloc((void **) &C, batch * channels * N * N * sizeof(float));
+
+    float *A_cpu = (float *) malloc(N * N * sizeof(float));
+    float *B_cpu = (float *) malloc(N * N * sizeof(float));
+    float *C_cpu = (float *) malloc(N * N * sizeof(float));
+    float *D_cpu = (float *) malloc(N * N * sizeof(float));
+
+    for (int i = 0; i < N * N; i++) {
+        A_cpu[i] = (float) rand() / (float) RAND_MAX - 0.5;
+        B_cpu[i] = (float) rand() / (float) RAND_MAX - 0.5;
     }
-}
 
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < N; j++) {
+            float tmp = 0;
+            for (int k = 0; k < N; k++) {
+                tmp += A_cpu[i * N + k] * B_cpu[j * N + k];
+            }
+            C_cpu[i * N + j] = tmp;
+        }
+    }
 
-void radon_filter_sinogram_cuda(const float *x, float *y, const int batch_size, const int n_angles, const int n_rays) {
-    const int rows = batch_size * n_angles;
-    const int padded_size = next_power_of_two(n_rays * 2);
-    // cuFFT only stores half of the coefficient because they are symmetric (see cuFFT documentation)
-    const int fft_size = padded_size / 2 + 1;
+    cudaMemcpy((void *) A, (void *) A_cpu, N * N * sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy((void *) B, (void *) B_cpu, N * N * sizeof(float), cudaMemcpyHostToDevice);
 
-    // pad x
-    cufftReal *padded_data = nullptr;
-    checkCudaErrors(cudaMalloc((void **) &padded_data, sizeof(cufftReal) * rows * padded_size));
-    checkCudaErrors(cudaMemset(padded_data, 0, sizeof(cufftReal) * rows * padded_size));
-    checkCudaErrors(cudaMemcpy2D(padded_data, sizeof(cufftReal) * padded_size, x, sizeof(float) * n_rays,
-                                 sizeof(float) * n_rays, rows, cudaMemcpyDeviceToDevice));
+    //simple_kernel << < dim3(N / 16, N / 16, batch * channels), dim3(16, 16) >> > (A, B, C, N, channels);
 
-    // allocate complex tensor to store FFT coefficients
-    cufftComplex *complex_data = nullptr;
-    checkCudaErrors(cudaMalloc((void **) &complex_data, sizeof(cufftComplex) * rows * fft_size));
+    filter_sinogram(A, B, C, batch, channels, N);
 
-    // allocate real tensor to store padded filtered sinogram
-    cufftReal *filtered_padded_sino = nullptr;
-    checkCudaErrors(cudaMalloc((void **) &filtered_padded_sino, sizeof(cufftReal) * rows * padded_size));
-    checkCudaErrors(cudaMemset(filtered_padded_sino, 0, sizeof(cufftReal) * rows * padded_size));
+    cudaMemcpy((void *) D_cpu, (void *) C, N * N * sizeof(float), cudaMemcpyDeviceToHost);
 
-    // create plans for FFT and iFFT
-    cufftHandle forward_plan, back_plan;
-    cufftSafeCall(cufftPlan1d(&forward_plan, padded_size, CUFFT_R2C, rows));
-    cufftSafeCall(cufftPlan1d(&back_plan, padded_size, CUFFT_C2R, rows));
+    float err = 0;
+    for (int i = 0; i < N * N; i++) {
+        err += pow(C_cpu[i] - D_cpu[i], 2);
+    }
 
-    // do FFT
-    cufftSafeCall(cufftExecR2C(forward_plan, padded_data, complex_data));
+    for (int i = 0; i < 6; i++) {
+        for (int j = 0; j < 6; j++) cout << C_cpu[(i) * N + (249 + j)] << " ";
+        cout << endl;
+    }
+    cout << endl;
+    for (int i = 0; i < 6; i++) {
+        for (int j = 0; j < 6; j++) cout << D_cpu[(i) * N + (249 + j)] << " ";
+        cout << endl;
+    }
+    cout << endl;
 
-    // filter in Fourier domain
-    apply_filter << < dim3(fft_size / 16 + 1, rows / 16), dim3(16, 16) >> > (complex_data, fft_size, padded_size*padded_size);
+    cout << "Error: " << err << endl;
 
-    // do iFFT
-    cufftSafeCall(cufftExecC2R(back_plan, complex_data, filtered_padded_sino));
-
-    // copy unpadded result in y
-    checkCudaErrors(cudaMemcpy2D(y, sizeof(float) * n_rays, filtered_padded_sino, sizeof(float) * padded_size,
-                                 sizeof(float) * n_rays, rows, cudaMemcpyDeviceToDevice));
-
-    cufftSafeCall(cufftDestroy(forward_plan));
-    cufftSafeCall(cufftDestroy(back_plan));
 }
