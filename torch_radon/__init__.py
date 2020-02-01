@@ -34,14 +34,14 @@ class Radon:
         return torch_radon_cuda.filter_sinogram(sinogram)
 
     @normalize_shape
-    def add_noise(self, x, signal, density_normalization, approximate=False):
+    def add_noise(self, x, signal, density_normalization=1.0, approximate=False):
         if self.noise_generator is None:
             self.set_seed()
 
         torch_radon_cuda.add_noise(x, self.noise_generator, signal, density_normalization, approximate)
 
     @normalize_shape
-    def emulate_readings(self, x, signal, density_normalization):
+    def emulate_readings(self, x, signal, density_normalization=1.0):
         if self.noise_generator is None:
             self.set_seed()
 
