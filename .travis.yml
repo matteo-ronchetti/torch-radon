@@ -4,13 +4,13 @@ services:
 before_install:
 - docker pull matteoronchetti/radon-build
 script:
-- docker run -v $(pwd):/code matteoronchetti/radon-build bash /code/docker_build.sh
+- docker run -v $(pwd):/code matteoronchetti/cuda-builder
 deploy:
   skip_cleanup: true
   provider: s3
   region: eu-west-1
   bucket: rosh-public
-  local_dir: dist
+  local_dir: output
   upload_dir: radon
   dot_match: false
   acl: public_read
