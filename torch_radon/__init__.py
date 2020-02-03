@@ -1,8 +1,8 @@
 import numpy as np
-import torch_radon_cuda
 import torch
 from torch import nn
 
+import torch_radon_cuda
 from .differentiable_functions import RadonForward, RadonBackprojection
 from .utils import compute_rays, normalize_shape
 
