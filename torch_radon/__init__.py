@@ -39,6 +39,7 @@ class Radon:
             self.set_seed()
 
         torch_radon_cuda.add_noise(x, self.noise_generator, signal, density_normalization, approximate)
+        return x
 
     @normalize_shape
     def emulate_readings(self, x, signal, density_normalization=1.0):
