@@ -25,7 +25,7 @@ class Model(torch.nn.Module):
 #     radon = Radon(256, torch.device("cuda", gpu))
 
 
-x = torch.FloatTensor(32, 1, 256, 256).normal_()  # .to(torch.device("cuda"))
+x = torch.FloatTensor(256, 1, 256, 256).normal_()  # .to(torch.device("cuda"))
 
 model = Model().to(torch.device("cuda", 0))
 y = model(x.to(torch.device("cuda", 0)))
@@ -37,7 +37,8 @@ y = model(x.to(torch.device("cuda", 0)))
 # y = model(x.to(torch.device("cuda", 1)))
 
 model = torch.nn.DataParallel(model, [0, 1])
-y_ = model(x)
+for i in range(100):
+    y_ = model(x)
 print("Done", flush=True)
 print(y.device, y_.device)
 
