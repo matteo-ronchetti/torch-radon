@@ -8,38 +8,27 @@ from .utils import compute_rays, normalize_shape
 
 
 class Radon(nn.Module):
-    def __init__(self, resolution, device=None):
+    def __init__(self, resolution, angles):
         super().__init__()
-        
-        assert resolution % 2 == 0, "Resolution must be even"
-        if device is None:
-            device = torch.device('cuda')
 
-        self.rays = nn.Parameter(compute_rays(resolution, device))
+        assert resolution % 2 == 0, "Resolution must be even"
+        if not isinstance(angles, torch.Tensor):
+            angles = torch.FloatTensor(angles)
+
+        self.rays = nn.Parameter(compute_rays(resolution), requires_grad=False)
+        self.angles = nn.Parameter(angles, requires_grad=False)
 
         # caches used to avoid reallocation of resources
         self.fp_tex_cache = torch_radon_cuda.TextureCache()
         self.bp_tex_cache = torch_radon_cuda.TextureCache()
 
         self.noise_generator = None
-        #print("Hi")
-        
-#         self._to = self.to
-#         self.to = self.__new_to
 
-#     def cuda(self, *args, **kwargs):
-#         print("CUDA")
-
-#     def to(self, *args, **kwargs):
-#         device, dtype, non_blocking = torch._C._nn._parse_to(*args, **kwargs)
-#         print("to", device)
-#         return None #self._to(*args, **kwargs)
-        
     @normalize_shape
-    def forward(self, imgs, angles):
-        #print("Rays", self.rays.device)
-        #return imgs
-        return RadonForward.apply(imgs, self.rays, angles, self.fp_tex_cache, self.bp_tex_cache)
+    def forward(self, imgs):
+        # print("Rays", self.rays.device)
+        # return imgs
+        return RadonForward.apply(imgs, self.rays, self.angles, self.fp_tex_cache, self.bp_tex_cache)
 
     @normalize_shape
     def backprojection(self, sinogram, angles):

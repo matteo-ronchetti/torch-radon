@@ -78,9 +78,11 @@ void TextureCache::put(const float *data, uint b, uint w, uint h, uint pitch, in
 }
 
 void TextureCache::free(){
-    for(int device = 0; device < 1; device++){
-        checkCudaErrors(cudaSetDevice(device));
-        this->caches[device]->free();
+    for(int device = 0; device < 8; device++){
+        if(this->caches[device] != 0){
+            checkCudaErrors(cudaSetDevice(device));
+            this->caches[device]->free();
+        }
     }
 }
     

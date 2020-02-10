@@ -21,11 +21,11 @@ def normalize_shape(f):
     return inner
 
 
-def compute_rays(resolution, device):
+def compute_rays(resolution):
     s = resolution // 2
     locations = np.arange(2 * s) - s + 0.5
     ys = np.sqrt(s ** 2 - locations ** 2) + 0.5
     locations = locations.reshape(-1, 1)
     ys = ys.reshape(-1, 1)
     rays = np.hstack((locations, -ys, locations, ys))
-    return torch.FloatTensor(rays).to(device)
+    return torch.FloatTensor(rays)
