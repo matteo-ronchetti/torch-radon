@@ -43,16 +43,16 @@ __global__ void radon_backward_kernel(float *output, cudaTextureObject_t texObj,
 }
 
 void radon_backward_cuda(const float *x, const float *rays, const float *angles, float *y, TextureCache &tex_cache,
-                         const int batch_size, const int img_size, const int n_rays, const int n_angles) {
+                         const int batch_size, const int img_size, const int n_rays, const int n_angles, const int device) {
     // copy x into CUDA Array (allocating it if needed) and bind to texture
-    tex_cache.put(x, batch_size, n_rays, n_angles, n_rays);
+    tex_cache.put(x, batch_size, n_rays, n_angles, n_rays, device);
 
     // Invoke kernel
     const int grid_size = img_size / 16;
     dim3 dimGrid(grid_size, grid_size, batch_size);
     dim3 dimBlock(16, 16);
 
-    radon_backward_kernel << < dimGrid, dimBlock >> > (y, tex_cache.texObj, rays, angles, img_size, n_rays, n_angles);
+    radon_backward_kernel << < dimGrid, dimBlock >> > (y, tex_cache.texObj(device), rays, angles, img_size, n_rays, n_angles);
 
     //checkCudaErrors(cudaDeviceSynchronize());
 }

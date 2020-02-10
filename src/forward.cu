@@ -71,12 +71,13 @@ radon_forward_kernel(float *__restrict__ output, cudaTextureObject_t texObj, con
 
 void radon_forward_cuda(const float *x, const float *rays, const float *angles, float *y, TextureCache &tex_cache,
                         const int batch_size,
-                        const int img_size, const int n_rays, const int n_angles) {
+                        const int img_size, const int n_rays, const int n_angles, const int device) {
+    checkCudaErrors(cudaSetDevice(device));
     checkCudaErrors(cudaFuncSetCacheConfig(radon_forward_kernel<4>, cudaFuncCachePreferL1));
     checkCudaErrors(cudaFuncSetCacheConfig(radon_forward_kernel<1>, cudaFuncCachePreferL1));
 
     // copy x into CUDA Array (allocating it if needed) and bind to texture
-    tex_cache.put(x, batch_size, img_size, img_size, img_size);
+    tex_cache.put(x, batch_size, img_size, img_size, img_size, device);
 
     // Invoke kernel
     const int grid_size = img_size / 16;
@@ -85,11 +86,11 @@ void radon_forward_cuda(const float *x, const float *rays, const float *angles, 
     if (n_angles <= 64) {
         dim3 dimGrid(grid_size, roundup_div(n_angles, 16), batch_size);
         radon_forward_kernel<1> << < dimGrid, dimBlock >> >
-                                              (y, tex_cache.texObj, rays, angles, img_size, n_rays, n_angles);
+                                              (y, tex_cache.texObj(device), rays, angles, img_size, n_rays, n_angles);
     } else {
         dim3 dimGrid(grid_size, roundup_div(n_angles, 16*4), batch_size);
         radon_forward_kernel<4> << < dimGrid, dimBlock >> >
-                                              (y, tex_cache.texObj, rays, angles, img_size, n_rays, n_angles);
+                                              (y, tex_cache.texObj(device), rays, angles, img_size, n_rays, n_angles);
     }
 }
 

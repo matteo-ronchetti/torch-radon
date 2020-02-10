@@ -7,22 +7,38 @@ from .differentiable_functions import RadonForward, RadonBackprojection
 from .utils import compute_rays, normalize_shape
 
 
-class Radon:
+class Radon(nn.Module):
     def __init__(self, resolution, device=None):
+        super().__init__()
+        
         assert resolution % 2 == 0, "Resolution must be even"
         if device is None:
             device = torch.device('cuda')
 
-        self.rays = compute_rays(resolution, device)
+        self.rays = nn.Parameter(compute_rays(resolution, device))
 
         # caches used to avoid reallocation of resources
         self.fp_tex_cache = torch_radon_cuda.TextureCache()
         self.bp_tex_cache = torch_radon_cuda.TextureCache()
 
         self.noise_generator = None
+        #print("Hi")
+        
+#         self._to = self.to
+#         self.to = self.__new_to
 
+#     def cuda(self, *args, **kwargs):
+#         print("CUDA")
+
+#     def to(self, *args, **kwargs):
+#         device, dtype, non_blocking = torch._C._nn._parse_to(*args, **kwargs)
+#         print("to", device)
+#         return None #self._to(*args, **kwargs)
+        
     @normalize_shape
     def forward(self, imgs, angles):
+        #print("Rays", self.rays.device)
+        #return imgs
         return RadonForward.apply(imgs, self.rays, angles, self.fp_tex_cache, self.bp_tex_cache)
 
     @normalize_shape

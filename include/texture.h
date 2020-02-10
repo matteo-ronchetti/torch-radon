@@ -5,7 +5,8 @@
 #include <cuda_runtime.h>
 #include "utils.h"
 
-class TextureCache{
+
+class SingleTextureCache{
     cudaArray* array = nullptr;
     uint batch_size = 0;
     uint width = 0;
@@ -14,13 +15,27 @@ class TextureCache{
     public:
     cudaTextureObject_t texObj;
 
-    TextureCache();
+    SingleTextureCache();
 
     void allocate(uint b, uint w, uint h);
 
     void put(const float *data, uint b, uint w, uint h, uint pitch);
 
     void free();
+};
+
+
+class TextureCache{
+    SingleTextureCache** caches;
+    
+    public:
+    TextureCache();
+
+    void put(const float *data, uint b, uint w, uint h, uint pitch, int device);
+
+    void free();
+    
+    cudaTextureObject_t texObj(int device);
 };
 
 #endif

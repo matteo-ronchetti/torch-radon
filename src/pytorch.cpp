@@ -37,7 +37,8 @@ torch::Tensor radon_forward(torch::Tensor x, torch::Tensor rays, torch::Tensor a
 
     const int n_rays = rays.size(0);
     const int n_angles = angles.size(0);
-    std::cout << x.device().index() << std::endl;
+    const int device = x.device().index();
+    //std::cout << "Radon forward input device: " << device << std::endl;
 
     // create output sinogram tensor
     auto options = torch::TensorOptions().dtype(torch::kFloat32).device(x.device());
@@ -45,7 +46,7 @@ torch::Tensor radon_forward(torch::Tensor x, torch::Tensor rays, torch::Tensor a
 
     radon_forward_cuda(x.data_ptr<float>(), rays.data_ptr<float>(), angles.data_ptr<float>(), y.data_ptr<float>(),
                        tex_cache,
-                       batch_size, img_size, n_rays, n_angles);
+                       batch_size, img_size, n_rays, n_angles, device);
 
     return y;
 }
@@ -59,6 +60,7 @@ torch::Tensor radon_backward(torch::Tensor x, torch::Tensor rays, torch::Tensor 
     const int n_angles = x.size(1);
     const int img_size = x.size(2);
     const int n_rays = rays.size(0);
+    const int device = x.device().index();
 
     TORCH_CHECK(angles.size(0) == n_angles, "Radon backward mismatch between sinogram size and number of angles")
 
@@ -68,7 +70,7 @@ torch::Tensor radon_backward(torch::Tensor x, torch::Tensor rays, torch::Tensor 
 
     radon_backward_cuda(x.data_ptr<float>(), rays.data_ptr<float>(), angles.data_ptr<float>(), y.data_ptr<float>(),
                         tex_cache,
-                        batch_size, img_size, n_rays, n_angles);
+                        batch_size, img_size, n_rays, n_angles, device);
 
     return y;
 }

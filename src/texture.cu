@@ -1,17 +1,18 @@
 #include "texture.h"
 #include <iostream>
 
-TextureCache::TextureCache(){}
+SingleTextureCache::SingleTextureCache(){}
 
-void TextureCache::free(){
+void SingleTextureCache::free(){
     //std::cout << "Free" << std::endl;
     if(this->array != nullptr){
         checkCudaErrors(cudaFreeArray(this->array));
         checkCudaErrors(cudaDestroyTextureObject(this->texObj));
+        this->array = nullptr;
     }
 }
 
-void TextureCache::allocate(uint b, uint w, uint h){
+void SingleTextureCache::allocate(uint b, uint w, uint h){
     // free previously allocated array
     this->free();
 
@@ -42,11 +43,11 @@ void TextureCache::allocate(uint b, uint w, uint h){
     checkCudaErrors(cudaCreateTextureObject(&texObj, &resDesc, &texDesc, NULL));
 }
 
-void TextureCache::put(const float *data, uint b, uint w, uint h, uint pitch){
+void SingleTextureCache::put(const float *data, uint b, uint w, uint h, uint pitch){
     // only reallocate when required
     if(this->batch_size != b || this->width != w ||  this->height != h){
-        //std::cout << "Alloc" << std::endl;
-        //std::cout << this->batch_size << " " << b << " " <<  this->width  << " " <<  w  << " " <<  this->height  << " " <<  h << std::endl;
+        std::cout << "Alloc" << std::endl;
+        std::cout << this->batch_size << " " << b << " " <<  this->width  << " " <<  w  << " " <<  this->height  << " " <<  h << std::endl;
         this->allocate(b, w, h);
     }
 
@@ -59,4 +60,30 @@ void TextureCache::put(const float *data, uint b, uint w, uint h, uint pitch){
     myparms.extent = make_cudaExtent(width, height, batch_size);
     myparms.kind = cudaMemcpyDeviceToDevice;
     checkCudaErrors(cudaMemcpy3D(&myparms));
+}
+
+
+
+TextureCache::TextureCache(){
+    this->caches = (SingleTextureCache**) malloc(8*sizeof(SingleTextureCache*));
+    memset(this->caches, 0, 8*sizeof(SingleTextureCache*));
+};
+
+void TextureCache::put(const float *data, uint b, uint w, uint h, uint pitch, int device){
+    if(this->caches[device] == 0){
+        std::cout << "NEW TEXTURE CACHE " << device << std::endl;
+        this->caches[device] = new SingleTextureCache();
+    }
+    this->caches[device]->put(data, b, w, h, pitch);
+}
+
+void TextureCache::free(){
+    for(int device = 0; device < 1; device++){
+        checkCudaErrors(cudaSetDevice(device));
+        this->caches[device]->free();
+    }
+}
+    
+cudaTextureObject_t TextureCache::texObj(int device){
+    return this->caches[device]->texObj;
 }
