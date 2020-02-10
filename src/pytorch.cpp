@@ -38,7 +38,6 @@ torch::Tensor radon_forward(torch::Tensor x, torch::Tensor rays, torch::Tensor a
     const int n_rays = rays.size(0);
     const int n_angles = angles.size(0);
     const int device = x.device().index();
-    //std::cout << "Radon forward input device: " << device << std::endl;
 
     // create output sinogram tensor
     auto options = torch::TensorOptions().dtype(torch::kFloat32).device(x.device());

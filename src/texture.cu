@@ -4,7 +4,7 @@
 SingleTextureCache::SingleTextureCache(){}
 
 void SingleTextureCache::free(){
-    //std::cout << "Free" << std::endl;
+    std::cout << "[TORCH RADON] Freeing Texture" << std::endl;
     if(this->array != nullptr){
         checkCudaErrors(cudaFreeArray(this->array));
         checkCudaErrors(cudaDestroyTextureObject(this->texObj));
@@ -46,8 +46,7 @@ void SingleTextureCache::allocate(uint b, uint w, uint h){
 void SingleTextureCache::put(const float *data, uint b, uint w, uint h, uint pitch){
     // only reallocate when required
     if(this->batch_size != b || this->width != w ||  this->height != h){
-        std::cout << "Alloc" << std::endl;
-        std::cout << this->batch_size << " " << b << " " <<  this->width  << " " <<  w  << " " <<  this->height  << " " <<  h << std::endl;
+        std::cout << "[TORCH RADON] Allocating Texture, old size != new size: (" << this->batch_size << "," << this->width << "," << this->height << ") != (" << b << "," << w << "," << h << ")" << std::endl;
         this->allocate(b, w, h);
     }
 
@@ -71,13 +70,14 @@ TextureCache::TextureCache(){
 
 void TextureCache::put(const float *data, uint b, uint w, uint h, uint pitch, int device){
     if(this->caches[device] == 0){
-        std::cout << "NEW TEXTURE CACHE " << device << std::endl;
+        std::cout << "[TORCH RADON] Creating New Texture Cache on device " << device << std::endl;
         this->caches[device] = new SingleTextureCache();
     }
     this->caches[device]->put(data, b, w, h, pitch);
 }
 
 void TextureCache::free(){
+    std::cout << "[TORCH RADON] Global Free" << std::endl;
     for(int device = 0; device < 8; device++){
         if(this->caches[device] != 0){
             checkCudaErrors(cudaSetDevice(device));

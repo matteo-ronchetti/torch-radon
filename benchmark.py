@@ -20,14 +20,13 @@ def bench(batch_size, image_size, n_angles=180, sample_size=50):
     astra_time = (e - s) / sample_size
 
     with torch.no_grad():
-        radon = Radon(image_size, device)
+        radon = Radon(image_size, angles).to(device)
         x = torch.FloatTensor(x)
-        angles = torch.FloatTensor(angles).to(device)
 
         s = time.time()
         for i in range(sample_size):
             x_ = x.to(device)
-            y = radon.forward(x_, angles)
+            y = radon.forward(x_)
             y_ = y.cpu()
         e = time.time()
         our_time = (e - s) / sample_size

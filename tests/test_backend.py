@@ -32,12 +32,11 @@ def test_error(device, batch_size, image_size, angles):
     astra_bp *= circle_mask(image_size)
 
     # our implementation
-    radon = Radon(image_size)
+    radon = Radon(image_size, angles).to(device)
     x = torch.FloatTensor(x).to(device)
-    angles = torch.FloatTensor(angles).to(device)
 
-    our_fp = radon.forward(x, angles)
-    our_bp = radon.backprojection(our_fp, angles)
+    our_fp = radon.forward(x)
+    our_bp = radon.backprojection(our_fp)
 
     forward_error = relative_error(astra_fp, our_fp.cpu().numpy())
     back_error = relative_error(astra_bp, our_bp.cpu().numpy())
@@ -51,11 +50,11 @@ def test_noise():
     x = torch.FloatTensor(3, 5, 64, 64).to(device)
     lookup_table = torch.FloatTensor(128, 64).to(device)
     x.requires_grad = True
-    angles = torch.FloatTensor(np.linspace(0, 2 * np.pi, 10).astype(np.float32)).to(device)
+    angles = torch.FloatTensor(np.linspace(0, 2 * np.pi, 10).astype(np.float32))
 
-    radon = Radon(64, device)
+    radon = Radon(64, angles).to(device)
 
-    sinogram = radon.forward(x, angles)
+    sinogram = radon.forward(x)
     assert_equal(sinogram.size(), (3, 5, 10, 64))
 
     readings = radon.emulate_readings(sinogram, 5, 10.0)

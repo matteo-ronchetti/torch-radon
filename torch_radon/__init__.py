@@ -31,8 +31,8 @@ class Radon(nn.Module):
         return RadonForward.apply(imgs, self.rays, self.angles, self.fp_tex_cache, self.bp_tex_cache)
 
     @normalize_shape
-    def backprojection(self, sinogram, angles):
-        return RadonBackprojection.apply(sinogram, self.rays, angles, self.fp_tex_cache, self.bp_tex_cache)
+    def backprojection(self, sinogram):
+        return RadonBackprojection.apply(sinogram, self.rays, self.angles, self.fp_tex_cache, self.bp_tex_cache)
 
     @normalize_shape
     def filter_sinogram(self, sinogram):
