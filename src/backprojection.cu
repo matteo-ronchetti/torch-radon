@@ -25,18 +25,22 @@ __global__ void radon_backward_kernel(float *output, cudaTextureObject_t texObj,
     }
     __syncthreads();
 
-    const float v = img_size / 2;
-    const float dx = (float) x - v + 0.5;
-    const float dy = (float) y - v + 0.5;
+    const float center = img_size / 2;
+    const float max_r = center - 0.5;
+    float dx = (float) x - center + 0.5;
+    float dy = (float) y - center + 0.5;
 
     float tmp = 0.0;
     const float r = hypot(dx, dy);
 
-    if (r <= v) {
-        for (int i = 0; i < n_angles; i++) {
-            float j = s_cos[i] * dx + s_sin[i] * dy + v;
-            tmp += tex2DLayered<float>(texObj, j, i + 0.5f, batch_id);
-        }
+    if(r > max_r){
+        dx *= max_r/r;
+        dy *= max_r/r;
+    }
+
+    for (int i = 0; i < n_angles; i++) {
+        float j = s_cos[i] * dx + s_sin[i] * dy + center;
+        tmp += tex2DLayered<float>(texObj, j, i + 0.5f, batch_id);
     }
 
     output[batch_id * img_size * img_size + y * img_size + x] = tmp;
