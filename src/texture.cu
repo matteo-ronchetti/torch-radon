@@ -1,28 +1,16 @@
 #include "texture.h"
 #include <iostream>
 
-SingleTextureCache::SingleTextureCache(){}
+Texture::Texture(DeviceSizeKey k) : key(k) {
+    // TODO handle device here? More general but possibly slower...
 
-void SingleTextureCache::free(){
-    std::cout << "[TORCH RADON] Freeing Texture" << std::endl;
-    if(this->array != nullptr){
-        checkCudaErrors(cudaFreeArray(this->array));
-        checkCudaErrors(cudaDestroyTextureObject(this->texObj));
-        this->array = nullptr;
-    }
-}
-
-void SingleTextureCache::allocate(uint b, uint w, uint h){
-    // free previously allocated array
-    this->free();
-
-    this->batch_size = b;
-    this->width = w;
-    this->height = h;
+#ifdef VERBOSE
+    std::cout << "[TORCH RADON] Allocating Texture " << this->key << std::endl;
+#endif
 
     // Allocate a layered CUDA array
     cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc(32, 0, 0, 0, cudaChannelFormatKindFloat);
-    const cudaExtent extent = make_cudaExtent(width, height, batch_size);
+    const cudaExtent extent = make_cudaExtent(k.width, k.height, k.batch);
     checkCudaErrors(cudaMalloc3DArray(&array, &channelDesc, extent, cudaArrayLayered));
 
     cudaResourceDesc resDesc;
@@ -43,49 +31,33 @@ void SingleTextureCache::allocate(uint b, uint w, uint h){
     checkCudaErrors(cudaCreateTextureObject(&texObj, &resDesc, &texDesc, NULL));
 }
 
-void SingleTextureCache::put(const float *data, uint b, uint w, uint h, uint pitch){
-    // only reallocate when required
-    if(this->batch_size != b || this->width != w ||  this->height != h){
-        std::cout << "[TORCH RADON] Allocating Texture, old size != new size: (" << this->batch_size << "," << this->width << "," << this->height << ") != (" << b << "," << w << "," << h << ")" << std::endl;
-        this->allocate(b, w, h);
-    }
+void Texture::put(const float *data) {
+    checkCudaErrors(cudaDeviceSynchronize());
+    const uint pitch = this->key.width;
 
     // copy data into array
     cudaMemcpy3DParms myparms = {0};
     myparms.srcPos = make_cudaPos(0, 0, 0);
     myparms.dstPos = make_cudaPos(0, 0, 0);
-    myparms.srcPtr = make_cudaPitchedPtr((void *) data, pitch * sizeof(float), width, height);
+    myparms.srcPtr = make_cudaPitchedPtr((void *) data, pitch * sizeof(float), this->key.width, this->key.height);
     myparms.dstArray = this->array;
-    myparms.extent = make_cudaExtent(width, height, batch_size);
+    myparms.extent = make_cudaExtent(this->key.width, this->key.height, this->key.batch);
     myparms.kind = cudaMemcpyDeviceToDevice;
     checkCudaErrors(cudaMemcpy3D(&myparms));
 }
 
-
-
-TextureCache::TextureCache(){
-    this->caches = (SingleTextureCache**) malloc(8*sizeof(SingleTextureCache*));
-    memset(this->caches, 0, 8*sizeof(SingleTextureCache*));
-};
-
-void TextureCache::put(const float *data, uint b, uint w, uint h, uint pitch, int device){
-    if(this->caches[device] == 0){
-        std::cout << "[TORCH RADON] Creating New Texture Cache on device " << device << std::endl;
-        this->caches[device] = new SingleTextureCache();
-    }
-    this->caches[device]->put(data, b, w, h, pitch);
+bool Texture::matches(DeviceSizeKey& k){
+    return k == this->key;
 }
 
-void TextureCache::free(){
-    std::cout << "[TORCH RADON] Global Free" << std::endl;
-    for(int device = 0; device < 8; device++){
-        if(this->caches[device] != 0){
-            checkCudaErrors(cudaSetDevice(device));
-            this->caches[device]->free();
-        }
+Texture::~Texture() {
+#ifdef VERBOSE
+    std::cout << "[TORCH RADON] Freeing Texture " << this->key << std::endl;
+#endif
+    if (this->array != nullptr) {
+        checkCudaErrors(cudaSetDevice(this->key.device));
+        checkCudaErrors(cudaFreeArray(this->array));
+        checkCudaErrors(cudaDestroyTextureObject(this->texObj));
+        this->array = nullptr;
     }
-}
-    
-cudaTextureObject_t TextureCache::texObj(int device){
-    return this->caches[device]->texObj;
 }

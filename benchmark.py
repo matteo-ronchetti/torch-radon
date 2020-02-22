@@ -13,8 +13,14 @@ def bench(batch_size, image_size, n_angles=180, sample_size=50):
     angles = np.linspace(0, 2 * np.pi, n_angles).astype(np.float32)
 
     astra = AstraWrapper(angles)
+
+    for i in range(10):
+        _ = astra.forward(x)
+
     s = time.time()
     for i in range(sample_size):
+        # for j in range(x.shape[0]):
+        #     astra.fbp(x[j])
         _ = astra.forward(x)
     e = time.time()
     astra_time = (e - s) / sample_size
@@ -23,11 +29,21 @@ def bench(batch_size, image_size, n_angles=180, sample_size=50):
         radon = Radon(image_size, angles).to(device)
         x = torch.FloatTensor(x)
 
+        for i in range(10):
+            x_ = x.to(device)
+            y = radon.forward(x_)
+            y = radon.filter_sinogram(y)
+            z = radon.backprojection(y)
+            y_ = z.cpu()
+
         s = time.time()
         for i in range(sample_size):
             x_ = x.to(device)
             y = radon.forward(x_)
-            y_ = y.cpu()
+            y = radon.filter_sinogram(y)
+            z = radon.backprojection(y)
+            y_ = z.cpu()
+
         e = time.time()
         our_time = (e - s) / sample_size
 

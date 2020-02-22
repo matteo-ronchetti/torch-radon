@@ -29,14 +29,14 @@ def test_error(device, batch_size, image_size, angles):
 
     astra_fp_id, astra_fp = astra.forward(x)
     astra_bp = astra.backproject(astra_fp_id, image_size, batch_size)
-    astra_bp *= circle_mask(image_size)
+    # astra_bp *= circle_mask(image_size)
 
     # our implementation
     radon = Radon(image_size, angles).to(device)
     x = torch.FloatTensor(x).to(device)
 
     our_fp = radon.forward(x)
-    our_bp = radon.backprojection(our_fp)
+    our_bp = radon.backprojection(our_fp, extend=True)
 
     forward_error = relative_error(astra_fp, our_fp.cpu().numpy())
     back_error = relative_error(astra_bp, our_bp.cpu().numpy())

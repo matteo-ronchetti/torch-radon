@@ -5,6 +5,8 @@ LIBRARIES := curand
 
 INCLUDE_DIRS := ./include/
 
+CXX_FLAGS := -std=c++11 -fPIC $(foreach includedir,$(INCLUDE_DIRS),-I$(includedir)) -O3
+
 FLAGS := -std=c++11
 FLAGS += -ccbin=$(CXX) -Xcompiler -fPIC
 FLAGS += $(foreach includedir,$(INCLUDE_DIRS),-I$(includedir))
@@ -16,10 +18,16 @@ FLAGS += -gencode arch=compute_70,code=sm_70
 FLAGS += -gencode arch=compute_75,code=sm_75
 FLAGS += -DNDEBUG -O3 --generate-line-info
 
+FLAGS += -DVERBOSE
+CXX_FLAGS += -DVERBOSE
+
 SRC_DIR := ./src
 OBJ_DIR := ./objs
 CU_SRCS := $(wildcard $(SRC_DIR)/*.cu)
+CPP_SRCS := ./src/cache.cpp #$(wildcard $(SRC_DIR)/*.cpp)
 CU_OBJS := $(patsubst $(SRC_DIR)/%.cu,$(OBJ_DIR)/cuda/%.o,$(CU_SRCS))
+CPP_OBJS := $(patsubst $(SRC_DIR)/%.cpp,$(OBJ_DIR)/%.o,$(CPP_SRCS))
+
 
 all: $(OBJ_DIR)/cuda/libradon.a | $(OBJ_DIR)
 
@@ -30,8 +38,11 @@ $(OBJ_DIR):
 $(OBJ_DIR)/cuda/%.o: $(SRC_DIR)/%.cu | $(OBJ_DIR)
 	$(NVCC) $(FLAGS) -c $< -o $@
 
-$(OBJ_DIR)/cuda/libradon.a: $(CU_OBJS)
-	ar rc $@ $(ALL_OBJS) $(CU_OBJS)
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp | $(OBJ_DIR)
+	$(CXX) $(CXX_FLAGS) -c $< -o $@
+
+$(OBJ_DIR)/cuda/libradon.a: $(CU_OBJS) $(CPP_OBJS)
+	ar rc $@ $(ALL_OBJS) $(CU_OBJS) $(CPP_OBJS)
 
 install: all
 	rm -r build || true

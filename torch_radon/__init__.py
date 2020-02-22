@@ -19,8 +19,8 @@ class Radon(nn.Module):
         self.angles = nn.Parameter(angles, requires_grad=False)
 
         # caches used to avoid reallocation of resources
-        self.fp_tex_cache = torch_radon_cuda.TextureCache()
-        self.bp_tex_cache = torch_radon_cuda.TextureCache()
+        self.tex_cache = torch_radon_cuda.TextureCache(8)
+        self.fft_cache = torch_radon_cuda.FFTCache(8)
 
         self.noise_generator = None
 
@@ -28,15 +28,15 @@ class Radon(nn.Module):
     def forward(self, imgs):
         # print("Rays", self.rays.device)
         # return imgs
-        return RadonForward.apply(imgs, self.rays, self.angles, self.fp_tex_cache, self.bp_tex_cache)
+        return RadonForward.apply(imgs, self.rays, self.angles, self.tex_cache)
 
     @normalize_shape
-    def backprojection(self, sinogram):
-        return RadonBackprojection.apply(sinogram, self.rays, self.angles, self.fp_tex_cache, self.bp_tex_cache)
+    def backprojection(self, sinogram, extend=False):
+        return RadonBackprojection.apply(sinogram, self.rays, self.angles, self.tex_cache, extend)
 
     @normalize_shape
     def filter_sinogram(self, sinogram):
-        return torch_radon_cuda.filter_sinogram(sinogram)
+        return torch_radon_cuda.filter_sinogram(sinogram, self.fft_cache)
 
     @normalize_shape
     def add_noise(self, x, signal, density_normalization=1.0, approximate=False):
@@ -67,8 +67,8 @@ class Radon(nn.Module):
         self.noise_generator = torch_radon_cuda.RadonNoiseGenerator(seed)
 
     def __del__(self):
-        self.fp_tex_cache.free()
-        self.bp_tex_cache.free()
+        #self.tex_cache.free()
+        #self.bp_tex_cache.free()
 
         if self.noise_generator is not None:
             self.noise_generator.free()

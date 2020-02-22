@@ -4,38 +4,24 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include "utils.h"
+#include "cache.h"
 
+class Texture {
+    cudaArray *array = nullptr;
+    DeviceSizeKey key;
 
-class SingleTextureCache{
-    cudaArray* array = nullptr;
-    uint batch_size = 0;
-    uint width = 0;
-    uint height = 0;
-
-    public:
+public:
     cudaTextureObject_t texObj;
 
-    SingleTextureCache();
+    Texture(DeviceSizeKey key);
+    void put(const float *data);
 
-    void allocate(uint b, uint w, uint h);
+    bool matches(DeviceSizeKey& k);
 
-    void put(const float *data, uint b, uint w, uint h, uint pitch);
-
-    void free();
+    ~Texture();
 };
 
 
-class TextureCache{
-    SingleTextureCache** caches;
-    
-    public:
-    TextureCache();
-
-    void put(const float *data, uint b, uint w, uint h, uint pitch, int device);
-
-    void free();
-    
-    cudaTextureObject_t texObj(int device);
-};
+typedef Cache<DeviceSizeKey, Texture> TextureCache;
 
 #endif
