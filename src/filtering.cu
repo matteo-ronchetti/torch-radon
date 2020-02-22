@@ -146,6 +146,7 @@ void sinofilter_cuda(const float* sinogram, const float* filters, float* res, co
 
 
 FFTStructures::FFTStructures(DeviceSizeKey k) : key(k) {
+    checkCudaErrors(cudaSetDevice(this->key.device));
 #ifdef VERBOSE
     std::cout << "[TORCH RADON] Allocating FFT " << this->key << std::endl;
 #endif
@@ -225,6 +226,7 @@ radon_filter_sinogram_cuda(const float *x, float *y, FFTCache &fft_cache, const 
 
     FFTStructures *fft = fft_cache.get({device, batch_size, n_rays, n_angles});
 
+    checkCudaErrors(cudaSetDevice(device));
     fft->FFT(x);
 
     // filter in Fourier domain

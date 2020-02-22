@@ -60,6 +60,9 @@ __global__ void radon_emulate_readings(const float* sinogram, int* readings, cur
 }
 
 RadonNoiseGenerator::RadonNoiseGenerator(const uint seed){
+    // TODO
+    checkCudaErrors(cudaSetDevice(0));
+
     // allocate random states
     checkCudaErrors(cudaMalloc((void **)&states, 128*1024 * sizeof(curandState)));
 
@@ -67,10 +70,16 @@ RadonNoiseGenerator::RadonNoiseGenerator(const uint seed){
 }
 
 void RadonNoiseGenerator::set_seed(const uint seed){
+    // TODO
+    checkCudaErrors(cudaSetDevice(0));
+
     initialize_random_states<<<128,1024>>>(states, seed);
 }
 
 void RadonNoiseGenerator::add_noise(float* sinogram, const float signal, const float density_normalization, const bool approximate, const uint width, const uint height){
+    // TODO
+    checkCudaErrors(cudaSetDevice(0));
+
     if(approximate){
         radon_sinogram_noise<true><<<dim3(width/64, 32*1024/width), dim3(64, 4)>>>(sinogram, states, signal, density_normalization, width, height);
     }else{
@@ -79,6 +88,9 @@ void RadonNoiseGenerator::add_noise(float* sinogram, const float signal, const f
 }
 
 void RadonNoiseGenerator::emulate_readings(const float* sinogram, int* readings, const float signal, const float density_normalization, const uint width, const uint height){
+    // TODO
+    checkCudaErrors(cudaSetDevice(0));
+
     radon_emulate_readings<<<dim3(width/64, 32*1024/width), dim3(64, 4)>>>(sinogram, readings, states, signal, density_normalization, width, height);
 }
 
@@ -102,5 +114,8 @@ __global__ void lookup_kernel(const int* readings, float *result, const float* l
 }
 
 void readings_lookup_cuda(const int* x, float*  y,const float* lookup_table, const uint lookup_size, const uint width, const uint height){
+    // TODO
+    checkCudaErrors(cudaSetDevice(0));
+
     lookup_kernel<<<dim3(width/64, 32*1024/width), dim3(64, 4)>>>(x, y, lookup_table, lookup_size, width, height);
 }

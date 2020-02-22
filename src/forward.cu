@@ -72,7 +72,6 @@ radon_forward_kernel(float *__restrict__ output, cudaTextureObject_t texObj, con
 void radon_forward_cuda(const float *x, const float *rays, const float *angles, float *y, TextureCache &tex_cache,
                         const int batch_size,
                         const int img_size, const int n_rays, const int n_angles, const int device) {
-    checkCudaErrors(cudaSetDevice(device));
     checkCudaErrors(cudaFuncSetCacheConfig(radon_forward_kernel<4>, cudaFuncCachePreferL1));
     checkCudaErrors(cudaFuncSetCacheConfig(radon_forward_kernel<1>, cudaFuncCachePreferL1));
 

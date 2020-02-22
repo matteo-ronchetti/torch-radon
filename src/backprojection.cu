@@ -75,6 +75,4 @@ void radon_backward_cuda(const float *x, const float *rays, const float *angles,
         radon_backward_kernel<false> << < dimGrid, dimBlock >> >
                                                   (y, tex->texObj, rays, angles, img_size, n_rays, n_angles);
     }
-
-    checkCudaErrors(cudaDeviceSynchronize());
 }

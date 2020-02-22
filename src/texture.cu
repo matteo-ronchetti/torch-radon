@@ -2,7 +2,7 @@
 #include <iostream>
 
 Texture::Texture(DeviceSizeKey k) : key(k) {
-    // TODO handle device here? More general but possibly slower...
+    checkCudaErrors(cudaSetDevice(this->key.device));
 
 #ifdef VERBOSE
     std::cout << "[TORCH RADON] Allocating Texture " << this->key << std::endl;
@@ -32,7 +32,7 @@ Texture::Texture(DeviceSizeKey k) : key(k) {
 }
 
 void Texture::put(const float *data) {
-    checkCudaErrors(cudaDeviceSynchronize());
+    checkCudaErrors(cudaSetDevice(this->key.device));
     const uint pitch = this->key.width;
 
     // copy data into array
