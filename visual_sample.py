@@ -3,7 +3,7 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from torch_radon import Radon
-from tests.astra_wrapper import AstraWrapper
+# from tests.astra_wrapper import AstraWrapper
 from tests.utils import generate_random_images, relative_error, circle_mask
 
 
@@ -47,30 +47,31 @@ device = torch.device('cuda')
 angles = np.linspace(0, np.pi, n_angles, endpoint=False)
 radon = Radon(image_size, angles).to(device)
 
-astra = AstraWrapper(angles)
-aid, astra_sinogram = astra.forward(img.reshape(1, image_size, image_size))
-astra_sinogram = astra_sinogram[0]
-astra_backprojection = astra.backproject(aid, image_size, 1)[0]  # * circle_mask(image_size)
-a_fbp = astra.fbp(img)
+# astra = AstraWrapper(angles)
+# aid, astra_sinogram = astra.forward(img.reshape(1, image_size, image_size))
+# astra_sinogram = astra_sinogram[0]
+# astra_backprojection = astra.backproject(aid, image_size, 1)[0]  # * circle_mask(image_size)
+# a_fbp = astra.fbp(img)
 # plt.imshow(astra_backprojection[0])
 # plt.show()
 
 with torch.no_grad():
     x = torch.FloatTensor(img).reshape(1, 1, image_size, image_size).to(device)
     sinogram = radon.forward(x)
+    readings = radon.emulate_readings(sinogram, 3.0, 12.0)
     filtered = radon.filter_sinogram(sinogram)
     y = radon.backprojection(sinogram, extend=True)
     fbp = radon.backprojection(filtered, extend=False) * np.pi / n_angles
 
-y = y[0, 0].cpu().numpy()  # * circle_mask(image_size)
-sinogram = sinogram[0, 0].cpu().numpy()
+# y = y[0, 0].cpu().numpy()  # * circle_mask(image_size)
+# sinogram = sinogram[0, 0].cpu().numpy()
 
-print(relative_error(astra_sinogram, sinogram))
-compare_images([astra_sinogram, sinogram, astra_sinogram - sinogram], keep_range=False)
-print(relative_error(astra_backprojection, y))
-compare_images([astra_backprojection, y, astra_backprojection - y], keep_range=False)
-plt.show()
-compare_images([img, fbp[0, 0].cpu().numpy(), a_fbp])
+# print(relative_error(astra_sinogram, sinogram))
+# compare_images([astra_sinogram, sinogram, astra_sinogram - sinogram], keep_range=False)
+# print(relative_error(astra_backprojection, y))
+# compare_images([astra_backprojection, y, astra_backprojection - y], keep_range=False)
+# plt.show()
+# compare_images([img, fbp[0, 0].cpu().numpy(), a_fbp])
 plt.show()
 # print(relative_error(astra_backprojection[0], y))
 # diff = astra_backprojection[0] - y

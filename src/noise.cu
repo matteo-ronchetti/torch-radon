@@ -70,13 +70,13 @@ RadonNoiseGenerator::RadonNoiseGenerator(const uint _seed) : seed(_seed) {
 
 
 void RadonNoiseGenerator::set_seed(const uint seed, int device) {
-    initialize_random_states << < 128, 1024 >> > (this->states[device], seed);
+    initialize_random_states << < 128, 1024 >> > (this->get(device), seed);
 }
 
 void RadonNoiseGenerator::set_seed(const uint seed) {
     this->seed = seed;
     for (int i = 0; i < 8; i++) {
-        if (this->states[i] == nullptr) {
+        if (this->states[i] != nullptr) {
             this->set_seed(seed, i);
         }
     }
@@ -123,7 +123,10 @@ void RadonNoiseGenerator::emulate_readings(const float *sinogram, int *readings,
 
 void RadonNoiseGenerator::free() {
     for (int i = 0; i < 8; i++) {
-        if (this->states[i] == nullptr) {
+        if (this->states[i] != nullptr) {
+#ifdef VERBOSE
+        std::cout << "[TORCH RADON] Freeing Random states on device " << i << std::endl;
+#endif
             checkCudaErrors(cudaSetDevice(i));
             checkCudaErrors(cudaFree(this->states[i]));
             this->states[i] = nullptr;
