@@ -22,7 +22,8 @@ class Radon(nn.Module):
         self.tex_cache = torch_radon_cuda.TextureCache(8)
         self.fft_cache = torch_radon_cuda.FFTCache(8)
 
-        self.noise_generator = None
+        seed = np.random.get_state()[1][0]
+        self.noise_generator = torch_radon_cuda.RadonNoiseGenerator(seed)
 
     @normalize_shape
     def forward(self, imgs):
@@ -40,17 +41,11 @@ class Radon(nn.Module):
 
     @normalize_shape
     def add_noise(self, x, signal, density_normalization=1.0, approximate=False):
-        if self.noise_generator is None:
-            self.set_seed()
-
         torch_radon_cuda.add_noise(x, self.noise_generator, signal, density_normalization, approximate)
         return x
 
     @normalize_shape
     def emulate_readings(self, x, signal, density_normalization=1.0):
-        if self.noise_generator is None:
-            self.set_seed()
-
         return torch_radon_cuda.emulate_sensor_readings(x, self.noise_generator, signal, density_normalization)
 
     @normalize_shape
@@ -61,14 +56,9 @@ class Radon(nn.Module):
         if seed < 0:
             seed = np.random.get_state()[1][0]
 
-        if self.noise_generator is not None:
-            self.noise_generator.free()
-
-        self.noise_generator = torch_radon_cuda.RadonNoiseGenerator(seed)
+        self.noise_generator.set_seed(seed)
 
     def __del__(self):
         #self.tex_cache.free()
         #self.bp_tex_cache.free()
-
-        if self.noise_generator is not None:
-            self.noise_generator.free()
+        self.noise_generator.free()
