@@ -64,17 +64,19 @@ torch::Tensor radon_backward(torch::Tensor x, torch::Tensor rays, torch::Tensor 
     return y;
 }
 
-void radon_add_noise(torch::Tensor x, RadonNoiseGenerator noise_generator, const float signal,
+void radon_add_noise(torch::Tensor x, RadonNoiseGenerator& noise_generator, const float signal,
                      const float density_normalization, const bool approximate) {
     CHECK_INPUT(x);
 
     const int height = x.size(0) * x.size(1);
     const int width = x.size(2);
+    const int device = x.device().index();
 
-    noise_generator.add_noise(x.data_ptr<float>(), signal, density_normalization, approximate, width, height);
+
+    noise_generator.add_noise(x.data_ptr<float>(), signal, density_normalization, approximate, width, height, device);
 }
 
-torch::Tensor emulate_sensor_readings(torch::Tensor x, RadonNoiseGenerator noise_generator, const float signal,
+torch::Tensor emulate_sensor_readings(torch::Tensor x, RadonNoiseGenerator& noise_generator, const float signal,
                                       const float density_normalization) {
     CHECK_INPUT(x);
 
@@ -84,9 +86,10 @@ torch::Tensor emulate_sensor_readings(torch::Tensor x, RadonNoiseGenerator noise
 
     const int height = x.size(0) * x.size(1);
     const int width = x.size(2);
+    const int device = x.device().index();
 
     noise_generator.emulate_readings(x.data_ptr<float>(), y.data_ptr<int>(), signal, density_normalization, width,
-                                     height);
+                                     height, device);
 
     return y;
 }
@@ -102,9 +105,10 @@ torch::Tensor readings_lookup(torch::Tensor x, torch::Tensor lookup_table) {
 
     const int height = x.size(0) * x.size(1);
     const int width = x.size(2);
+    const int device = x.device().index();
 
     readings_lookup_cuda(x.data_ptr<int>(), y.data_ptr<float>(), lookup_table.data_ptr<float>(),
-                         lookup_table.size(0), width, height);
+                         lookup_table.size(0), width, height, device);
 
     return y;
 }
@@ -146,6 +150,6 @@ py::class_<FFTCache>(m,"FFTCache")
 
 py::class_<RadonNoiseGenerator>(m, "RadonNoiseGenerator")
     .def(py::init<const uint>())
-    .def("set_seed", &RadonNoiseGenerator::set_seed)
+    .def("set_seed", (void (RadonNoiseGenerator::*)(const uint)) &RadonNoiseGenerator::set_seed)
     .def("free", &RadonNoiseGenerator::free);
 }

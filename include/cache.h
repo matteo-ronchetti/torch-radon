@@ -32,6 +32,14 @@ public:
         memset(this->cache, 0, size);
     }
 
+    bool exists(Key k) {
+        for (uint i = 0; i < this->cache_size; i++) {
+            if (this->cache[i] == 0) return false;
+            if (this->cache[i]->matches(k)) return true;
+        }
+        return false;
+    }
+
     Value *get(Key k) {
         uint i;
         for (i = 0; i < this->cache_size; i++) {
