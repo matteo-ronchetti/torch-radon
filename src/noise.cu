@@ -134,6 +134,10 @@ void RadonNoiseGenerator::free() {
     }
 }
 
+RadonNoiseGenerator::~RadonNoiseGenerator(){
+    this->free();
+}
+
 __global__ void
 lookup_kernel(const int *readings, float *result, const float *lookup_table, const uint lookup_size, const uint width,
               const uint height) {

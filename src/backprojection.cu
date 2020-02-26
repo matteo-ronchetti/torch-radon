@@ -11,8 +11,8 @@ template<bool extend>
 __global__ void radon_backward_kernel(float *output, cudaTextureObject_t texObj, const float *rays, const float *angles,
                                       const int img_size, const int n_rays, const int n_angles) {
 
-    __shared__ float s_sin[256];
-    __shared__ float s_cos[256];
+    __shared__ float s_sin[512];
+    __shared__ float s_cos[512];
 
     // Calculate image coordinates
     const uint x = blockIdx.x * blockDim.x + threadIdx.x;
@@ -20,9 +20,9 @@ __global__ void radon_backward_kernel(float *output, cudaTextureObject_t texObj,
     const uint batch_id = blockIdx.z;
     const uint tid = threadIdx.y * blockDim.x + threadIdx.x;
 
-    if (tid < n_angles) {
-        s_sin[tid] = __sinf(angles[tid]);
-        s_cos[tid] = __cosf(angles[tid]);
+    for(int i = tid; i < n_angles; i += 256){
+        s_sin[i] = __sinf(angles[i]);
+        s_cos[i] = __cosf(angles[i]);
     }
     __syncthreads();
 

@@ -11,10 +11,16 @@ Welcome to torch-radon's documentation!
    :caption: Contents:
 
 
+Installation
+============
+.. raw:: html
+   :file: _static/install.html
+
 
 Indices and tables
 ==================
 
 * :ref:`genindex`
+* :ref:`Installation`
 * :ref:`modindex`
 * :ref:`search`

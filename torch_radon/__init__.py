@@ -27,8 +27,6 @@ class Radon(nn.Module):
 
     @normalize_shape
     def forward(self, imgs):
-        # print("Rays", self.rays.device)
-        # return imgs
         return RadonForward.apply(imgs, self.rays, self.angles, self.tex_cache)
 
     @normalize_shape
@@ -59,6 +57,4 @@ class Radon(nn.Module):
         self.noise_generator.set_seed(seed)
 
     def __del__(self):
-        #self.tex_cache.free()
-        #self.bp_tex_cache.free()
         self.noise_generator.free()

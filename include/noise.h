@@ -23,6 +23,8 @@ public:
                           const uint width, const uint height, int device);
 
     void free();
+
+    ~RadonNoiseGenerator();
 };
 
 void readings_lookup_cuda(const int* x, float*  y,const float* lookup_table, const uint lookup_size, const uint width, const uint height, int device);
