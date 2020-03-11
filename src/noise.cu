@@ -15,11 +15,13 @@ radon_sinogram_noise(float *sinogram, curandState *state, const float signal, co
     const uint tid = y * blockDim.x * gridDim.x + x;
     const uint y_step = blockDim.y * gridDim.y;
 
+    if(tid < 128*1024){
     // load curand state in local memory
     curandState localState = state[tid];
 
     // loop down the sinogram adding noise
     for (uint yy = y; yy < height; yy += y_step) {
+        if(x < width){
         uint pos = yy * width + x;
         // measured signal = signal * exp(-sinogram[pos])
         // then apply poisson noise
@@ -34,10 +36,12 @@ radon_sinogram_noise(float *sinogram, curandState *state, const float signal, co
 
         // convert back to sinogram scale
         sinogram[pos] = fmaxf((signal - __logf(reading)), 0.0f) * density_normalization;
+        }
     }
 
     // save curand state back in global memory
     state[tid] = localState;
+    }
 }
 
 __global__ void radon_emulate_readings(const float *sinogram, int *readings, curandState *state, const float signal,
@@ -101,11 +105,11 @@ void RadonNoiseGenerator::add_noise(float *sinogram, const float signal, const f
     checkCudaErrors(cudaSetDevice(device));
 
     if (approximate) {
-        radon_sinogram_noise<true> << < dim3(width / 64, 32 * 1024 / width), dim3(64, 4) >> >
+        radon_sinogram_noise<true> << < dim3(width/16, 8 * 1024 / width), dim3(16, 16) >> >
                                                                              (sinogram, this->get(
                                                                                      device), signal, density_normalization, width, height);
     } else {
-        radon_sinogram_noise<false> << < dim3(width / 64, 32 * 1024 / width), dim3(64, 4) >> >
+        radon_sinogram_noise<false> << < dim3(width/16, 8 * 1024 / width), dim3(16, 16) >> >
                                                                               (sinogram, this->get(
                                                                                       device), signal, density_normalization, width, height);
     }
@@ -116,7 +120,7 @@ void RadonNoiseGenerator::emulate_readings(const float *sinogram, int *readings,
                                            int device) {
     checkCudaErrors(cudaSetDevice(device));
 
-    radon_emulate_readings << < dim3(width / 64, 32 * 1024 / width), dim3(64, 4) >> >
+    radon_emulate_readings << < dim3(width/16, 8 * 1024 / width), dim3(16, 16) >> >
                                                                      (sinogram, readings, this->get(
                                                                              device), signal, density_normalization, width, height);
 }
@@ -157,6 +161,6 @@ void readings_lookup_cuda(const int *x, float *y, const float *lookup_table, con
                           const uint height, int device) {
     checkCudaErrors(cudaSetDevice(device));
 
-    lookup_kernel << < dim3(width / 64, 32 * 1024 / width), dim3(64, 4) >> >
+    lookup_kernel << < dim3(width/16, 8 * 1024 / width), dim3(16, 16) >> >
                                                             (x, y, lookup_table, lookup_size, width, height);
 }
