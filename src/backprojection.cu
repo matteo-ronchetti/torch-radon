@@ -7,7 +7,7 @@
 #include "utils.h"
 #include "texture.h"
 
-template<bool extend>
+template < bool extend, int wpt >
 __global__ void radon_backward_kernel(float *output, cudaTextureObject_t texObj, const float *rays, const float *angles,
                                       const int img_size, const int n_rays, const int n_angles) {
 
@@ -17,7 +17,7 @@ __global__ void radon_backward_kernel(float *output, cudaTextureObject_t texObj,
     // Calculate image coordinates
     const uint x = blockIdx.x * blockDim.x + threadIdx.x;
     const uint y = blockIdx.y * blockDim.y + threadIdx.y;
-    const uint batch_id = blockIdx.z;
+    const uint batch_id = blockIdx.z * wpt;
     const uint tid = threadIdx.y * blockDim.x + threadIdx.x;
 
     for (int i = tid; i < n_angles; i += 256) {
@@ -31,8 +31,9 @@ __global__ void radon_backward_kernel(float *output, cudaTextureObject_t texObj,
     float dx = (float) x - center + 0.5;
     float dy = (float) y - center + 0.5;
 
-    float tmp = 0.0;
-    const float r = hypot(dx, dy);
+    float tmp[wpt];
+#pragma unroll
+    for(int i = 0; i < wpt;i++) tmp[i] = 0.0f;
 
     if (extend) {
 //        if (r > max_r) {
@@ -42,18 +43,28 @@ __global__ void radon_backward_kernel(float *output, cudaTextureObject_t texObj,
 
         for (int i = 0; i < n_angles; i++) {
             float j = s_cos[i] * dx + s_sin[i] * dy + center;
-            tmp += tex2DLayered<float>(texObj, j, i + 0.5f, batch_id);
-        }
-    } else {
-        if (r <= max_r) {
-            for (int i = 0; i < n_angles; i++) {
-                float j = s_cos[i] * dx + s_sin[i] * dy + center;
-                tmp += tex2DLayered<float>(texObj, j, i + 0.5f, batch_id);
+#pragma unroll
+            for(int b = 0; b < wpt; b++) {
+                tmp[b] += tex2DLayered<float>(texObj, j, i + 0.5f, batch_id + b);
             }
         }
     }
+    else {
+        const float r = hypot(dx, dy);
+        if (r <= max_r) {
+            for (int i = 0; i < n_angles; i++) {
+                float j = s_cos[i] * dx + s_sin[i] * dy + center;
+#pragma unroll
+                for(int b = 0; b < wpt; b++) {
+                    tmp[b] += tex2DLayered<float>(texObj, j, i + 0.5f, batch_id + b);
+                }            }
+        }
+    }
 
-    output[batch_id * img_size * img_size + y * img_size + x] = tmp;
+#pragma unroll
+    for(int b = 0; b < wpt; b++) {
+        output[(batch_id+b) * img_size * img_size + y * img_size + x] = tmp[b];
+    }
 }
 
 void radon_backward_cuda(const float *x, const float *rays, const float *angles, float *y, TextureCache &tex_cache,
@@ -64,16 +75,28 @@ void radon_backward_cuda(const float *x, const float *rays, const float *angles,
     tex->put(x);
 
     // Invoke kernel
+    const int wpt = (batch_size % 4 == 0)? 4 : 1;
     const int grid_size = img_size / 16;
-    dim3 dimGrid(grid_size, grid_size, batch_size);
+    dim3 dimGrid(grid_size, grid_size, batch_size / wpt);
     dim3 dimBlock(16, 16);
 
     if (extend) {
-        radon_backward_kernel<true> << < dimGrid, dimBlock >> >
-                                                  (y, tex->texObj, rays, angles, img_size, n_rays, n_angles);
-    } else {
-        radon_backward_kernel<false> << < dimGrid, dimBlock >> >
-                                                   (y, tex->texObj, rays, angles, img_size, n_rays, n_angles);
+        if(wpt == 4){
+            radon_backward_kernel<true, 4> << < dimGrid, dimBlock >> >
+                                                           (y, tex->texObj, rays, angles, img_size, n_rays, n_angles);
+        }else{
+            radon_backward_kernel<true, 1> << < dimGrid, dimBlock >> >
+                                                           (y, tex->texObj, rays, angles, img_size, n_rays, n_angles);
+        }
+    }
+    else {
+        if(wpt == 4){
+            radon_backward_kernel<false, 4> << < dimGrid, dimBlock >> >
+                                                         (y, tex->texObj, rays, angles, img_size, n_rays, n_angles);
+        }else{
+            radon_backward_kernel<false, 1> << < dimGrid, dimBlock >> >
+                                                         (y, tex->texObj, rays, angles, img_size, n_rays, n_angles);
+        }
     }
 }
 
@@ -104,17 +127,17 @@ __global__ void radon_backward_kernel_lb(float *output, const float *sinogram, c
     }
     __syncthreads();
 
-    const float center = (img_size) / 2;
+    const float center = img_size / 2.0f - 0.5f;
     const float max_r = center;
-    float dx = (float) x - center + 0.5;
-    float dy = (float) y - center + 0.5;
+    float dx = (float) x - center;
+    float dy = (float) y - center;
 
-    float tmp[4];
+    float tmp[wpt];
     for(int i = 0; i < wpt;i++) tmp[i] = 0.0f;
     const float r = hypot(dx, dy);
 
     for (int i = 0; i < n_angles; i++) {
-        float j = s_cos[i] * dx + s_sin[i] * dy + center - 0.5f;
+        float j = s_cos[i] * dx + s_sin[i] * dy + center;
         float j_ceil = ceilf(j);
         float j_floor = j_ceil - 1.0f;
         float t = j - j_floor;
@@ -140,16 +163,20 @@ __global__ void radon_backward_kernel_lb(float *output, const float *sinogram, c
 void radon_backward_cuda_lb(const float *x, const float *rays, const float *angles, float *y, TextureCache &tex_cache,
                             const int batch_size, const int img_size, const int n_rays, const int n_angles,
                             const int device, const bool extend) {
-    // Invoke kernel
-    const int grid_size = img_size / 16;
-    dim3 dimGrid(batch_size / (32*4), grid_size, img_size);
-    dim3 dimBlock(32, 16);
+    checkCudaErrors(cudaFuncSetCacheConfig(radon_backward_kernel_lb<true, 4, 32>, cudaFuncCachePreferL1));
 
-    if (extend) {
-        radon_backward_kernel_lb<true, 4, 32> << < dimGrid, dimBlock >> >
-                                                     (y, x, rays, angles, img_size, n_rays, n_angles, batch_size);
-    } else {
-        radon_backward_kernel_lb<false, 1, 32> << < dimGrid, dimBlock >> >
-                                                      (y, x, rays, angles, img_size, n_rays, n_angles, batch_size);
-    }
+    // Invoke kernel
+    const int grid_size = img_size / 1;
+    dim3 dimGrid(batch_size / (256), grid_size, img_size);
+    dim3 dimBlock(256, 1);
+
+    radon_backward_kernel_lb<true, 1, 128> << < dimGrid, dimBlock >> >
+                                                        (y, x, rays, angles, img_size, n_rays, n_angles, batch_size);
+//    if (extend) {
+//        radon_backward_kernel_lb<true, 4, 32> << < dimGrid, dimBlock >> >
+//                                                     (y, x, rays, angles, img_size, n_rays, n_angles, batch_size);
+//    } else {
+//        radon_backward_kernel_lb<false, 1, 32> << < dimGrid, dimBlock >> >
+//                                                      (y, x, rays, angles, img_size, n_rays, n_angles, batch_size);
+//    }
 }

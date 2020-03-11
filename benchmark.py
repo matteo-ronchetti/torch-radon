@@ -72,26 +72,26 @@ def main():
     # show_images([y[0], y_[0]])
     # plt.show()
 
-    # print(sino.size())
-    #
-    # with torch.no_grad():
-    #     torch.cuda.synchronize()
-    #     s = time.time()
-    #     for i in range(10):
-    #         y = torch_radon_cuda.backward(sino, radon.rays, radon.angles, radon.tex_cache, True)
-    #     torch.cuda.synchronize()
-    #     e = time.time()
-    #     print(e - s)
-    #
-    #     torch.cuda.synchronize()
-    #     s = time.time()
-    #     for i in range(10):
-    #         ss = sino.permute(1, 2, 0).contiguous()
-    #         y = torch_radon_cuda.backward_lb(ss, radon.rays, radon.angles, radon.tex_cache, True)
-    #     torch.cuda.synchronize()
-    #     print(y.size())
-    #     e = time.time()
-    #     print(e - s)
+    print(sino.size())
+
+    with torch.no_grad():
+        torch.cuda.synchronize()
+        s = time.time()
+        for i in range(10):
+            y = torch_radon_cuda.backward(sino, radon.rays, radon.angles, radon.tex_cache, True)
+        torch.cuda.synchronize()
+        e = time.time()
+        print(e - s)
+
+        ss = sino.permute(1, 2, 0).contiguous()
+        torch.cuda.synchronize()
+        s = time.time()
+        for i in range(10):
+            y = torch_radon_cuda.backward_lb(ss, radon.rays, radon.angles, radon.tex_cache, True)
+        torch.cuda.synchronize()
+        print(y.size())
+        e = time.time()
+        print(e - s)
 
     #
     # with torch.no_grad():
