@@ -16,7 +16,7 @@ FLAGS += $(foreach includedir,$(INCLUDE_DIRS),-I$(includedir))
 FLAGS += -gencode arch=compute_61,code=sm_61
 FLAGS += -gencode arch=compute_70,code=sm_70
 FLAGS += -gencode arch=compute_75,code=sm_75
-FLAGS += -DNDEBUG -O3 --generate-line-info
+FLAGS += -DNDEBUG -O3 --generate-line-info --compiler-options -Wall
 
 FLAGS += -DVERBOSE
 CXX_FLAGS += -DVERBOSE

@@ -158,6 +158,49 @@ torch::Tensor radon_filter_sinogram(torch::Tensor x, FFTCache& fft_cache) {
     return y;
 }
 
+std::pair<float, float> torch_compute_ab(torch::Tensor x, const float signal, const float eps, const int k) {
+    CHECK_INPUT(x);
+
+    const int device = x.device().index();
+
+    return compute_ab(x.data_ptr<float>(), x.size(0), signal, eps, k, device);
+}
+/*
+torch::Tensor compute_expected_value_lookup(torch::Tensor x, torch::Tensor normal_p, const float signal, const int bins, const int k){
+    CHECK_INPUT(x);
+    CHECK_INPUT(normal_p);
+    TORCH_CHECK(k % bins == 0, "k must be multiple of bins");
+    TORCH_CHECK(normal_p.size(0) <= 64, "normal_p can have max 64 elements");
+
+    const int device = x.device().index();
+
+    // create output sinogram tensor
+    auto options = torch::TensorOptions().dtype(torch::kFloat32).device(x.device());
+    auto y = torch::empty({bins}, options);
+
+    compute_ev_lookup(x.data_ptr<float>(), normal_p.data_ptr<float>(), y.data_ptr<float>(), x.size(0), normal_p.size(0), signal, bins, k, device);
+
+    return y;
+}*/
+
+std::pair<torch::Tensor, torch::Tensor> compute_expected_value_lookup(torch::Tensor x, torch::Tensor weights, const float signal, const int bins, const int k){
+    CHECK_INPUT(x);
+    CHECK_INPUT(weights);
+    TORCH_CHECK(k % bins == 0, "k must be multiple of bins");
+    TORCH_CHECK(weights.size(0) <= 256, "weights can have max 64 elements");
+
+    const int device = x.device().index();
+
+    // create output sinogram tensor
+    auto options = torch::TensorOptions().dtype(torch::kFloat32).device(x.device());
+    auto y_mean = torch::empty({bins}, options);
+    auto y_var = torch::empty({bins}, options);
+
+    compute_ev_lookup(x.data_ptr<float>(), weights.data_ptr<float>(), y_mean.data_ptr<float>(), y_var.data_ptr<float>(), x.size(0), weights.size(0), signal, bins, k, device);
+
+    return make_pair(y_mean, y_var);
+}
+
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m
 ) {
@@ -168,6 +211,8 @@ m.def("add_noise", &radon_add_noise, "Add noise to sinogram");
 m.def("emulate_sensor_readings", &emulate_sensor_readings, "Emulate sensor readings");
 m.def("readings_lookup", &readings_lookup, "Lookup sensors readings in a table");
 m.def("filter_sinogram", &radon_filter_sinogram, "Apply filtering to a sinogram");
+m.def("compute_ab", &torch_compute_ab, "TODO");
+m.def("compute_expected_value_lookup", &compute_expected_value_lookup, "TODO");
 
 py::class_<TextureCache>(m,"TextureCache")
     .def (py::init<size_t>())
