@@ -35,5 +35,5 @@ void readings_lookup_cuda(const int *x, float *y, const float *lookup_table, con
 std::pair<float, float>
 compute_ab(const float *x, const int size, const float signal, const float eps, const int k, const int device);
 
-void compute_ev_lookup(const float *x, const float *weights, float *y_mean, float *y_var, const int size, const int weights_size,
+void compute_lookup_table(const float *x, const float *weights, float *y_mean, float *y_var, const int size, const int weights_size,
                        const float signal, const int bins, const int k, const int device);

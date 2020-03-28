@@ -10,7 +10,7 @@
 
 template<int angles_per_thread>
 __global__ void
-radon_forward_kernel(float *__restrict__ output, cudaTextureObject_t texObj, const float *__restrict__ rays,
+radon_forward_kernel(float *__restrict__ output, cudaTextureObject_t texture, const float *__restrict__ rays,
                      const float *__restrict__ angles,
                      const int img_size, const int n_rays, const int n_angles) {
     // Calculate texture coordinates
@@ -55,7 +55,7 @@ radon_forward_kernel(float *__restrict__ output, cudaTextureObject_t texObj, con
 
         for (uint j = 0; j <= n_steps; j++) { //changing j and n_steps to int makes everything way slower (WHY???)
             for (int i = 0; i < angles_per_thread; i++) {
-                accumulator[i] += tex2DLayered<float>(texObj, s[i].x, s[i].y, batch_id);
+                accumulator[i] += tex2DLayered<float>(texture, s[i].x, s[i].y, batch_id);
                 s[i].x += rv[i].x;
                 s[i].y += rv[i].y;
             }
@@ -86,10 +86,10 @@ void radon_forward_cuda(const float *x, const float *rays, const float *angles, 
     if (n_angles <= 64) {
         dim3 dimGrid(grid_size, roundup_div(n_angles, 16), batch_size);
         radon_forward_kernel<1> << < dimGrid, dimBlock >> >
-                                              (y, tex->texObj, rays, angles, img_size, n_rays, n_angles);
+                                              (y, tex->texture, rays, angles, img_size, n_rays, n_angles);
     } else {
         dim3 dimGrid(grid_size, roundup_div(n_angles, 16*4), batch_size);
         radon_forward_kernel<4> << < dimGrid, dimBlock >> >
-                                              (y, tex->texObj, rays, angles, img_size, n_rays, n_angles);
+                                              (y, tex->texture, rays, angles, img_size, n_rays, n_angles);
     }
 }

@@ -256,7 +256,7 @@ std::pair<float, float> compute_ab(const float *x, const int size, const float s
 /*
 template<int n_threads>
 __global__ void
-compute_ev_lookup_kernel(const float *x, const float *norm_p, float *res, const int size, const int norm_p_size,
+compute_lookup_table_kernel(const float *x, const float *norm_p, float *res, const int size, const int norm_p_size,
                          const float signal, const int scale) {
     __shared__ float sp[n_threads];
     __shared__ float spv[n_threads];
@@ -308,13 +308,13 @@ void compute_ev_lookup(const float *x, const float *norm_p, float *y, const int 
                        const float signal, const int bins, const int k, const int device) {
     checkCudaErrors(cudaSetDevice(device));
 
-    compute_ev_lookup_kernel<256> << < bins, 256 >> > (x, norm_p, y, size, norm_p_size, signal, k / bins);
+    compute_lookup_table_kernel<256> << < bins, 256 >> > (x, norm_p, y, size, norm_p_size, signal, k / bins);
 }
 */
 
 template<int unroll, bool variance>
 __global__ void
-compute_ev_lookup_kernel(const float *x, const float *g_weights, const float* mean_estimator, float *res, const int size, const int weights_size,
+compute_lookup_table_kernel(const float *x, const float *g_weights, const float* mean_estimator, float *res, const int size, const int weights_size,
                          const float signal, const int scale) {
     constexpr int n_threads = 256;
     __shared__ float sp[n_threads];
@@ -380,40 +380,40 @@ compute_ev_lookup_kernel(const float *x, const float *g_weights, const float* me
     }
 }
 
-void compute_ev_lookup(const float *x, const float *weights, float *y_mean, float *y_var, const int size, const int weights_size,
+void compute_lookup_table(const float *x, const float *weights, float *y_mean, float *y_var, const int size, const int weights_size,
                          const float signal, const int bins, const int k, const int device){
     checkCudaErrors(cudaSetDevice(device));
 
     if(weights_size % 17 == 0) {
-        compute_ev_lookup_kernel<17, false> << < bins, 256 >> > (x, weights, NULL, y_mean, size, weights_size, signal, k / bins);
-        compute_ev_lookup_kernel<17, true> << < bins, 256 >> > (x, weights, y_mean, y_var, size, weights_size, signal, k / bins);
+        compute_lookup_table_kernel<17, false> << < bins, 256 >> > (x, weights, NULL, y_mean, size, weights_size, signal, k / bins);
+        compute_lookup_table_kernel<17, true> << < bins, 256 >> > (x, weights, y_mean, y_var, size, weights_size, signal, k / bins);
         return;
     }
 
     if(weights_size % 11 == 0) {
-        compute_ev_lookup_kernel<11, false> << < bins, 256 >> > (x, weights, NULL, y_mean, size, weights_size, signal, k / bins);
-        compute_ev_lookup_kernel<11, true> << < bins, 256 >> > (x, weights, y_mean, y_var, size, weights_size, signal, k / bins);
+        compute_lookup_table_kernel<11, false> << < bins, 256 >> > (x, weights, NULL, y_mean, size, weights_size, signal, k / bins);
+        compute_lookup_table_kernel<11, true> << < bins, 256 >> > (x, weights, y_mean, y_var, size, weights_size, signal, k / bins);
         return;
     }
 
     if(weights_size % 7 == 0) {
-        compute_ev_lookup_kernel<7, false> << < bins, 256 >> > (x, weights, NULL, y_mean, size, weights_size, signal, k / bins);
-        compute_ev_lookup_kernel<7, true> << < bins, 256 >> > (x, weights, y_mean, y_var, size, weights_size, signal, k / bins);
+        compute_lookup_table_kernel<7, false> << < bins, 256 >> > (x, weights, NULL, y_mean, size, weights_size, signal, k / bins);
+        compute_lookup_table_kernel<7, true> << < bins, 256 >> > (x, weights, y_mean, y_var, size, weights_size, signal, k / bins);
         return;
     }
 
     if(weights_size % 4 == 0) {
-        compute_ev_lookup_kernel<4, false> << < bins, 256 >> > (x, weights, NULL, y_mean, size, weights_size, signal, k / bins);
-        compute_ev_lookup_kernel<4, true> << < bins, 256 >> > (x, weights, y_mean, y_var, size, weights_size, signal, k / bins);
+        compute_lookup_table_kernel<4, false> << < bins, 256 >> > (x, weights, NULL, y_mean, size, weights_size, signal, k / bins);
+        compute_lookup_table_kernel<4, true> << < bins, 256 >> > (x, weights, y_mean, y_var, size, weights_size, signal, k / bins);
         return;
     }
 
     if(weights_size % 2 == 0) {
-        compute_ev_lookup_kernel<2, false> << < bins, 256 >> > (x, weights, NULL, y_mean, size, weights_size, signal, k / bins);
-        compute_ev_lookup_kernel<2, true> << < bins, 256 >> > (x, weights, y_mean, y_var, size, weights_size, signal, k / bins);
+        compute_lookup_table_kernel<2, false> << < bins, 256 >> > (x, weights, NULL, y_mean, size, weights_size, signal, k / bins);
+        compute_lookup_table_kernel<2, true> << < bins, 256 >> > (x, weights, y_mean, y_var, size, weights_size, signal, k / bins);
         return;
     }
 
-    compute_ev_lookup_kernel<1, false> << < bins, 256 >> > (x, weights, NULL, y_mean, size, weights_size, signal, k / bins);
-    compute_ev_lookup_kernel<1, true> << < bins, 256 >> > (x, weights, y_mean, y_var, size, weights_size, signal, k / bins);
+    compute_lookup_table_kernel<1, false> << < bins, 256 >> > (x, weights, NULL, y_mean, size, weights_size, signal, k / bins);
+    compute_lookup_table_kernel<1, true> << < bins, 256 >> > (x, weights, y_mean, y_var, size, weights_size, signal, k / bins);
 }

@@ -46,7 +46,32 @@ def test_error(device, batch_size, image_size, angles):
     assert_less(back_error, 5e-3)
 
 
+def test_half():
+    device = torch.device('cuda')
+
+    batch_size = 16
+    image_size = 128
+    angles = np.linspace(0, 2 * np.pi, 256).astype(np.float32)
+
+    # generate random images
+    x = generate_random_images(batch_size, image_size)
+
+    # our implementation
+    radon = Radon(image_size, angles).to(device)
+    x = torch.FloatTensor(x).to(device)
+
+    sinogram = radon.forward(x)
+    single_precision = radon.backprojection(sinogram, extend=True)
+
+    half_precision = radon.backprojection(sinogram.half(), extend=True)
+
+    back_error = relative_error(single_precision.cpu().numpy(), half_precision.cpu().numpy())
+    assert_less(back_error, 1e-3)
+
+
 def test_noise():
+    device = torch.device('cuda')
+
     x = torch.FloatTensor(3, 5, 64, 64).to(device)
     lookup_table = torch.FloatTensor(128, 64).to(device)
     x.requires_grad = True
@@ -64,5 +89,3 @@ def test_noise():
     y = radon.readings_lookup(readings, lookup_table)
     assert_equal(y.size(), (3, 5, 10, 64))
     assert_equal(y.dtype, torch.float32)
-
-

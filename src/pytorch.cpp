@@ -14,7 +14,7 @@
 #define CHECK_INPUT(x) CHECK_CUDA(x); CHECK_CONTIGUOUS(x)
 
 
-torch::Tensor radon_forward(torch::Tensor x, torch::Tensor rays, torch::Tensor angles, TextureCache &tex_cache){
+torch::Tensor radon_forward(torch::Tensor x, torch::Tensor rays, torch::Tensor angles, TextureCache &tex_cache) {
     CHECK_INPUT(x);
     CHECK_INPUT(rays);
     CHECK_INPUT(angles);
@@ -39,10 +39,13 @@ torch::Tensor radon_forward(torch::Tensor x, torch::Tensor rays, torch::Tensor a
     return y;
 }
 
-torch::Tensor radon_backward(torch::Tensor x, torch::Tensor rays, torch::Tensor angles, TextureCache &tex_cache, const bool extend) {
+torch::Tensor
+radon_backward(torch::Tensor x, torch::Tensor rays, torch::Tensor angles, TextureCache &tex_cache, const bool extend) {
     CHECK_INPUT(x);
     CHECK_INPUT(rays);
     CHECK_INPUT(angles);
+
+    auto dtype = x.dtype();
 
     const int batch_size = x.size(0);
     const int n_angles = x.size(1);
@@ -51,20 +54,32 @@ torch::Tensor radon_backward(torch::Tensor x, torch::Tensor rays, torch::Tensor 
     const int device = x.device().index();
 
     TORCH_CHECK(angles.size(0) == n_angles, "Mismatch between sinogram size and number of angles")
+    TORCH_CHECK(angles.size(0) < 512, "Can only support up to 512 angles")
     TORCH_CHECK(img_size % 16 == 0, "Dimension 2 of sinogram (i.e. image size) must be multiple of 16")
+    if (dtype == torch::kFloat16) {
+        TORCH_CHECK(batch_size % 4 == 0, "Batch size must be multiple of 4 when using half precision")
+    }
 
     // create output image tensor
-    auto options = torch::TensorOptions().dtype(torch::kFloat32).device(x.device());
+    auto options = torch::TensorOptions().dtype(dtype).device(x.device());
     auto y = torch::empty({batch_size, img_size, img_size}, options);
 
-    radon_backward_cuda(x.data_ptr<float>(), rays.data_ptr<float>(), angles.data_ptr<float>(), y.data_ptr<float>(),
-                        tex_cache,
-                        batch_size, img_size, n_rays, n_angles, device, extend);
+    if (dtype == torch::kFloat16) {
+        radon_backward_cuda((unsigned short *) x.data_ptr<at::Half>(), rays.data_ptr<float>(), angles.data_ptr<float>(), (unsigned short *) y.data_ptr<at::Half>(),
+                            tex_cache,
+                            batch_size, img_size, n_rays, n_angles, device, extend);
+    } else {
+        radon_backward_cuda(x.data_ptr<float>(), rays.data_ptr<float>(), angles.data_ptr<float>(), y.data_ptr<float>(),
+                            tex_cache,
+                            batch_size, img_size, n_rays, n_angles, device, extend);
+    }
+
 
     return y;
 
 }
 
+/*
 torch::Tensor radon_backward_lb(torch::Tensor x, torch::Tensor rays, torch::Tensor angles, TextureCache &tex_cache, const bool extend) {
     CHECK_INPUT(x);
     CHECK_INPUT(rays);
@@ -91,8 +106,9 @@ torch::Tensor radon_backward_lb(torch::Tensor x, torch::Tensor rays, torch::Tens
 
     return y;
 }
+ */
 
-void radon_add_noise(torch::Tensor x, RadonNoiseGenerator& noise_generator, const float signal,
+void radon_add_noise(torch::Tensor x, RadonNoiseGenerator &noise_generator, const float signal,
                      const float density_normalization, const bool approximate) {
     CHECK_INPUT(x);
 
@@ -104,7 +120,7 @@ void radon_add_noise(torch::Tensor x, RadonNoiseGenerator& noise_generator, cons
     noise_generator.add_noise(x.data_ptr<float>(), signal, density_normalization, approximate, width, height, device);
 }
 
-torch::Tensor emulate_sensor_readings(torch::Tensor x, RadonNoiseGenerator& noise_generator, const float signal,
+torch::Tensor emulate_sensor_readings(torch::Tensor x, RadonNoiseGenerator &noise_generator, const float signal,
                                       const float density_normalization) {
     CHECK_INPUT(x);
 
@@ -141,7 +157,7 @@ torch::Tensor readings_lookup(torch::Tensor x, torch::Tensor lookup_table) {
     return y;
 }
 
-torch::Tensor radon_filter_sinogram(torch::Tensor x, FFTCache& fft_cache) {
+torch::Tensor radon_filter_sinogram(torch::Tensor x, FFTCache &fft_cache) {
     CHECK_INPUT(x);
 
     const int batch_size = x.size(0);
@@ -153,7 +169,8 @@ torch::Tensor radon_filter_sinogram(torch::Tensor x, FFTCache& fft_cache) {
     auto options = torch::TensorOptions().dtype(torch::kFloat32).device(x.device());
     auto y = torch::empty({batch_size, n_angles, n_rays}, options);
 
-    radon_filter_sinogram_cuda(x.data_ptr<float>(), y.data_ptr<float>(), fft_cache, batch_size, n_angles, n_rays, device);
+    radon_filter_sinogram_cuda(x.data_ptr<float>(), y.data_ptr<float>(), fft_cache, batch_size, n_angles, n_rays,
+                               device);
 
     return y;
 }
@@ -165,25 +182,9 @@ std::pair<float, float> torch_compute_ab(torch::Tensor x, const float signal, co
 
     return compute_ab(x.data_ptr<float>(), x.size(0), signal, eps, k, device);
 }
-/*
-torch::Tensor compute_expected_value_lookup(torch::Tensor x, torch::Tensor normal_p, const float signal, const int bins, const int k){
-    CHECK_INPUT(x);
-    CHECK_INPUT(normal_p);
-    TORCH_CHECK(k % bins == 0, "k must be multiple of bins");
-    TORCH_CHECK(normal_p.size(0) <= 64, "normal_p can have max 64 elements");
 
-    const int device = x.device().index();
-
-    // create output sinogram tensor
-    auto options = torch::TensorOptions().dtype(torch::kFloat32).device(x.device());
-    auto y = torch::empty({bins}, options);
-
-    compute_ev_lookup(x.data_ptr<float>(), normal_p.data_ptr<float>(), y.data_ptr<float>(), x.size(0), normal_p.size(0), signal, bins, k, device);
-
-    return y;
-}*/
-
-std::pair<torch::Tensor, torch::Tensor> compute_expected_value_lookup(torch::Tensor x, torch::Tensor weights, const float signal, const int bins, const int k){
+std::pair <torch::Tensor, torch::Tensor>
+torch_compute_lookup_table(torch::Tensor x, torch::Tensor weights, const float signal, const int bins, const int k) {
     CHECK_INPUT(x);
     CHECK_INPUT(weights);
     TORCH_CHECK(k % bins == 0, "k must be multiple of bins");
@@ -196,34 +197,62 @@ std::pair<torch::Tensor, torch::Tensor> compute_expected_value_lookup(torch::Ten
     auto y_mean = torch::empty({bins}, options);
     auto y_var = torch::empty({bins}, options);
 
-    compute_ev_lookup(x.data_ptr<float>(), weights.data_ptr<float>(), y_mean.data_ptr<float>(), y_var.data_ptr<float>(), x.size(0), weights.size(0), signal, bins, k, device);
+    compute_lookup_table(x.data_ptr<float>(), weights.data_ptr<float>(), y_mean.data_ptr<float>(),
+                         y_var.data_ptr<float>(), x.size(0), weights.size(0), signal, bins, k, device);
 
     return make_pair(y_mean, y_var);
 }
+
+//torch::Tensor add_half(torch::Tensor x, torch::Tensor y) {
+//    CHECK_INPUT(x);
+//
+//    std::cout << x.dtype() << " " << (x.dtype() == torch::kFloat16) << std::endl;
+//
+//    // create output sinogram tensor
+//    auto options = torch::TensorOptions().dtype(torch::kFloat16).device(x.device());
+//    auto z = torch::empty({1024}, options);
+//
+//    add_half_cuda((unsigned short *) x.data_ptr<at::Half>(), (unsigned short *) y.data_ptr<at::Half>(),
+//                  (unsigned short *) z.data_ptr<at::Half>());
+//    return z;
+//}
 
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m
 ) {
 m.def("forward", &radon_forward, "Radon forward projection");
 m.def("backward", &radon_backward, "Radon back projection");
-m.def("backward_lb", &radon_backward_lb, "Radon back projection");
+//m.def("backward_lb", &radon_backward_lb, "Radon back projection");
 m.def("add_noise", &radon_add_noise, "Add noise to sinogram");
 m.def("emulate_sensor_readings", &emulate_sensor_readings, "Emulate sensor readings");
 m.def("readings_lookup", &readings_lookup, "Lookup sensors readings in a table");
 m.def("filter_sinogram", &radon_filter_sinogram, "Apply filtering to a sinogram");
 m.def("compute_ab", &torch_compute_ab, "TODO");
-m.def("compute_expected_value_lookup", &compute_expected_value_lookup, "TODO");
+m.def("compute_lookup_table", &torch_compute_lookup_table, "TODO");
+//m.def("add_half", &add_half, "TODO");
 
-py::class_<TextureCache>(m,"TextureCache")
-    .def (py::init<size_t>())
-    .def("free", &TextureCache::free);
+py::class_<TextureCache>(m,
+"TextureCache")
+.
 
-py::class_<FFTCache>(m,"FFTCache")
-.def (py::init<size_t>())
+def (py::init<size_t>())
+
+.def("free", &TextureCache::free);
+
+py::class_<FFTCache>(m,
+"FFTCache")
+.
+
+def (py::init<size_t>())
+
 .def("free", &FFTCache::free);
 
-py::class_<RadonNoiseGenerator>(m, "RadonNoiseGenerator")
-    .def(py::init<const uint>())
-    .def("set_seed", (void (RadonNoiseGenerator::*)(const uint)) &RadonNoiseGenerator::set_seed)
-    .def("free", &RadonNoiseGenerator::free);
+py::class_<RadonNoiseGenerator>(m,
+"RadonNoiseGenerator")
+.
+
+def (py::init<const uint>())
+
+.def("set_seed", (void (RadonNoiseGenerator::*)(const uint)) &RadonNoiseGenerator::set_seed)
+.def("free", &RadonNoiseGenerator::free);
 }

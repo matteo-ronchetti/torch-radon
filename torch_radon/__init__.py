@@ -1,6 +1,8 @@
 import numpy as np
 import torch
 from torch import nn
+import scipy.stats
+
 
 import torch_radon_cuda
 from .differentiable_functions import RadonForward, RadonBackprojection
@@ -37,7 +39,6 @@ class Radon(nn.Module):
     def backward(self, sinogram, extend=False):
         return RadonBackprojection.apply(sinogram, self.rays, self.angles, self.tex_cache, extend)
 
-
     @normalize_shape
     def filter_sinogram(self, sinogram):
         return torch_radon_cuda.filter_sinogram(sinogram, self.fft_cache)
@@ -63,3 +64,47 @@ class Radon(nn.Module):
 
     def __del__(self):
         self.noise_generator.free()
+
+
+def compute_lookup_table(sinogram, signal, normal_std, bins=4096, eps=0.01, eps_prob=0.99, verbose=False):
+    s = sinogram.view(-1)
+    device = s.device
+
+    eps = np.quantile(sinogram.cpu().numpy(), 0.01)
+
+    # Compute readings normalization value
+    if verbose:
+        print("Computing readings normalization value")
+    k = 0
+    for i in range(1, 20):
+        a, b = torch_radon_cuda.compute_ab(s, signal, eps, bins * i)
+        if verbose:
+            print(a, b)
+        if a >= (a + b) * eps_prob:
+            k = bins * i
+            break
+    print("Readings normalization value = ", k)
+
+    # Compute weights for Gaussian error
+    norm_p = []
+    norm_p_tot = 0
+    for i in range(64):
+        t = scipy.stats.norm.cdf((i + 0.5) / normal_std) - scipy.stats.norm.cdf((i - 0.5) / normal_std)
+        norm_p.append(t)
+        norm_p_tot += t
+        if t / norm_p_tot < 0.05:
+            break
+    scale = k // 4096
+    weights = [0.0] * (scale + 2 * len(norm_p) - 2)
+    for i in range(len(norm_p)):
+        for j in range(scale):
+            weights[j - i + len(norm_p) - 1] += norm_p[i]
+            if i > 0:
+                weights[j + i + len(norm_p) - 1] += norm_p[i]
+
+    # move weights to device
+    weights = torch.FloatTensor(weights).to(device)
+
+    lookup, lookup_var = torch_radon_cuda.compute_lookup_table(s, weights, signal, bins, k)
+
+    return lookup, lookup_var, k

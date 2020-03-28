@@ -6,15 +6,20 @@
 #include "utils.h"
 #include "cache.h"
 
+#define PRECISION_FLOAT 1
+#define PRECISION_HALF 0
+
 class Texture {
     cudaArray *array = nullptr;
     DeviceSizeKey key;
 
 public:
-    cudaTextureObject_t texObj;
+    cudaSurfaceObject_t surface;
+    cudaTextureObject_t texture;
 
     Texture(DeviceSizeKey key);
     void put(const float *data);
+    void put(const unsigned short *data);
 
     bool matches(DeviceSizeKey& k);
 
