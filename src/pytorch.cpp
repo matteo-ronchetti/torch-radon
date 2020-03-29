@@ -19,23 +19,33 @@ torch::Tensor radon_forward(torch::Tensor x, torch::Tensor rays, torch::Tensor a
     CHECK_INPUT(rays);
     CHECK_INPUT(angles);
 
+    auto dtype = x.dtype();
+
     const int batch_size = x.size(0);
     const int img_size = x.size(1);
-    TORCH_CHECK(x.size(2) == img_size, "Images in x must be square")
-    TORCH_CHECK(img_size % 16 == 0, "Size of images in x must be multiple of 16")
-
     const int n_rays = rays.size(0);
     const int n_angles = angles.size(0);
     const int device = x.device().index();
 
+    TORCH_CHECK(x.size(2) == img_size, "Images in x must be square")
+    TORCH_CHECK(img_size % 16 == 0, "Size of images in x must be multiple of 16")
+    if (dtype == torch::kFloat16) {
+        TORCH_CHECK(batch_size % 4 == 0, "Batch size must be multiple of 4 when using half precision")
+    }
+
     // allocate output sinogram tensor
-    auto options = torch::TensorOptions().dtype(torch::kFloat32).device(x.device());
+    auto options = torch::TensorOptions().dtype(dtype).device(x.device());
     auto y = torch::empty({batch_size, n_angles, n_rays}, options);
 
-    radon_forward_cuda(x.data_ptr<float>(), rays.data_ptr<float>(), angles.data_ptr<float>(), y.data_ptr<float>(),
-                       tex_cache,
-                       batch_size, img_size, n_rays, n_angles, device);
-
+    if (dtype == torch::kFloat16) {
+        radon_forward_cuda((unsigned short *) x.data_ptr<at::Half>(), rays.data_ptr<float>(), angles.data_ptr<float>(), (unsigned short *) y.data_ptr<at::Half>(),
+                           tex_cache,
+                           batch_size, img_size, n_rays, n_angles, device);
+    } else {
+        radon_forward_cuda(x.data_ptr<float>(), rays.data_ptr<float>(), angles.data_ptr<float>(), y.data_ptr<float>(),
+                           tex_cache,
+                           batch_size, img_size, n_rays, n_angles, device);
+    }
     return y;
 }
 
@@ -65,7 +75,8 @@ radon_backward(torch::Tensor x, torch::Tensor rays, torch::Tensor angles, Textur
     auto y = torch::empty({batch_size, img_size, img_size}, options);
 
     if (dtype == torch::kFloat16) {
-        radon_backward_cuda((unsigned short *) x.data_ptr<at::Half>(), rays.data_ptr<float>(), angles.data_ptr<float>(), (unsigned short *) y.data_ptr<at::Half>(),
+        radon_backward_cuda((unsigned short *) x.data_ptr<at::Half>(), rays.data_ptr<float>(), angles.data_ptr<float>(),
+                            (unsigned short *) y.data_ptr<at::Half>(),
                             tex_cache,
                             batch_size, img_size, n_rays, n_angles, device, extend);
     } else {

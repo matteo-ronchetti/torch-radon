@@ -67,17 +67,18 @@ def main():
     with torch.no_grad():
         torch.cuda.synchronize()
         s = time.time()
-        for i in range(100):
-            y = torch_radon_cuda.backward(sino, radon.rays, radon.angles, radon.tex_cache, True)
+        for i in range(25):
+            y = radon.forward(x) #torch_radon_cuda.forward(sino, radon.rays, radon.angles, radon.tex_cache, True)
         torch.cuda.synchronize()
         e = time.time()
         print(e - s)
 
         ss = sino.half()
+        xx = x.half()
         torch.cuda.synchronize()
         s = time.time()
-        for i in range(100):
-            y = torch_radon_cuda.backward(ss, radon.rays, radon.angles, radon.tex_cache, True)
+        for i in range(25):
+            y =  radon.forward(xx) #torch_radon_cuda.backward(ss, radon.rays, radon.angles, radon.tex_cache, True)
         torch.cuda.synchronize()
         print(y.size())
         e = time.time()

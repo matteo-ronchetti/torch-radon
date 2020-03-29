@@ -129,11 +129,14 @@ void RadonNoiseGenerator::free() {
     for (int i = 0; i < 8; i++) {
         if (this->states[i] != nullptr) {
 #ifdef VERBOSE
-            std::cout << "[TORCH RADON] Freeing Random states on device " << i << std::endl;
+            std::cout << "[TORCH RADON] Freeing Random states on device " << i << " " << this->states[i] << std::endl;
 #endif
             checkCudaErrors(cudaSetDevice(i));
             checkCudaErrors(cudaFree(this->states[i]));
             this->states[i] = nullptr;
+#ifdef VERBOSE
+            std::cout << "[TORCH RADON] DONE Freeing Random states on device " << i << std::endl;
+#endif
         }
     }
 }
@@ -252,65 +255,6 @@ std::pair<float, float> compute_ab(const float *x, const int size, const float s
 
     return std::make_pair(ab_cpu[0], ab_cpu[1]);
 }
-
-/*
-template<int n_threads>
-__global__ void
-compute_lookup_table_kernel(const float *x, const float *norm_p, float *res, const int size, const int norm_p_size,
-                         const float signal, const int scale) {
-    __shared__ float sp[n_threads];
-    __shared__ float spv[n_threads];
-    __shared__ float normal_prob[64];
-
-    const int bin = blockIdx.x;
-    const int tid = threadIdx.x;
-
-    const float mean_k = bin * scale + (scale - 1.0f) / 2.0f;
-    const float normalizer = mean_k > 0 ? mean_k * log(mean_k) - mean_k : 0.0f;
-
-    // load normal weights into shared memory
-    if (tid < norm_p_size) {
-        normal_prob[tid] = norm_p[tid];
-    }
-    __syncthreads();
-
-
-    float p = 0.0f;
-    float pv = 0.0f;
-    for (int i = tid; i < size; i += n_threads) {
-        // read sinogram value and precompute
-        const float y = x[i];
-        const float delta = signal - y;
-        const float constant_part = bin * scale * delta - exp(delta) - normalizer;
-
-        for (int j = 0; j < norm_p_size; j++) {
-            const float pn = normal_prob[j];
-            for (int k = 0; k < scale; k++) {
-                const float prob = pn * (exp((k + j) * delta + constant_part) + exp((k - j) * delta + constant_part));
-                p += prob;
-                pv += prob * y;
-            }
-        }
-    }
-
-    sp[tid] = p;
-    spv[tid] = pv;
-    __syncthreads();
-
-    dualWarpReduce<n_threads>(sp, spv, tid);
-
-    if (tid == 0) {
-        res[bin] = spv[0] / sp[0];
-    }
-}
-
-void compute_ev_lookup(const float *x, const float *norm_p, float *y, const int size, const int norm_p_size,
-                       const float signal, const int bins, const int k, const int device) {
-    checkCudaErrors(cudaSetDevice(device));
-
-    compute_lookup_table_kernel<256> << < bins, 256 >> > (x, norm_p, y, size, norm_p_size, signal, k / bins);
-}
-*/
 
 template<int unroll, bool variance>
 __global__ void

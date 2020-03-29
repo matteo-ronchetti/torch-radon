@@ -18,6 +18,12 @@ for batch_size in [1, 8, 16, 32]:  # , 64, 128]:  # , 256, 512]:
         for angles in [full_angles, limited_angles, sparse_angles]:
             params.append((device, batch_size, image_size, angles))
 
+half_params = []  # [(device, 8, 128, full_angles)]
+for batch_size in [8, 16]:  # , 64, 128]:  # , 256, 512]:
+    for image_size in [128, 256]:  # , 512]:
+        for angles in [full_angles, limited_angles, sparse_angles]:
+            half_params.append((device, batch_size, image_size, angles))
+
 
 @parameterized(params)
 def test_error(device, batch_size, image_size, angles):
@@ -46,13 +52,8 @@ def test_error(device, batch_size, image_size, angles):
     assert_less(back_error, 5e-3)
 
 
-def test_half():
-    device = torch.device('cuda')
-
-    batch_size = 16
-    image_size = 128
-    angles = np.linspace(0, 2 * np.pi, 256).astype(np.float32)
-
+@parameterized(half_params)
+def test_half(device, batch_size, image_size, angles):
     # generate random images
     x = generate_random_images(batch_size, image_size)
 
@@ -63,9 +64,15 @@ def test_half():
     sinogram = radon.forward(x)
     single_precision = radon.backprojection(sinogram, extend=True)
 
-    half_precision = radon.backprojection(sinogram.half(), extend=True)
+    h_sino = radon.forward(x.half())
+    half_precision = radon.backprojection(h_sino, extend=True)
 
+    forward_error = relative_error(sinogram.cpu().numpy(), h_sino.cpu().numpy())
     back_error = relative_error(single_precision.cpu().numpy(), half_precision.cpu().numpy())
+
+    print(batch_size, image_size, len(angles), forward_error, back_error)
+
+    assert_less(forward_error, 1e-3)
     assert_less(back_error, 1e-3)
 
 

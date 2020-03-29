@@ -14,8 +14,8 @@ class Texture {
     DeviceSizeKey key;
 
 public:
-    cudaSurfaceObject_t surface;
-    cudaTextureObject_t texture;
+    cudaSurfaceObject_t surface = 0;
+    cudaTextureObject_t texture = 0;
 
     Texture(DeviceSizeKey key);
     void put(const float *data);
