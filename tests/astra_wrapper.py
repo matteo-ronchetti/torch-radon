@@ -70,7 +70,7 @@ class AstraWrapper:
 
         return astra.data2d.get(rec_id)
 
-    def __del__(self):
+    def clean(self):
         # clean all astra stuff
         for pid in self.projectors:
             astra.projector.delete(pid)
@@ -83,3 +83,6 @@ class AstraWrapper:
 
         for pid in self.data3d:
             astra.data3d.delete(pid)
+
+    def __del__(self):
+        self.clean()

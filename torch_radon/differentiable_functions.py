@@ -5,7 +5,6 @@ from torch.autograd import Function
 class RadonForward(Function):
     @staticmethod
     def forward(ctx, x, rays, angles, tex_cache):
-        print(x.dtype, rays.dtype, angles.dtype)
         sinogram = torch_radon_cuda.forward(x, rays, angles, tex_cache)
         ctx.tex_cache = tex_cache
         ctx.save_for_backward(rays, angles)
