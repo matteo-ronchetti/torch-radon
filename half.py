@@ -1,52 +1,48 @@
 import torch
 import numpy as np
+from torch import nn
 from torch_radon import Radon
-from tests.utils import generate_random_images, relative_error
-# import matplotlib.pyplot as plt
-# import torch_radon_cuda
+from apex import amp
+import matplotlib.pyplot as plt
+
+
+class Model(nn.Module):
+    def __init__(self):
+        super().__init__()
+        angles = np.linspace(0, 2 * np.pi, 64).astype(np.float32)
+        self.radon = Radon(128, angles)
+        self.conv = nn.Conv2d(16, 1, 1)
+
+    def forward(self, x):
+        return self.conv(self.radon.forward(x))
+
 
 device = torch.device("cuda")
 
 batch_size = 16
 image_size = 128
-angles = np.linspace(0, 2 * np.pi, 128).astype(np.float32)
 
 # generate random images
 # x = generate_random_images(batch_size, image_size)
 
 # our implementation
-radon = Radon(image_size, angles).to(device)
-# x = torch.FloatTensor(x).to(device)
-#
-# sinogram = radon.forward(x)
-# single_precision = radon.backprojection(sinogram, extend=True)
-#
-# half_precision = radon.backprojection(sinogram.half(), extend=True)
-# print("Max", torch.max(half_precision))
-#
-# hp = half_precision.float().cpu().numpy()
-#
-# back_error = relative_error(single_precision.cpu().numpy(), hp)
+model = Model().to(device)
+optimizer = torch.optim.Adam(model.parameters())
 
+model, optimizer = amp.initialize(model, optimizer, opt_level="O2")
 
-x = torch.FloatTensor(16, 64, 64).to(device)
-# lookup_table = torch.FloatTensor(128, 64).to(device)
-# angles = torch.FloatTensor(np.linspace(0, 2 * np.pi, 10).astype(np.float32))
+x = torch.randn((1, 16, image_size, image_size)).to(device)
 
-radon = Radon(64, angles).to(device)
+for i in range(15):
+    sinogram = model.forward(x)
 
-# sinogram = radon.forward(x)
-# bp = radon.backprojection(sinogram)
-readings = radon.emulate_readings(x, 5, 10.0)
-# y = radon.readings_lookup(readings, lookup_table)
+    print(sinogram[0,0].size())
+    # plt.imshow(sinogram[0,0].float().detach().cpu())
+    # plt.show()
 
+    loss = torch.mean(sinogram)
+    print(loss)
+    with amp.scale_loss(loss, optimizer) as scaled_loss:
+        scaled_loss.backward()
 
-# plt.imshow(single_precision[0].cpu().numpy())
-#
-# plt.figure()
-# plt.imshow(hp[0])
-#
-# plt.show()
-
-# print(back_error)
-# assert_less(back_error, 0)
+    optimizer.step()

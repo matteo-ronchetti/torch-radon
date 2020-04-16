@@ -3,22 +3,22 @@ import torch
 from torch import nn
 import scipy.stats
 
-
 import torch_radon_cuda
 from .differentiable_functions import RadonForward, RadonBackprojection
 from .utils import compute_rays, normalize_shape
 
 
-class Radon(nn.Module):
+class Radon:
     def __init__(self, resolution, angles):
         super().__init__()
 
         assert resolution % 2 == 0, "Resolution must be even"
+        self.resolution = resolution
         if not isinstance(angles, torch.Tensor):
             angles = torch.FloatTensor(angles)
 
-        self.rays = nn.Parameter(compute_rays(resolution), requires_grad=False)
-        self.angles = nn.Parameter(angles, requires_grad=False)
+        self.rays = compute_rays(resolution)  # nn.Parameter(compute_rays(resolution), requires_grad=False)
+        self.angles = angles  # nn.Parameter(angles, requires_grad=False)
 
         # caches used to avoid reallocation of resources
         self.tex_cache = torch_radon_cuda.TextureCache(8)
@@ -27,17 +27,33 @@ class Radon(nn.Module):
         seed = np.random.get_state()[1][0]
         self.noise_generator = torch_radon_cuda.RadonNoiseGenerator(seed)
 
+    def to(self, device):
+        print("WARN Radon.to(device) is deprecated, device handling is now automatic")
+        self._move_parameters_to_device(device)
+        return self
+
+    def _move_parameters_to_device(self, device):
+        if device != self.rays.device:
+            self.rays = self.rays.to(device)
+            self.angles = self.angles.to(device)
+
     @normalize_shape
     def forward(self, imgs):
+        assert imgs.size(-1) == self.resolution
+        self._move_parameters_to_device(imgs.device)
+
         return RadonForward.apply(imgs, self.rays, self.angles, self.tex_cache)
 
     @normalize_shape
     def backprojection(self, sinogram, extend=False):
+        assert sinogram.size(-1) == self.resolution
+        self._move_parameters_to_device(sinogram.device)
+
         return RadonBackprojection.apply(sinogram, self.rays, self.angles, self.tex_cache, extend)
 
     @normalize_shape
     def backward(self, sinogram, extend=False):
-        return RadonBackprojection.apply(sinogram, self.rays, self.angles, self.tex_cache, extend)
+        return self.backprojection(sinogram, extend)
 
     @normalize_shape
     def filter_sinogram(self, sinogram):
@@ -45,6 +61,8 @@ class Radon(nn.Module):
 
     @normalize_shape
     def add_noise(self, x, signal, density_normalization=1.0, approximate=False):
+        print("WARN Radon.add_noise is deprecated")
+
         torch_radon_cuda.add_noise(x, self.noise_generator, signal, density_normalization, approximate)
         return x
 
