@@ -24,6 +24,10 @@ public:
     void emulate_readings(const float *sinogram, int *readings, const float signal, const float density_normalization,
                           const uint width, const uint height, int device);
 
+    void emulate_readings_new(const float *sinogram, int *readings, const float signal,
+                              const float normal_std, const int k, const int bins,
+                              const uint width, const uint height, int device);
+
     void free();
 
     ~RadonNoiseGenerator();
@@ -35,5 +39,6 @@ void readings_lookup_cuda(const int *x, float *y, const float *lookup_table, con
 std::pair<float, float>
 compute_ab(const float *x, const int size, const float signal, const float eps, const int k, const int device);
 
-void compute_lookup_table(const float *x, const float *weights, float *y_mean, float *y_var, const int size, const int weights_size,
-                       const float signal, const int bins, const int k, const int device);
+void compute_lookup_table(const float *x, const float *weights, float *y_mean, float *y_var, const int size,
+                          const int weights_size,
+                          const float signal, const int bins, const int k, const int device);

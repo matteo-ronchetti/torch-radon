@@ -38,7 +38,8 @@ torch::Tensor radon_forward(torch::Tensor x, torch::Tensor rays, torch::Tensor a
     auto y = torch::empty({batch_size, n_angles, n_rays}, options);
 
     if (dtype == torch::kFloat16) {
-        radon_forward_cuda((unsigned short *) x.data_ptr<at::Half>(), rays.data_ptr<float>(), angles.data_ptr<float>(), (unsigned short *) y.data_ptr<at::Half>(),
+        radon_forward_cuda((unsigned short *) x.data_ptr<at::Half>(), rays.data_ptr<float>(), angles.data_ptr<float>(),
+                           (unsigned short *) y.data_ptr<at::Half>(),
                            tex_cache,
                            batch_size, img_size, n_rays, n_angles, device);
     } else {
@@ -149,6 +150,25 @@ torch::Tensor emulate_sensor_readings(torch::Tensor x, RadonNoiseGenerator &nois
     return y;
 }
 
+torch::Tensor torch_emulate_readings_new(torch::Tensor x, RadonNoiseGenerator &noise_generator, const float signal,
+                                         const float normal_std, const int k, const int bins) {
+    CHECK_INPUT(x);
+
+    // create output tensor
+    auto options = torch::TensorOptions().dtype(torch::kInt32).device(x.device());
+    auto y = torch::empty({x.size(0), x.size(1), x.size(2)}, options);
+
+    const int height = x.size(0) * x.size(1);
+    const int width = x.size(2);
+    const int device = x.device().index();
+
+    noise_generator.emulate_readings_new(x.data_ptr<float>(), y.data_ptr<int>(), signal, normal_std, k, bins, width,
+                                     height, device);
+
+    return y;
+}
+
+
 torch::Tensor readings_lookup(torch::Tensor x, torch::Tensor lookup_table) {
     CHECK_INPUT(x);
     CHECK_INPUT(lookup_table);
@@ -240,6 +260,7 @@ m.def("readings_lookup", &readings_lookup, "Lookup sensors readings in a table")
 m.def("filter_sinogram", &radon_filter_sinogram, "Apply filtering to a sinogram");
 m.def("compute_ab", &torch_compute_ab, "TODO");
 m.def("compute_lookup_table", &torch_compute_lookup_table, "TODO");
+m.def("emulate_readings_new", &torch_emulate_readings_new, "TODO");
 //m.def("add_half", &add_half, "TODO");
 
 py::class_<TextureCache>(m,

@@ -54,11 +54,17 @@ def bench(batch_size, image_size, n_angles=180, sample_size=50):
     return our_time, astra_time
 
 
-def plot(tasks, astra_times, radon_time, radon_half_time):
+def plot(tasks, astra_times, radon_time, radon_half_time, title):
     labels = tasks
 
     x = np.arange(len(labels))  # the label locations
-    width = 0.2  # the width of the bars
+    width = 0.3  # the width of the bars
+
+    params = {
+        'text.usetex': True,
+        'font.size': 8,
+    }
+    plt.rcParams.update(params)
 
     fig, ax = plt.subplots()
     rects1 = ax.bar(x - width, astra_times, width, label='Astra')
@@ -67,7 +73,7 @@ def plot(tasks, astra_times, radon_time, radon_half_time):
 
     # Add some text for labels, title and custom x-axis tick labels, etc.
     ax.set_ylabel('Images/second')
-    ax.set_title('Speed Benchmarks')
+    ax.set_title(title)
     ax.set_xticks(x)
     ax.set_xticklabels(labels)
     ax.legend()
@@ -76,9 +82,9 @@ def plot(tasks, astra_times, radon_time, radon_half_time):
         """Attach a text label above each bar in *rects*, displaying its height."""
         for rect in rects:
             height = rect.get_height()
-            ax.annotate(f"{height:.1f}",
+            ax.annotate(f"{int(np.round(height))}",
                         xy=(rect.get_x() + rect.get_width() / 2, height),
-                        xytext=(0, 3),  # 3 points vertical offset
+                        xytext=(0, 1),  # 3 points vertical offset
                         textcoords="offset points",
                         ha='center', va='bottom')
 
@@ -87,8 +93,6 @@ def plot(tasks, astra_times, radon_time, radon_half_time):
     autolabel(rects3)
 
     fig.tight_layout()
-    plt.show()
-
 
 def benchmark_function(f, x, samples, warmup, sync=False):
     for _ in range(warmup):
@@ -132,6 +136,7 @@ def main():
     parser.add_argument('--batch-size', default=32, type=int)
     parser.add_argument('--samples', default=50, type=int)
     parser.add_argument('--warmup', default=10, type=int)
+    parser.add_argument('--output', default="")
 
     args = parser.parse_args()
     if args.angles == -1:
@@ -144,7 +149,7 @@ def main():
     astra = AstraWrapper(angles)
 
     if args.task == "all":
-        tasks = ["forward", "backward", "forward+backward", "forward no cpu"]
+        tasks = ["forward", "backward", "forward+backward", "forward from gpu"]
     else:
         tasks = [args.task]
 
@@ -207,7 +212,7 @@ def main():
         print(astra_time, radon_time, radon_half_time)
         astra.clean()
 
-    if "forward no cpu" in tasks:
+    if "forward from gpu" in tasks:
         print("Benchmarking forward from device")
         x = generate_random_images(args.batch_size, args.image_size)
         dx = torch.FloatTensor(x).to(device)
@@ -224,7 +229,13 @@ def main():
         print(astra_time, radon_time, radon_half_time)
         astra.clean()
 
-    plot(tasks, astra_fps, radon_fps, radon_half_fps)
+    title = f"Image size {args.image_size}x{args.image_size}, {args.angles} angles and batch size {args.batch_size} on a {torch.cuda.get_device_name(0)}"
+
+    plot(tasks, astra_fps, radon_fps, radon_half_fps, title)
+    if args.output:
+        plt.savefig(args.output, dpi=300)
+    else:
+        plt.show()
 
 
 # device = torch.device("cuda")

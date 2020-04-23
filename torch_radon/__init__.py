@@ -71,6 +71,10 @@ class Radon:
         return torch_radon_cuda.emulate_sensor_readings(x, self.noise_generator, signal, density_normalization)
 
     @normalize_shape
+    def emulate_readings_new(self, x, signal, normal_std, k, bins):
+        return torch_radon_cuda.emulate_readings_new(x, self.noise_generator, signal, normal_std, k, bins)
+
+    @normalize_shape
     def readings_lookup(self, sensor_readings, lookup_table):
         return torch_radon_cuda.readings_lookup(sensor_readings, lookup_table)
 

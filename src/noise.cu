@@ -361,3 +361,39 @@ void compute_lookup_table(const float *x, const float *weights, float *y_mean, f
     compute_lookup_table_kernel<1, false> << < bins, 256 >> > (x, weights, NULL, y_mean, size, weights_size, signal, k / bins);
     compute_lookup_table_kernel<1, true> << < bins, 256 >> > (x, weights, y_mean, y_var, size, weights_size, signal, k / bins);
 }
+
+__global__ void emulate_readings_kernel(const float *sinogram, int *readings, curandState *state, const float signal,
+                                       const float normal_std, const int k, const int bins, const uint width, const uint height) {
+    const uint x = blockIdx.x * blockDim.x + threadIdx.x;
+    const uint y = blockIdx.y * blockDim.y + threadIdx.y;
+    const uint tid = y * blockDim.x * gridDim.x + x;
+    const uint y_step = blockDim.y * gridDim.y;
+
+    // load curand state in local memory
+    curandState localState = state[tid];
+
+    // loop down the sinogram adding noise
+    for (uint yy = y; yy < height; yy += y_step) {
+        uint pos = yy * width + x;
+        // ideal measured signal = signal * exp(-sinogram[pos])
+        float mu = __expf(signal - sinogram[pos]);
+        // apply Poisson noise and add Gaussian noise
+        int reading = int(curand_poisson(&localState, mu)) + __float2int_rn(curand_normal(&localState) * normal_std);
+        // quantize reading clamping in range [0, bins - 1]
+        readings[pos] = max(0, min(reading / k, bins-1));
+    }
+
+    // save curand state back in global memory
+    state[tid] = localState;
+}
+
+
+void RadonNoiseGenerator::emulate_readings_new(const float *sinogram, int *readings, const float signal,
+                                               const float normal_std, const int k, const int bins,
+                                               const uint width, const uint height, int device){
+    checkCudaErrors(cudaSetDevice(device));
+
+    emulate_readings_kernel << < dim3(width / 16, 8 * 1024 / width), dim3(16, 16) >> >
+                                                                    (sinogram, readings, this->get(
+                                                                            device), signal, normal_std, k, bins, width, height);
+}
