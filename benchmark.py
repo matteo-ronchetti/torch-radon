@@ -61,7 +61,7 @@ def plot(tasks, astra_times, radon_time, radon_half_time, title):
     width = 0.3  # the width of the bars
 
     params = {
-        'text.usetex': True,
+        #'text.usetex': True,
         'font.size': 8,
     }
     plt.rcParams.update(params)
@@ -125,7 +125,7 @@ def radon_forward_backward(radon, x, half=False):
 
     y = radon.forward(torch.FloatTensor(x).to(device))
     z = radon.backward(y)
-    return z
+    return z.cpu()
 
 
 def main():
@@ -149,7 +149,7 @@ def main():
     astra = AstraWrapper(angles)
 
     if args.task == "all":
-        tasks = ["forward", "backward", "forward+backward", "forward from gpu"]
+        tasks = ["forward", "backward", "forward from gpu", "backward from gpu"]
     else:
         tasks = [args.task]
 
@@ -195,22 +195,22 @@ def main():
         print(astra_time, radon_time, radon_half_time)
         astra.clean()
 
-    if "forward+backward" in tasks:
-        print("Benchmarking forward + backward")
-        x = generate_random_images(args.batch_size, args.image_size)
-        astra_time = benchmark_function(lambda y: astra_forward_backward(astra, y, args.image_size, args.batch_size), x,
-                                        args.samples, args.warmup)
-        radon_time = benchmark_function(lambda y: radon_forward_backward(radon, y), x, args.samples,
-                                        args.warmup)
-        radon_half_time = benchmark_function(lambda y: radon_forward_backward(radon, y, half=True), x,
-                                             args.samples, args.warmup)
+#     if "forward+backward" in tasks:
+#         print("Benchmarking forward + backward")
+#         x = generate_random_images(args.batch_size, args.image_size)
+#         astra_time = benchmark_function(lambda y: astra_forward_backward(astra, y, args.image_size, args.batch_size), x,
+#                                         args.samples, args.warmup)
+#         radon_time = benchmark_function(lambda y: radon_forward_backward(radon, y), x, args.samples,
+#                                         args.warmup)
+#         radon_half_time = benchmark_function(lambda y: radon_forward_backward(radon, y, half=True), x,
+#                                              args.samples, args.warmup)
 
-        astra_fps.append(args.batch_size / astra_time)
-        radon_fps.append(args.batch_size / radon_time)
-        radon_half_fps.append(args.batch_size / radon_half_time)
+#         astra_fps.append(args.batch_size / astra_time)
+#         radon_fps.append(args.batch_size / radon_time)
+#         radon_half_fps.append(args.batch_size / radon_half_time)
 
-        print(astra_time, radon_time, radon_half_time)
-        astra.clean()
+#         print(astra_time, radon_time, radon_half_time)
+#         astra.clean()
 
     if "forward from gpu" in tasks:
         print("Benchmarking forward from device")
@@ -229,6 +229,26 @@ def main():
         print(astra_time, radon_time, radon_half_time)
         astra.clean()
 
+    if "backward from gpu" in tasks:
+        print("Benchmarking backward from device")
+        x = generate_random_images(args.batch_size, args.image_size)
+        dx = torch.FloatTensor(x).to(device)
+        pid, x = astra.forward(x)
+
+        astra_time = benchmark_function(lambda y: astra.backproject(pid, args.image_size, args.batch_size), x,
+                                        args.samples, args.warmup)
+        radon_time = benchmark_function(lambda y: radon.backward(y), dx, args.samples,
+                                        args.warmup, sync=True)
+        radon_half_time = benchmark_function(lambda y: radon.backward(y), dx.half(),
+                                             args.samples, args.warmup, sync=True)
+
+        astra_fps.append(args.batch_size / astra_time)
+        radon_fps.append(args.batch_size / radon_time)
+        radon_half_fps.append(args.batch_size / radon_half_time)
+
+        print(astra_time, radon_time, radon_half_time)
+        astra.clean()
+        
     title = f"Image size {args.image_size}x{args.image_size}, {args.angles} angles and batch size {args.batch_size} on a {torch.cuda.get_device_name(0)}"
 
     plot(tasks, astra_fps, radon_fps, radon_half_fps, title)
