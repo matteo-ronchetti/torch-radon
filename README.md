@@ -1,18 +1,13 @@
 # Computational Tomography in Pytorch
-This package is a CUDA implementation of transforms needed for
-working with computed tomography in Pytorch.
+This library contains fast CUDA implementation of transforms needed for
+working with computed tomography data in Pytorch. It allows the training of end-to-end models that takes sinograms as inputs and produce images as output.
 
 Main features:
  - All operations work directly on Pytorch GPU tensors.
  - Forward and back projections are differentiable and integrated with Pytorch `.backward()`.
- - Faster than Astra Toolbox. Waaay faster if you consider that this implementation doesn't require to copy intermediate results to CPU.
+ - Up to 50x faster than Astra Toolbox.
+ - Supports half precision and can used togheter with amp for faster training.
  
-## Benchmarks
-The library is noticeably faster than the Astra Toolbox when considering also CPU-GPU-CPU copies (first two columns) and is a lot faster when processing data which is already on the GPU (last two columns). Main disadvantage of Astra is that it only takes inputs which are on the CPU, this makes training end-to-end neural networks very inefficient.
-![V100 Benchmark](V100.png?raw=true)
-![GTX1650 Benchmark](gtx1650.png?raw=true)
-Note: batch size with Astra is achieved by using a 3D parallel projection.
-
 ## Example
 Simple example that uses Pytorch models to filter both the sinogram and the image
 ```python
@@ -71,6 +66,18 @@ git clone https://github.com/matteo-ronchetti/torch-radon.git
 cd torch-radon
 make install
 ```
+
+## Half Precision
+Storing input data in half precision (float16) makes forward and back projection operations a lot (2x-2.6x times) faster.
+Because internally operations are done in single precision the numerical error is small. TODO show numerical error.
+
+
+## Benchmarks
+The library is noticeably faster than the Astra Toolbox when considering also CPU-GPU-CPU copies (first two columns) and is a lot faster when processing data which is already on the GPU (last two columns). Main disadvantage of Astra is that it only takes inputs which are on the CPU, this makes training end-to-end neural networks very inefficient.
+![V100 Benchmark](V100.png?raw=true)
+![GTX1650 Benchmark](gtx1650.png?raw=true)
+Note: batch size with Astra is achieved by using a 3D parallel projection.
+
 
 ## Testing
 Install testing dependencies with `pip install -r test_requirements.txt`
