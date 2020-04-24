@@ -6,6 +6,12 @@ Main features:
  - All operations work directly on Pytorch GPU tensors.
  - Forward and back projections are differentiable and integrated with Pytorch `.backward()`.
  - Faster than Astra Toolbox. Waaay faster if you consider that this implementation doesn't require to copy intermediate results to CPU.
+ 
+## Benchmarks
+The library is noticeably faster than the Astra Toolbox when considering also CPU-GPU-CPU copies (first two columns) and is a lot faster when processing data which is already on the GPU (last two columns). Main disadvantage of Astra is that it only takes inputs which are on the CPU, this makes training end-to-end neural networks very inefficient.
+![V100 Benchmark](V100.png?raw=true)
+![GTX1650 Benchmark](gtx1650.png?raw=true)
+Note: batch size with Astra is achieved by using a 3D parallel projection.
 
 ## Example
 Simple example that uses Pytorch models to filter both the sinogram and the image
