@@ -92,7 +92,7 @@ def compute_lookup_table(sinogram, signal, normal_std, bins=4096, eps=0.01, eps_
     s = sinogram.view(-1)
     device = s.device
 
-    eps = np.quantile(sinogram.cpu().numpy(), 0.01)
+    eps = np.quantile(sinogram.cpu().numpy(), eps)
 
     # Compute readings normalization value
     if verbose:
@@ -108,25 +108,106 @@ def compute_lookup_table(sinogram, signal, normal_std, bins=4096, eps=0.01, eps_
     print("Readings normalization value = ", k)
 
     # Compute weights for Gaussian error
-    norm_p = []
-    norm_p_tot = 0
-    for i in range(64):
-        t = scipy.stats.norm.cdf((i + 0.5) / normal_std) - scipy.stats.norm.cdf((i - 0.5) / normal_std)
-        norm_p.append(t)
-        norm_p_tot += t
-        if t / norm_p_tot < 0.05:
+    scale = k // bins
+    weights = []
+    for i in range(0, 64):
+        t = scipy.stats.norm.cdf((scale - i - 0.5) / normal_std) - scipy.stats.norm.cdf((- i - 0.5) / normal_std)
+        if t < 0.005:
             break
-    scale = k // 4096
-    weights = [0.0] * (scale + 2 * len(norm_p) - 2)
-    for i in range(len(norm_p)):
-        for j in range(scale):
-            weights[j - i + len(norm_p) - 1] += norm_p[i]
-            if i > 0:
-                weights[j + i + len(norm_p) - 1] += norm_p[i]
 
-    # move weights to device
+        weights.append(t)
+
+    weights = weights[scale:][::-1] + weights
+    weights = np.array(weights)
+
+    border_w = np.asarray([scipy.stats.norm.cdf((-x - 0.5) / normal_std) for x in range(scale)])
+    border_w = torch.FloatTensor(border_w).to(device)
+
+
+    log_factorial = np.arange(k + len(weights))
+    log_factorial[0] = 1
+    log_factorial = np.cumsum(np.log(log_factorial).astype(np.float64)).astype(np.float32)
+    log_factorial = torch.Tensor(log_factorial).to(device)
+
     weights = torch.FloatTensor(weights).to(device)
 
-    lookup, lookup_var = torch_radon_cuda.compute_lookup_table(s, weights, signal, bins, k)
+    lookup, lookup_var = torch_radon_cuda.compute_lookup_table(s, weights, signal, bins, scale, log_factorial, border_w)
 
-    return lookup, lookup_var, k
+    return lookup, lookup_var, scale
+
+
+class ReadingsLookup:
+    def __init__(self, radon, bins=4096, mu=None, sigma=None, ks=None, signals=None, normal_stds=None):
+        self.radon = radon
+        self.bins = bins
+
+        self.mu = [] if mu is None else mu
+        self.sigma = [] if sigma is None else sigma
+        self.ks = [] if ks is None else ks
+
+        self.signals = [] if signals is None else signals
+        self.normal_stds = [] if normal_stds is None else normal_stds
+
+        self._mu = None
+        self._sigma = None
+        self._ks = None
+        self._signals = None
+        self._normal_stds = None
+        self._need_repacking = True
+
+    def repack(self, device):
+        self._mu = torch.FloatTensor(self.mu).to(device)
+        self._sigma = torch.FloatTensor(self.sigma).to(device)
+        self._ks = torch.IntTensor(self.ks).to(device)
+        self._signals = torch.FloatTensor(self.signals).to(device)
+        self._normal_stds = torch.FloatTensor(self.normal_stds).to(device)
+
+    @staticmethod
+    def from_file(path, radon):
+        obj = np.load(path)
+
+        bins = int(obj["bins"])
+
+        return ReadingsLookup(radon, bins, list(obj["mu"]), list(obj["sigma"]), list(obj["ks"]), list(obj["signals"]),
+                              list(obj["normal_stds"]))
+
+    def save(self, path):
+        self.repack("cpu")
+        np.savez(path, mu=self._mu, sigma=self._sigma, ks=self._ks, signals=self._signals,
+                 normal_stds=self._normal_stds, bins=self.bins)
+
+    def add_lookup_table(self, sinogram, signal, normal_std):
+        lookup, lookup_var, k = compute_lookup_table(sinogram, signal, normal_std, bins=self.bins)
+
+        self.mu.append(lookup.cpu().numpy())
+        self.sigma.append(lookup_var.cpu().numpy())
+        self.ks.append(k)
+        self.signals.append(signal)
+        self.normal_stds.append(normal_std)
+        self._need_repacking = True
+
+    @normalize_shape
+    def emulate_readings(self, sinogram, level):
+        if self._need_repacking or self._mu.device != sinogram.device:
+            self.repack(sinogram.device)
+
+        if isinstance(level, torch.Tensor):
+            return torch_radon_cuda.emulate_readings_multilevel(sinogram, self.radon.noise_generator, self._signals,
+                                                                self._normal_stds, self._ks, level, self.bins)
+        else:
+            return torch_radon_cuda.emulate_readings_new(sinogram, self.radon.noise_generator, self.signals[level],
+                                                         self.normal_stds[level], self.ks[level], self.bins)
+
+    @normalize_shape
+    def lookup(self, readings, level):
+        if self._need_repacking or self._mu.device != readings.device:
+            self.repack(readings.device)
+
+        if isinstance(level, torch.Tensor):
+            mu = torch_radon_cuda.readings_lookup_multilevel(readings, self._mu, level)
+            sigma = torch_radon_cuda.readings_lookup_multilevel(readings, self._sigma, level)
+        else:
+            mu = torch_radon_cuda.readings_lookup(readings, self._mu[level])
+            sigma = torch_radon_cuda.readings_lookup(readings, self._sigma[level])
+
+        return mu, sigma

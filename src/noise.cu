@@ -145,18 +145,25 @@ RadonNoiseGenerator::~RadonNoiseGenerator() {
     this->free();
 }
 
+template<bool use_shared>
 __global__ void
-lookup_kernel(const int *readings, float *result, const float *lookup_table, const uint lookup_size, const uint width,
-              const uint height) {
-    // TODO use shared memory
-    const uint x = blockIdx.x * blockDim.x + threadIdx.x;
-    const uint y = blockIdx.y * blockDim.y + threadIdx.y;
-    const uint y_step = blockDim.y * gridDim.y;
+lookup_kernel(const int *readings, float *result, const float *lookup_table, const uint lookup_size, const uint size) {
+    const uint tid = blockIdx.x * blockDim.x + threadIdx.x;
+    const uint step = blockDim.x * gridDim.x;
 
-    for (uint yy = y; yy < height; yy += y_step) {
-        uint pos = yy * width + x;
+    const float *lookup = lookup_table;
+    if (use_shared) {
+        extern __shared__ float lookup_cache[];
+        for (int i = threadIdx.x; i < lookup_size; i += 256) {
+            lookup_cache[i] = lookup_table[i];
+        }
+        __syncthreads();
+        lookup = lookup_cache;
+    }
+
+    for (uint pos = tid; pos < size; pos += step) {
         int index = min(readings[pos], lookup_size - 1);
-        result[pos] = lookup_table[index];
+        result[pos] = lookup[index];
     }
 }
 
@@ -164,9 +171,62 @@ void readings_lookup_cuda(const int *x, float *y, const float *lookup_table, con
                           const uint height, int device) {
     checkCudaErrors(cudaSetDevice(device));
 
-    lookup_kernel << < dim3(width / 16, 8 * 1024 / width), dim3(16, 16) >> >
-                                                           (x, y, lookup_table, lookup_size, width, height);
+    // don't exceed max shared memory size
+    if (lookup_size * sizeof(float) < 64 * 1024) {
+        lookup_kernel<true> << < dim3((width * height) / 256), dim3(256), lookup_size * sizeof(float) >> >
+                                                                          (x, y, lookup_table, lookup_size,
+                                                                                  width * height);
+    } else {
+        lookup_kernel<false> << < dim3((width * height) / 256), dim3(256), 0 >> >
+                                                                           (x, y, lookup_table, lookup_size,
+                                                                                   width * height);
+    }
+
 }
+
+template<bool use_shared>
+__global__ void
+lookup_kernel_multilevel(const int *readings, float *result, const float *lookup_table, const int *levels,
+                         const uint lookup_size,
+                         const uint size) {
+    const uint batch = blockIdx.x;
+    extern __shared__ float lookup_cache[];
+    const int level = levels[batch];
+
+    const float *lookup = &lookup_table[level * lookup_size];
+    if (use_shared) {
+        for (int i = threadIdx.x; i < lookup_size; i += 256) {
+            lookup_cache[i] = lookup[i];
+        }
+        __syncthreads();
+        lookup = lookup_cache;
+    }
+
+    for (uint pos = batch * size + threadIdx.x; pos < (batch + 1) * size; pos += 256) {
+        int index = min(readings[pos], lookup_size - 1);
+        result[pos] = lookup[index];
+    }
+}
+
+void readings_lookup_multilevel_cuda(const int *x, float *y, const float *lookup_table, const int *levels,
+                                     const uint lookup_size, const uint batch, const uint width,
+                                     const uint height, int device) {
+    checkCudaErrors(cudaSetDevice(device));
+
+    // don't exceed max shared memory size
+    if (lookup_size * sizeof(float) < 64 * 1024) {
+        lookup_kernel_multilevel<true> << < dim3(batch), dim3(256),
+                lookup_size * sizeof(float) >> >
+                (x, y, lookup_table, levels, lookup_size,
+                        width * height);
+    } else {
+        lookup_kernel_multilevel<false> << < dim3((width * height) / 256, batch), dim3(256), 0 >> >
+                                                                                             (x, y, lookup_table, levels,
+                                                                                                     lookup_size,
+                                                                                                     width * height);
+    }
+}
+
 
 __inline__ __device__ void warpReduce(volatile float *sdata, const int tid) {
     sdata[tid] += sdata[tid + 32];
@@ -256,30 +316,40 @@ std::pair<float, float> compute_ab(const float *x, const int size, const float s
     return std::make_pair(ab_cpu[0], ab_cpu[1]);
 }
 
-template<int unroll, bool variance>
+template<bool variance>
 __global__ void
-compute_lookup_table_kernel(const float *x, const float *g_weights, const float* mean_estimator, float *res, const int size, const int weights_size,
-                         const float signal, const int scale) {
+compute_lookup_table_kernel(const float *x, const float *g_weights, const float *mean_estimator, float *res,
+                            const float *log_factorial, const float *border_w,
+                            const int size, const int weights_size,
+                            const float signal, const int scale) {
     constexpr int n_threads = 256;
     __shared__ float sp[n_threads];
     __shared__ float spv[n_threads];
     __shared__ float weights[256];
+    //__shared__ float lgf[256];
 
     const int bin = blockIdx.x;
     const int tid = threadIdx.x;
 
-    const float mean_k = bin * scale + (scale - 1.0f) / 2.0f;
-    const float normalizer = mean_k > 0 ? mean_k * log(mean_k) - mean_k : 0.0f;
-    const int r = (weights_size - scale)/2;
+    const int r = (weights_size - scale) / 2;
+    const int start_index = max(r - bin * scale, 0);
 
     float estimated_mean;
-    if(variance){
+    if (variance) {
         estimated_mean = mean_estimator[bin];
     }
 
     // load weights into shared memory
     if (tid < weights_size) {
         weights[tid] = g_weights[tid];
+
+        // TODO last bin border
+        // add border_w to weights (probability that a value in the first bin is made negative by Gaussian noise and than clamped back to zero)
+        if(bin == 0 && tid < scale){
+            weights[start_index + tid] += border_w[tid];
+        }
+
+        weights[tid] = log(weights[tid]) - log_factorial[max(bin*scale - r + tid, 0)];
     }
     __syncthreads();
 
@@ -290,21 +360,17 @@ compute_lookup_table_kernel(const float *x, const float *g_weights, const float*
         // read sinogram value and precompute
         const float y = x[i];
         const float delta = signal - y;
-        const float constant_part = bin * scale * delta - __expf(delta) - normalizer;
+        const float constant_part = bin*scale*delta - __expf(delta);
 
         float prob = 0.0f;
-        for (int j = 0; j < weights_size; j += unroll) {
-            float tmp = (j - r) * delta + constant_part;
-#pragma unroll
-            for(int h = 0; h < unroll; h++){
-                prob += weights[j+h] * __expf(tmp);
-                tmp += delta;
-            }
+        for (int j = start_index; j < weights_size; j += 1) {
+            float tmp = (j - r) * delta + constant_part + weights[j];
+            prob += __expf(tmp);
         }
         p += prob;
-        if(variance) {
-            pv += prob * (y - estimated_mean) * ( y - estimated_mean);
-        }else{
+        if (variance) {
+            pv += prob * (y - estimated_mean) * (y - estimated_mean);
+        } else {
             pv += prob * y;
         }
     }
@@ -316,54 +382,29 @@ compute_lookup_table_kernel(const float *x, const float *g_weights, const float*
     dualWarpReduce<n_threads>(sp, spv, tid);
 
     if (tid == 0) {
-        if(variance) {
-            res[bin] = sqrt(spv[0] / sp[0]);
-        }else{
-            res[bin] = spv[0] / sp[0];
+        if (variance) {
+            res[bin] = sqrt(spv[0] / (sp[0] + 1e-9));
+        } else {
+            res[bin] = spv[0] / (sp[0] + 1e-9);
         }
     }
 }
 
-void compute_lookup_table(const float *x, const float *weights, float *y_mean, float *y_var, const int size, const int weights_size,
-                         const float signal, const int bins, const int k, const int device){
+void compute_lookup_table(const float *x, const float *weights, float *y_mean, float *y_var, const float *log_factorial,
+                          const float *border_w, const int size,
+                          const int weights_size,
+                          const float signal, const int bins, const int scale, const int device) {
     checkCudaErrors(cudaSetDevice(device));
 
-    if(weights_size % 17 == 0) {
-        compute_lookup_table_kernel<17, false> << < bins, 256 >> > (x, weights, NULL, y_mean, size, weights_size, signal, k / bins);
-        compute_lookup_table_kernel<17, true> << < bins, 256 >> > (x, weights, y_mean, y_var, size, weights_size, signal, k / bins);
-        return;
-    }
-
-    if(weights_size % 11 == 0) {
-        compute_lookup_table_kernel<11, false> << < bins, 256 >> > (x, weights, NULL, y_mean, size, weights_size, signal, k / bins);
-        compute_lookup_table_kernel<11, true> << < bins, 256 >> > (x, weights, y_mean, y_var, size, weights_size, signal, k / bins);
-        return;
-    }
-
-    if(weights_size % 7 == 0) {
-        compute_lookup_table_kernel<7, false> << < bins, 256 >> > (x, weights, NULL, y_mean, size, weights_size, signal, k / bins);
-        compute_lookup_table_kernel<7, true> << < bins, 256 >> > (x, weights, y_mean, y_var, size, weights_size, signal, k / bins);
-        return;
-    }
-
-    if(weights_size % 4 == 0) {
-        compute_lookup_table_kernel<4, false> << < bins, 256 >> > (x, weights, NULL, y_mean, size, weights_size, signal, k / bins);
-        compute_lookup_table_kernel<4, true> << < bins, 256 >> > (x, weights, y_mean, y_var, size, weights_size, signal, k / bins);
-        return;
-    }
-
-    if(weights_size % 2 == 0) {
-        compute_lookup_table_kernel<2, false> << < bins, 256 >> > (x, weights, NULL, y_mean, size, weights_size, signal, k / bins);
-        compute_lookup_table_kernel<2, true> << < bins, 256 >> > (x, weights, y_mean, y_var, size, weights_size, signal, k / bins);
-        return;
-    }
-
-    compute_lookup_table_kernel<1, false> << < bins, 256 >> > (x, weights, NULL, y_mean, size, weights_size, signal, k / bins);
-    compute_lookup_table_kernel<1, true> << < bins, 256 >> > (x, weights, y_mean, y_var, size, weights_size, signal, k / bins);
+    compute_lookup_table_kernel<false> << < bins, 256 >> >
+                                                     (x, weights, NULL, y_mean, log_factorial, border_w, size, weights_size, signal, scale);
+    compute_lookup_table_kernel<true> << < bins, 256 >> >
+                                                    (x, weights, y_mean, y_var, log_factorial, border_w, size, weights_size, signal, scale);
 }
 
 __global__ void emulate_readings_kernel(const float *sinogram, int *readings, curandState *state, const float signal,
-                                       const float normal_std, const int k, const int bins, const uint width, const uint height) {
+                                        const float normal_std, const int k, const int bins, const uint width,
+                                        const uint height) {
     const uint x = blockIdx.x * blockDim.x + threadIdx.x;
     const uint y = blockIdx.y * blockDim.y + threadIdx.y;
     const uint tid = y * blockDim.x * gridDim.x + x;
@@ -380,7 +421,7 @@ __global__ void emulate_readings_kernel(const float *sinogram, int *readings, cu
         // apply Poisson noise and add Gaussian noise
         int reading = int(curand_poisson(&localState, mu)) + __float2int_rn(curand_normal(&localState) * normal_std);
         // quantize reading clamping in range [0, bins - 1]
-        readings[pos] = max(0, min(reading / k, bins-1));
+        readings[pos] = max(0, min(reading / k, bins - 1));
     }
 
     // save curand state back in global memory
@@ -390,10 +431,52 @@ __global__ void emulate_readings_kernel(const float *sinogram, int *readings, cu
 
 void RadonNoiseGenerator::emulate_readings_new(const float *sinogram, int *readings, const float signal,
                                                const float normal_std, const int k, const int bins,
-                                               const uint width, const uint height, int device){
+                                               const uint width, const uint height, int device) {
     checkCudaErrors(cudaSetDevice(device));
 
     emulate_readings_kernel << < dim3(width / 16, 8 * 1024 / width), dim3(16, 16) >> >
-                                                                    (sinogram, readings, this->get(
-                                                                            device), signal, normal_std, k, bins, width, height);
+                                                                     (sinogram, readings, this->get(
+                                                                             device), signal, normal_std, k, bins, width, height);
+}
+
+
+__global__ void
+emulate_readings_multilevel_kernel(const float *sinogram, int *readings, curandState *state, const int *levels,
+                                   const float *signal,
+                                   const float *normal_std, const int *ks, const int bins, const uint size) {
+    const uint batch = blockIdx.x;
+    const uint tid = blockIdx.x * blockDim.x + threadIdx.x;
+
+    const int level = levels[batch];
+    const float s = signal[level];
+    const float ns = normal_std[level];
+    const int k = ks[level];
+
+    // load curand state in local memory
+    curandState localState = state[tid];
+
+    // loop down the sinogram adding noise
+    for (uint pos = batch * size + threadIdx.x; pos < (batch + 1) * size; pos += 256) {
+        // ideal measured signal = signal * exp(-sinogram[pos])
+        float mu = __expf(s - sinogram[pos]);
+        // apply Poisson noise and add Gaussian noise
+        int reading = __float2int_rn((curand_poisson(&localState, mu) + curand_normal(&localState) * ns)) / k;
+        // clamp in range [0, bins - 1]
+        readings[pos] = max(0, min(reading, bins - 1));
+    }
+
+    // save curand state back in global memory
+    state[tid] = localState;
+}
+
+
+void RadonNoiseGenerator::emulate_readings_multilevel(const float *sinogram, int *readings, const float *signal,
+                                                      const float *normal_std, const int *k, const int *levels,
+                                                      const uint bins, const uint batch, const uint width,
+                                                      const uint height, const uint device) {
+    checkCudaErrors(cudaSetDevice(device));
+
+//TODO handle batch > 512
+    emulate_readings_multilevel_kernel << < dim3(batch), dim3(256) >> > (sinogram, readings, this->get(device), levels,
+            signal, normal_std, k, bins, width * height);
 }

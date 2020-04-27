@@ -14,7 +14,10 @@ def normalize_shape(f):
 
         # return to old shape
         if old_shape is not None:
-            y = y.view(old_shape[0], old_shape[1], -1, old_shape[-1])
+            if isinstance(y, torch.Tensor):
+                y = y.view(old_shape[0], old_shape[1], -1, old_shape[-1])
+            elif isinstance(y, tuple):
+                y = [yy.view(old_shape[0], old_shape[1], -1, old_shape[-1]) for yy in y]
 
         return y
 
