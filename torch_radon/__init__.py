@@ -98,7 +98,7 @@ def compute_lookup_table(sinogram, signal, normal_std, bins=4096, eps=0.01, eps_
     if verbose:
         print("Computing readings normalization value")
     k = 0
-    for i in range(1, 20):
+    for i in range(1, 5000):
         a, b = torch_radon_cuda.compute_ab(s, signal, eps, bins * i)
         if verbose:
             print(a, b)
@@ -177,7 +177,7 @@ class ReadingsLookup:
                  normal_stds=self._normal_stds, bins=self.bins)
 
     def add_lookup_table(self, sinogram, signal, normal_std):
-        lookup, lookup_var, k = compute_lookup_table(sinogram, signal, normal_std, bins=self.bins)
+        lookup, lookup_var, k = compute_lookup_table(sinogram, signal, normal_std, bins=self.bins, verbose=True)
 
         self.mu.append(lookup.cpu().numpy())
         self.sigma.append(lookup_var.cpu().numpy())
