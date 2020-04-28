@@ -237,8 +237,17 @@ __inline__ __device__ void warpReduce(volatile float *sdata, const int tid) {
     sdata[tid] += sdata[tid + 1];
 }
 
-template<int n_threads>
-__inline__ __device__ void dualWarpReduce(float *sa, float *sb, const int tid) {
+__inline__ __device__ void warpReduce(volatile double *sdata, const int tid) {
+    sdata[tid] += sdata[tid + 32];
+    sdata[tid] += sdata[tid + 16];
+    sdata[tid] += sdata[tid + 8];
+    sdata[tid] += sdata[tid + 4];
+    sdata[tid] += sdata[tid + 2];
+    sdata[tid] += sdata[tid + 1];
+}
+
+template<int n_threads, class dtype>
+__inline__ __device__ void dualWarpReduce(dtype *sa, dtype *sb, const int tid) {
     if (n_threads >= 512) {
         if (tid < 256) {
             sa[tid] += sa[tid + 256];
@@ -323,9 +332,9 @@ compute_lookup_table_kernel(const float *x, const float *g_weights, const float 
                             const int size, const int weights_size,
                             const float signal, const int scale) {
     constexpr int n_threads = 256;
-    __shared__ float sp[n_threads];
-    __shared__ float spv[n_threads];
-    __shared__ float weights[256];
+    __shared__ double sp[n_threads];
+    __shared__ double spv[n_threads];
+    __shared__ double weights[256];
     //__shared__ float lgf[256];
 
     const int bin = blockIdx.x;
@@ -334,7 +343,7 @@ compute_lookup_table_kernel(const float *x, const float *g_weights, const float 
     const int r = (weights_size - scale) / 2;
     const int start_index = max(r - bin * scale, 0);
 
-    float estimated_mean;
+    double estimated_mean;
     if (variance) {
         estimated_mean = mean_estimator[bin];
     }
@@ -354,18 +363,18 @@ compute_lookup_table_kernel(const float *x, const float *g_weights, const float 
     __syncthreads();
 
 
-    float p = 0.0f;
-    float pv = 0.0f;
+    double p = 0.0f;
+    double pv = 0.0f;
     for (int i = tid; i < size; i += n_threads) {
         // read sinogram value and precompute
-        const float y = x[i];
-        const float delta = signal - y;
-        const float constant_part = bin*scale*delta - __expf(delta);
+        const double y = x[i];
+        const double delta = signal - y;
+        const double constant_part = bin*scale*delta - exp(delta);
 
-        float prob = 0.0f;
+        double prob = 0.0f;
         for (int j = start_index; j < weights_size; j += 1) {
-            float tmp = (j - r) * delta + constant_part + weights[j];
-            prob += __expf(tmp);
+            double tmp = (j - r) * delta + constant_part + weights[j];
+            prob += exp(tmp);
         }
         p += prob;
         if (variance) {
