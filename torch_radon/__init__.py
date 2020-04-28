@@ -123,7 +123,6 @@ def compute_lookup_table(sinogram, signal, normal_std, bins=4096, eps=0.01, eps_
     border_w = np.asarray([scipy.stats.norm.cdf((-x - 0.5) / normal_std) for x in range(scale)])
     border_w = torch.FloatTensor(border_w).to(device)
 
-
     log_factorial = np.arange(k + len(weights))
     log_factorial[0] = 1
     log_factorial = np.cumsum(np.log(log_factorial).astype(np.float64)).astype(np.float32)
@@ -211,3 +210,6 @@ class ReadingsLookup:
             sigma = torch_radon_cuda.readings_lookup(readings, self._sigma[level])
 
         return mu, sigma
+
+    def random_levels(self, size, device):
+        return torch.randint(0, len(self.mu), (size,), device=device, dtype=torch.int32)
