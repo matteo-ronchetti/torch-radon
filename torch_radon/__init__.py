@@ -88,11 +88,11 @@ class Radon:
         self.noise_generator.free()
 
 
-def compute_lookup_table(sinogram, signal, normal_std, bins=4096, eps=0.01, eps_prob=0.99, verbose=False):
+def compute_lookup_table(sinogram, signal, normal_std, bins=4096, eps=0.01, eps_prob=0.99, eps_k=0.01, verbose=False):
     s = sinogram.view(-1)
     device = s.device
 
-    eps = np.quantile(sinogram.cpu().numpy(), eps)
+    eps = np.quantile(sinogram.cpu().numpy(), eps) + eps_k
 
     # Compute readings normalization value
     if verbose:
@@ -105,7 +105,7 @@ def compute_lookup_table(sinogram, signal, normal_std, bins=4096, eps=0.01, eps_
         if a >= (a + b) * eps_prob:
             k = bins * i
             break
-    print("Readings normalization value = ", k)
+    print("Readings normalization value = ", k // bins)
 
     # Compute weights for Gaussian error
     scale = k // bins
@@ -175,8 +175,8 @@ class ReadingsLookup:
         np.savez(path, mu=self._mu, sigma=self._sigma, ks=self._ks, signals=self._signals,
                  normal_stds=self._normal_stds, bins=self.bins)
 
-    def add_lookup_table(self, sinogram, signal, normal_std):
-        lookup, lookup_var, k = compute_lookup_table(sinogram, signal, normal_std, bins=self.bins, verbose=True)
+    def add_lookup_table(self, sinogram, signal, normal_std, eps=0.01, eps_prob=0.99, eps_k=0.01, verbose=True):
+        lookup, lookup_var, k = compute_lookup_table(sinogram, signal, normal_std, self.bins, eps, eps_prob, eps_k, verbose)
 
         self.mu.append(lookup.cpu().numpy())
         self.sigma.append(lookup_var.cpu().numpy())
