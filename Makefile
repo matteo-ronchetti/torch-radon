@@ -12,14 +12,14 @@ FLAGS += -ccbin=$(CXX) -Xcompiler -fPIC
 FLAGS += $(foreach includedir,$(INCLUDE_DIRS),-I$(includedir))
 
 # compile for K80, 1070, V100, T4
-#FLAGS += -gencode arch=compute_35,code=sm_35
+FLAGS += -gencode arch=compute_35,code=sm_35
 FLAGS += -gencode arch=compute_61,code=sm_61
 FLAGS += -gencode arch=compute_70,code=sm_70
 FLAGS += -gencode arch=compute_75,code=sm_75
 FLAGS += -DNDEBUG -O3 --generate-line-info --compiler-options -Wall
 
-FLAGS += -DVERBOSE
-CXX_FLAGS += -DVERBOSE
+# FLAGS += -DVERBOSE
+# CXX_FLAGS += -DVERBOSE
 
 SRC_DIR := ./src
 OBJ_DIR := ./objs

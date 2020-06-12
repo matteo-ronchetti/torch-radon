@@ -18,8 +18,8 @@ setup(name='torch_radon',
       package_dir={'torch_radon': './torch_radon'},
       ext_modules=[
           CUDAExtension('torch_radon_cuda', ['src/pytorch.cpp'],
-                        include_dirs=['include'],
-                        library_dirs=["objs/cuda"],
+                        include_dirs=[os.path.abspath('include')],
+                        library_dirs=[os.path.abspath("objs/cuda")],
                         libraries=["radon"],
                         # strip debug symbols
                         extra_link_args=['-Wl,--strip-all']
