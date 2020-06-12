@@ -65,7 +65,7 @@ radon_backward(torch::Tensor x, torch::Tensor rays, torch::Tensor angles, Textur
     const int device = x.device().index();
 
     TORCH_CHECK(angles.size(0) == n_angles, "Mismatch between sinogram size and number of angles")
-    TORCH_CHECK(angles.size(0) < 512, "Can only support up to 512 angles")
+    TORCH_CHECK(angles.size(0) <= 512, "Can only support up to 512 angles")
     TORCH_CHECK(img_size % 16 == 0, "Dimension 2 of sinogram (i.e. image size) must be multiple of 16")
     if (dtype == torch::kFloat16) {
         TORCH_CHECK(batch_size % 4 == 0, "Batch size must be multiple of 4 when using half precision")
