@@ -45,14 +45,14 @@ class Radon:
         return RadonForward.apply(imgs, self.rays, self.angles, self.tex_cache)
 
     @normalize_shape
-    def backprojection(self, sinogram, extend=False):
+    def backprojection(self, sinogram, extend=True):
         assert sinogram.size(-1) == self.resolution
         self._move_parameters_to_device(sinogram.device)
 
         return RadonBackprojection.apply(sinogram, self.rays, self.angles, self.tex_cache, extend)
 
     @normalize_shape
-    def backward(self, sinogram, extend=False):
+    def backward(self, sinogram, extend=True):
         return self.backprojection(sinogram, extend)
 
     @normalize_shape
