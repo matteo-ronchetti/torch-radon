@@ -58,14 +58,18 @@ loss.backward()
 
 ## Installation
 ### Precompiled packages
-TODO
+If you are running Linux you can get the command that installs Torch Radon by running:
+```shell script
+wget -qO- https://raw.githubusercontent.com/matteo-ronchetti/torch-radon/master/install_command.py  | python -
+```
 ### Build from source
-You need to have CUDA and Pytorch installed, then run:
+You need to have [CUDA](https://developer.nvidia.com/cuda-toolkit) and [PyTorch](https://pytorch.org/get-started/locally/) installed, then run:
 ```shell script
 git clone https://github.com/matteo-ronchetti/torch-radon.git
 cd torch-radon
 make install
 ```
+If you encounter any problem please contact the author or open an issue.
 
 ## Half Precision
 Storing input data in half precision (float16) makes forward and back projection operations a lot (2x-2.6x times) faster.
