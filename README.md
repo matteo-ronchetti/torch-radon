@@ -61,10 +61,11 @@ loss.backward()
 
 ## Installation
 ### Precompiled packages
-If you are running Linux you can get the command that installs Torch Radon by running:
+If you are running Linux you can install Torch Radon by running:
 ```shell script
-wget -qO- https://raw.githubusercontent.com/matteo-ronchetti/torch-radon/master/install_command.py  | python -
+wget -qO- https://raw.githubusercontent.com/matteo-ronchetti/torch-radon/master/auto_install.py  | python -
 ```
+
 ### Build from source
 You need to have [CUDA](https://developer.nvidia.com/cuda-toolkit) and [PyTorch](https://pytorch.org/get-started/locally/) installed, then run:
 ```shell script
@@ -76,8 +77,8 @@ If you encounter any problem please contact the author or open an issue.
 
 ## Benchmarks
 The library is noticeably faster than the Astra Toolbox when considering also CPU-GPU-CPU copies (first two columns) and is a lot faster when processing data which is already on the GPU (last two columns). Main disadvantage of Astra is that it only takes inputs which are on the CPU, this makes training end-to-end neural networks very inefficient.
-![V100 Benchmark](V100.png?raw=true)
-![GTX1650 Benchmark](gtx1650.png?raw=true)
+![V100 Benchmark](pictures/V100.png?raw=true)
+![GTX1650 Benchmark](pictures/gtx1650.png?raw=true)
 Note: batch size with Astra is achieved by using a 3D parallel projection.
 
 ## Half Precision
