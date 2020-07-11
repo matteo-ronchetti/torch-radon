@@ -6,8 +6,9 @@ from build import build
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
-
-build(cuda_home=os.getenv("CUDA_HOME", "/usr/local/cuda"))
+cuda_home = os.getenv("CUDA_HOME", "/usr/local/cuda")
+print(cuda_home)
+build(cuda_home=cuda_home)
 
 setup(name='torch_radon',
       version="0.0.1",
@@ -38,5 +39,8 @@ setup(name='torch_radon',
           "Programming Language :: Python :: 3",
           "Operating System :: POSIX :: Linux",
           "License :: OSI Approved :: GNU General Public License v3 (GPLv3)"
-      ]
+      ],
+      install_requires=[
+          "scipy"
+      ],
       )
