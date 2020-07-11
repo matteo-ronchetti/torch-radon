@@ -1,7 +1,6 @@
 script = [
     "cd /code",
-    "PATH=/opt/conda/bin/:$PATH",
-    "conda init",
+    'eval "$(conda shell.bash hook)"',
     "mkdir output"
 ]
 
