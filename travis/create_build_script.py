@@ -1,7 +1,8 @@
 script = [
     "cd /code",
     'eval "$(conda shell.bash hook)"',
-    "mkdir output"
+    "mkdir output",
+    "export CXX=g++"
 ]
 
 for python in ["36", "37"]:
