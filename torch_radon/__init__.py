@@ -9,15 +9,14 @@ from .utils import compute_rays, normalize_shape
 
 
 class Radon:
-    def __init__(self, resolution, angles):
+    def __init__(self, projection, angles):
         super().__init__()
 
-        assert resolution % 2 == 0, "Resolution must be even"
-        self.resolution = resolution
+        self.rays = projection.rays
+        self.resolution = projection.resolution
         if not isinstance(angles, torch.Tensor):
             angles = torch.FloatTensor(angles)
 
-        self.rays = compute_rays(resolution)  # nn.Parameter(compute_rays(resolution), requires_grad=False)
         self.angles = angles  # nn.Parameter(angles, requires_grad=False)
 
         # caches used to avoid reallocation of resources
@@ -176,7 +175,8 @@ class ReadingsLookup:
                  normal_stds=self._normal_stds, bins=self.bins)
 
     def add_lookup_table(self, sinogram, signal, normal_std, eps=0.01, eps_prob=0.99, eps_k=0.01, verbose=True):
-        lookup, lookup_var, k = compute_lookup_table(sinogram, signal, normal_std, self.bins, eps, eps_prob, eps_k, verbose)
+        lookup, lookup_var, k = compute_lookup_table(sinogram, signal, normal_std, self.bins, eps, eps_prob, eps_k,
+                                                     verbose)
 
         self.mu.append(lookup.cpu().numpy())
         self.sigma.append(lookup_var.cpu().numpy())
