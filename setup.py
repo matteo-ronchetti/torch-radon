@@ -1,25 +1,32 @@
 from setuptools import setup
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 import os
+from build import build
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
+
+
+build(cuda_home=os.getenv("CUDA_HOME", "/usr/local/cuda"))
 
 setup(name='torch_radon',
       version="0.0.1",
       author="Matteo Ronchetti",
       author_email="mttronchetti@gmail.com",
-      description="Radon transform in Pytorch",
+      description="Radon transform in PyTorch",
       long_description=long_description,
       long_description_content_type="text/markdown",
       url="https://github.com/matteo-ronchetti/torch-radon",
 
-      packages=['torch_radon'],
-      package_dir={'torch_radon': './torch_radon'},
+      packages=['torch_radon', "torch_radon.shearlet"],
+      package_dir={
+          'torch_radon': './torch_radon',
+          'torch_radon.shearlet': './torch_radon/shearlet'
+      },
       ext_modules=[
           CUDAExtension('torch_radon_cuda', ['src/pytorch.cpp'],
                         include_dirs=[os.path.abspath('include')],
-                        library_dirs=[os.path.abspath("objs/cuda")],
+                        library_dirs=[os.path.abspath("objs")],
                         libraries=["radon"],
                         # strip debug symbols
                         extra_link_args=['-Wl,--strip-all']

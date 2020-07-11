@@ -35,7 +35,7 @@ plt.plot(progress)
 plt.xlabel("Iteration")
 plt.ylabel("Reconstruction error")
 plt.title("Landweber Reconstruction Error")
-print("Landweber Error", torch.norm(x - reconstruction).item())
+print("Landweber Error", torch.norm(x - reconstruction).item() / torch.norm(x).item())
 
 titles = ["Original Image", "Sinogram", "Reconstruction"]
 show_images([x, sinogram, reconstruction], titles, keep_range=False)
