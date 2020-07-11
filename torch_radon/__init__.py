@@ -1,15 +1,15 @@
 import numpy as np
 import torch
-from torch import nn
 import scipy.stats
 
 import torch_radon_cuda
 from .differentiable_functions import RadonForward, RadonBackprojection
-from .utils import compute_rays, normalize_shape
+from .utils import normalize_shape
+from .projections import Projection, FanBeamProjection, ParallelBeamProjection
 
 
 class Radon:
-    def __init__(self, projection, angles):
+    def __init__(self, projection: Projection, angles):
         super().__init__()
 
         self.rays = projection.rays
@@ -17,7 +17,7 @@ class Radon:
         if not isinstance(angles, torch.Tensor):
             angles = torch.FloatTensor(angles)
 
-        self.angles = angles  # nn.Parameter(angles, requires_grad=False)
+        self.angles = angles
 
         # caches used to avoid reallocation of resources
         self.tex_cache = torch_radon_cuda.TextureCache(8)
@@ -25,11 +25,6 @@ class Radon:
 
         seed = np.random.get_state()[1][0]
         self.noise_generator = torch_radon_cuda.RadonNoiseGenerator(seed)
-
-    def to(self, device):
-        print("WARN Radon.to(device) is deprecated, device handling is now automatic")
-        self._move_parameters_to_device(device)
-        return self
 
     def _move_parameters_to_device(self, device):
         if device != self.rays.device:
@@ -60,7 +55,7 @@ class Radon:
 
     @normalize_shape
     def add_noise(self, x, signal, density_normalization=1.0, approximate=False):
-        print("WARN Radon.add_noise is deprecated")
+        # print("WARN Radon.add_noise is deprecated")
 
         torch_radon_cuda.add_noise(x, self.noise_generator, signal, density_normalization, approximate)
         return x

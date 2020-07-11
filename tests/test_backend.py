@@ -3,7 +3,7 @@ from .astra_wrapper import AstraWrapper
 from nose.tools import assert_less, assert_equal
 import torch
 import numpy as np
-from torch_radon import Radon
+from torch_radon import Radon, ParallelBeamProjection
 from parameterized import parameterized
 
 device = torch.device('cuda')
@@ -13,8 +13,8 @@ limited_angles = np.linspace(0.2 * np.pi, 0.5 * np.pi, 40).astype(np.float32)
 sparse_angles = np.linspace(0, 2 * np.pi, 20).astype(np.float32)
 
 params = []  # [(device, 8, 128, full_angles)]
-for batch_size in [1, 8, 16, 32]:  # , 64, 128]:  # , 256, 512]:
-    for image_size in [32, 128, 256]:  # , 512]:
+for batch_size in [1, 8, 16]:  # , 64, 128]:  # , 256, 512]:
+    for image_size in [128, 128 + 32, 256]:  # , 512]:
         for angles in [full_angles, limited_angles, sparse_angles]:
             params.append((device, batch_size, image_size, angles))
 
@@ -38,7 +38,8 @@ def test_error(device, batch_size, image_size, angles):
     # astra_bp *= circle_mask(image_size)
 
     # our implementation
-    radon = Radon(image_size, angles)
+    projection = ParallelBeamProjection(resolution=image_size)
+    radon = Radon(projection, angles)
     x = torch.FloatTensor(x).to(device)
 
     our_fp = radon.forward(x)
@@ -48,6 +49,7 @@ def test_error(device, batch_size, image_size, angles):
     back_error = relative_error(astra_bp, our_bp.cpu().numpy())
 
     print(batch_size, image_size, len(angles), forward_error, back_error)
+    # TODO better checks
     assert_less(forward_error, 1e-2)
     assert_less(back_error, 5e-3)
 
@@ -58,7 +60,8 @@ def test_half(device, batch_size, image_size, angles):
     x = generate_random_images(batch_size, image_size)
 
     # our implementation
-    radon = Radon(image_size, angles).to(device)
+    projection = ParallelBeamProjection(resolution=image_size)
+    radon = Radon(projection, angles)
     x = torch.FloatTensor(x).to(device)
 
     sinogram = radon.forward(x)
@@ -84,7 +87,8 @@ def test_noise():
     x.requires_grad = True
     angles = torch.FloatTensor(np.linspace(0, 2 * np.pi, 10).astype(np.float32))
 
-    radon = Radon(64, angles).to(device)
+    projection = ParallelBeamProjection(resolution=64)
+    radon = Radon(projection, angles)
 
     sinogram = radon.forward(x)
     assert_equal(sinogram.size(), (3, 5, 10, 64))
