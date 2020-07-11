@@ -19,7 +19,7 @@ for python in ["37", "36"]:
                 "python build.py clean",
                 f"export CUDA_HOME=/usr/local/cuda-{cuda}",
                 # force recompilation otherwise will reuse builds even if CUDA version changes
-                "python build.py build_ext --force",
+                "python setup.py build_ext --force",
                 "python setup.py bdist_wheel",
                 f"mv dist/*.whl output/cuda-{cuda}/torch-{torch}/"
             ]
