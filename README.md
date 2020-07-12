@@ -1,3 +1,6 @@
+![Travis (.com)](https://img.shields.io/travis/com/matteo-ronchetti/torch-radon)
+![GitHub](https://img.shields.io/github/license/matteo-ronchetti/torch-radon)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/weiji14/deepbedmap/)
 # Torch Radon: Computational Tomography in PyTorch
 > This library is still under development, if you encounter any problem feel free to contact the author or open an issue
 
