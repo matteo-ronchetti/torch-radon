@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import scipy.stats
+import abc
 
 import torch_radon_cuda
 from .differentiable_functions import RadonForward, RadonBackprojection
@@ -8,16 +9,14 @@ from .utils import normalize_shape
 from .projections import Projection, FanBeamProjection, ParallelBeamProjection
 
 
-class Radon:
-    def __init__(self, projection: Projection, angles):
-        super().__init__()
-
-        self.rays = projection.rays
-        self.resolution = projection.resolution
+class BaseRadon(abc.ABC):
+    def __init__(self, resolution: int, angles):
+        self.resolution = resolution
         if not isinstance(angles, torch.Tensor):
             angles = torch.FloatTensor(angles)
 
-        self.angles = angles
+        # change sign to conform to Astra and Scikit
+        self.angles = -angles
 
         # caches used to avoid reallocation of resources
         self.tex_cache = torch_radon_cuda.TextureCache(8)
@@ -27,31 +26,24 @@ class Radon:
         self.noise_generator = torch_radon_cuda.RadonNoiseGenerator(seed)
 
     def _move_parameters_to_device(self, device):
-        if device != self.rays.device:
-            self.rays = self.rays.to(device)
+        if device != self.angles.device:
             self.angles = self.angles.to(device)
 
-    @normalize_shape
-    def forward(self, imgs):
-        assert imgs.size(-1) == self.resolution
-        self._move_parameters_to_device(imgs.device)
+    @abc.abstractmethod
+    def backprojection(self, sinogram):
+        pass
 
-        return RadonForward.apply(imgs, self.rays, self.angles, self.tex_cache)
-
-    @normalize_shape
-    def backprojection(self, sinogram, extend=True):
-        assert sinogram.size(-1) == self.resolution
-        self._move_parameters_to_device(sinogram.device)
-
-        return RadonBackprojection.apply(sinogram, self.rays, self.angles, self.tex_cache, extend)
-
-    @normalize_shape
-    def backward(self, sinogram, extend=True):
-        return self.backprojection(sinogram, extend)
+    @abc.abstractmethod
+    def forward(self, x):
+        pass
 
     @normalize_shape
     def filter_sinogram(self, sinogram):
         return torch_radon_cuda.filter_sinogram(sinogram, self.fft_cache)
+
+    @normalize_shape
+    def backward(self, sinogram):
+        return self.backprojection(sinogram)
 
     @normalize_shape
     def add_noise(self, x, signal, density_normalization=1.0, approximate=False):
@@ -80,6 +72,31 @@ class Radon:
 
     def __del__(self):
         self.noise_generator.free()
+
+
+class Radon(BaseRadon):
+    def __init__(self, resolution: int, angles, det_count=-1, det_spacing=1.0):
+        super().__init__(resolution, angles)
+
+        if det_count < 0:
+            det_count = resolution
+
+        self.det_count = det_count
+        self.det_spacing = det_spacing
+
+    @normalize_shape
+    def forward(self, imgs):
+        assert imgs.size(-1) == self.resolution
+        self._move_parameters_to_device(imgs.device)
+
+        return RadonForward.apply(imgs, self.det_count, self.det_spacing, self.angles, self.tex_cache)
+
+    @normalize_shape
+    def backprojection(self, sinogram):
+        assert sinogram.size(-1) == self.resolution
+        self._move_parameters_to_device(sinogram.device)
+
+        return RadonBackprojection.apply(sinogram, self.det_count, self.det_spacing, self.angles, self.tex_cache)
 
 
 def compute_lookup_table(sinogram, signal, normal_std, bins=4096, eps=0.01, eps_prob=0.99, eps_k=0.01, verbose=False):

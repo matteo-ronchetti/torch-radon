@@ -8,7 +8,7 @@ def relative_error(ref, x):
 def circle_mask(size):
     radius = (size - 1) / 2
     c0, c1 = np.ogrid[0:size, 0:size]
-    return ((c0 - radius) ** 2 + (c1 - radius) ** 2) <= radius ** 2
+    return ((c0 - radius) ** 2 + (c1 - radius) ** 2) <= (radius+5) ** 2
 
 
 def generate_random_images(n, size):
@@ -18,6 +18,6 @@ def generate_random_images(n, size):
 
     # generate images and apply mask
     batch = np.random.uniform(0.0, 1.0, (n, size, size)).astype(np.float32)
-    batch *= mask
+    #batch *= mask
 
     return batch

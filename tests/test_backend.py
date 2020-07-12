@@ -38,12 +38,11 @@ def test_error(device, batch_size, image_size, angles):
     # astra_bp *= circle_mask(image_size)
 
     # our implementation
-    projection = ParallelBeamProjection(resolution=image_size)
-    radon = Radon(projection, angles)
+    radon = Radon(image_size, angles)
     x = torch.FloatTensor(x).to(device)
 
     our_fp = radon.forward(x)
-    our_bp = radon.backprojection(our_fp, extend=True)
+    our_bp = radon.backprojection(our_fp)
 
     forward_error = relative_error(astra_fp, our_fp.cpu().numpy())
     back_error = relative_error(astra_bp, our_bp.cpu().numpy())
@@ -60,15 +59,14 @@ def test_half(device, batch_size, image_size, angles):
     x = generate_random_images(batch_size, image_size)
 
     # our implementation
-    projection = ParallelBeamProjection(resolution=image_size)
-    radon = Radon(projection, angles)
+    radon = Radon(image_size, angles)
     x = torch.FloatTensor(x).to(device)
 
     sinogram = radon.forward(x)
-    single_precision = radon.backprojection(sinogram, extend=True)
+    single_precision = radon.backprojection(sinogram)
 
     h_sino = radon.forward(x.half())
-    half_precision = radon.backprojection(h_sino, extend=True)
+    half_precision = radon.backprojection(h_sino)
 
     forward_error = relative_error(sinogram.cpu().numpy(), h_sino.cpu().numpy())
     back_error = relative_error(single_precision.cpu().numpy(), half_precision.cpu().numpy())
@@ -87,8 +85,7 @@ def test_noise():
     x.requires_grad = True
     angles = torch.FloatTensor(np.linspace(0, 2 * np.pi, 10).astype(np.float32))
 
-    projection = ParallelBeamProjection(resolution=64)
-    radon = Radon(projection, angles)
+    radon = Radon(64, angles)
 
     sinogram = radon.forward(x)
     assert_equal(sinogram.size(), (3, 5, 10, 64))

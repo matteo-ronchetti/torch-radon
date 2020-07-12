@@ -25,7 +25,7 @@ setup(name='torch_radon',
           'torch_radon.shearlet': './torch_radon/shearlet'
       },
       ext_modules=[
-          CUDAExtension('torch_radon_cuda', ['src/pytorch.cpp'],
+          CUDAExtension('torch_radon_cuda', [os.path.abspath('src/pytorch.cpp')],
                         include_dirs=[os.path.abspath('include')],
                         library_dirs=[os.path.abspath("objs")],
                         libraries=["radon"],

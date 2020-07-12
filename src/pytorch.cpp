@@ -14,16 +14,15 @@
 #define CHECK_INPUT(x) CHECK_CUDA(x); CHECK_CONTIGUOUS(x)
 
 
-torch::Tensor radon_forward(torch::Tensor x, torch::Tensor rays, torch::Tensor angles, TextureCache &tex_cache) {
+torch::Tensor radon_forward(torch::Tensor x, const int det_count, const float det_spacing, torch::Tensor angles, TextureCache &tex_cache) {
     CHECK_INPUT(x);
-    CHECK_INPUT(rays);
     CHECK_INPUT(angles);
+    //
 
     auto dtype = x.dtype();
 
     const int batch_size = x.size(0);
     const int img_size = x.size(1);
-    const int n_rays = rays.size(0);
     const int n_angles = angles.size(0);
     const int device = x.device().index();
 
@@ -35,25 +34,24 @@ torch::Tensor radon_forward(torch::Tensor x, torch::Tensor rays, torch::Tensor a
 
     // allocate output sinogram tensor
     auto options = torch::TensorOptions().dtype(dtype).device(x.device());
-    auto y = torch::empty({batch_size, n_angles, n_rays}, options);
+    auto y = torch::empty({batch_size, n_angles, det_count}, options);
 
     if (dtype == torch::kFloat16) {
-        radon_forward_cuda((unsigned short *) x.data_ptr<at::Half>(), rays.data_ptr<float>(), angles.data_ptr<float>(),
+        radon_forward_cuda((unsigned short *) x.data_ptr<at::Half>(), det_count, det_spacing, angles.data_ptr<float>(),
                            (unsigned short *) y.data_ptr<at::Half>(),
                            tex_cache,
-                           batch_size, img_size, n_rays, n_angles, device);
+                           batch_size, img_size, n_angles, device);
     } else {
-        radon_forward_cuda(x.data_ptr<float>(), rays.data_ptr<float>(), angles.data_ptr<float>(), y.data_ptr<float>(),
+        radon_forward_cuda(x.data_ptr<float>(), det_count, det_spacing, angles.data_ptr<float>(), y.data_ptr<float>(),
                            tex_cache,
-                           batch_size, img_size, n_rays, n_angles, device);
+                           batch_size, img_size, n_angles, device);
     }
     return y;
 }
 
 torch::Tensor
-radon_backward(torch::Tensor x, torch::Tensor rays, torch::Tensor angles, TextureCache &tex_cache, const bool extend) {
+radon_backward(torch::Tensor x, const int det_count, const float det_spacing, torch::Tensor angles, TextureCache &tex_cache) {
     CHECK_INPUT(x);
-    CHECK_INPUT(rays);
     CHECK_INPUT(angles);
 
     auto dtype = x.dtype();
@@ -61,7 +59,6 @@ radon_backward(torch::Tensor x, torch::Tensor rays, torch::Tensor angles, Textur
     const int batch_size = x.size(0);
     const int n_angles = x.size(1);
     const int img_size = x.size(2);
-    const int n_rays = rays.size(0);
     const int device = x.device().index();
 
     TORCH_CHECK(angles.size(0) == n_angles, "Mismatch between sinogram size and number of angles")
@@ -76,49 +73,18 @@ radon_backward(torch::Tensor x, torch::Tensor rays, torch::Tensor angles, Textur
     auto y = torch::empty({batch_size, img_size, img_size}, options);
 
     if (dtype == torch::kFloat16) {
-        radon_backward_cuda((unsigned short *) x.data_ptr<at::Half>(), rays.data_ptr<float>(), angles.data_ptr<float>(),
+        radon_backward_cuda((unsigned short *) x.data_ptr<at::Half>(), det_count, det_spacing, angles.data_ptr<float>(),
                             (unsigned short *) y.data_ptr<at::Half>(),
-                            tex_cache,
-                            batch_size, img_size, n_rays, n_angles, device, extend);
+                            tex_cache, batch_size, img_size, n_angles, device);
     } else {
-        radon_backward_cuda(x.data_ptr<float>(), rays.data_ptr<float>(), angles.data_ptr<float>(), y.data_ptr<float>(),
-                            tex_cache,
-                            batch_size, img_size, n_rays, n_angles, device, extend);
+        radon_backward_cuda(x.data_ptr<float>(), det_count, det_spacing, angles.data_ptr<float>(), y.data_ptr<float>(),
+                            tex_cache, batch_size, img_size, n_angles, device);
     }
 
 
     return y;
 
 }
-
-/*
-torch::Tensor radon_backward_lb(torch::Tensor x, torch::Tensor rays, torch::Tensor angles, TextureCache &tex_cache, const bool extend) {
-    CHECK_INPUT(x);
-    CHECK_INPUT(rays);
-    CHECK_INPUT(angles);
-
-    const int n_angles = x.size(0);
-    const int img_size = x.size(1);
-    const int batch_size = x.size(2);
-
-    const int n_rays = rays.size(0);
-    const int device = x.device().index();
-
-    TORCH_CHECK(angles.size(0) == n_angles, "Mismatch between sinogram size and number of angles")
-    TORCH_CHECK(img_size % 16 == 0, "Dimension 1 of sinogram (i.e. image size) must be multiple of 16")
-    TORCH_CHECK(batch_size % 16 == 0, "Dimension 0 of sinogram (i.e. batch size) must be multiple of 16")
-
-    // create output image tensor
-    auto options = torch::TensorOptions().dtype(torch::kFloat32).device(x.device());
-    auto y = torch::empty({batch_size, img_size, img_size}, options);
-
-    radon_backward_cuda_lb(x.data_ptr<float>(), rays.data_ptr<float>(), angles.data_ptr<float>(), y.data_ptr<float>(),
-                           tex_cache,
-                           batch_size, img_size, n_rays, n_angles, device, extend);
-
-    return y;
-}
- */
 
 void radon_add_noise(torch::Tensor x, RadonNoiseGenerator &noise_generator, const float signal,
                      const float density_normalization, const bool approximate) {
@@ -287,24 +253,11 @@ torch_compute_lookup_table(torch::Tensor x, torch::Tensor weights, const float s
     return make_pair(y_mean, y_var);
 }
 
-//torch::Tensor add_half(torch::Tensor x, torch::Tensor y) {
-//    CHECK_INPUT(x);
-//
-//    std::cout << x.dtype() << " " << (x.dtype() == torch::kFloat16) << std::endl;
-//
-//    // create output sinogram tensor
-//    auto options = torch::TensorOptions().dtype(torch::kFloat16).device(x.device());
-//    auto z = torch::empty({1024}, options);
-//
-//    add_half_cuda((unsigned short *) x.data_ptr<at::Half>(), (unsigned short *) y.data_ptr<at::Half>(),
-//                  (unsigned short *) z.data_ptr<at::Half>());
-//    return z;
-//}
-
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m
 ) {
 m.def("forward", &radon_forward, "Radon forward projection");
+
 m.def("backward", &radon_backward, "Radon back projection");
 //m.def("backward_lb", &radon_backward_lb, "Radon back projection");
 m.def("add_noise", &radon_add_noise, "Add noise to sinogram");
@@ -316,7 +269,6 @@ m.def("compute_lookup_table", &torch_compute_lookup_table, "TODO");
 m.def("emulate_readings_new", &torch_emulate_readings_new, "TODO");
 m.def("emulate_readings_multilevel", &emulate_readings_multilevel, "TODO");
 m.def("readings_lookup_multilevel", &readings_lookup_multilevel, "TODO");
-//m.def("add_half", &add_half, "TODO");
 
 py::class_<TextureCache>(m,
 "TextureCache")

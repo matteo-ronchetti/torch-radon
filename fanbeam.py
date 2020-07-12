@@ -91,33 +91,37 @@ def generate_random_images(n, size):
 res = 512
 angles = np.linspace(0, 2 * np.pi, res).astype(np.float32)
 
-# x = np.load("examples/phantom.npy")
-x = generate_random_images(1, res)[0]
+x = np.load("examples/phantom.npy")
+x[:1,:1] = 1000.0
+#x = generate_random_images(1, res)[0]
 
 source_distance = res
 det_distance = res
 det_width = 2.0
 
 vol_geom = astra.create_vol_geom(x.shape[0], x.shape[1])
-proj_geom = astra.create_proj_geom('fanflat', det_width, x.shape[0], -angles, source_distance, det_distance)
-#proj_geom = astra.create_proj_geom('parallel', 1.0, x.shape[0], -angles)
+#proj_geom = astra.create_proj_geom('fanflat', det_width, x.shape[0], -angles, source_distance, det_distance)
+proj_geom = astra.create_proj_geom('parallel', 1.0, x.shape[0], angles)
 proj_id = astra.create_projector('cuda', proj_geom, vol_geom)
 
 id, astra_y = astra.create_sino(x, proj_id)
+_, astra_bp = astra.create_backprojection(astra_y, proj_id)
 
 plt.imshow(astra_y)
 
 plt.figure()
 projection = FanBeamProjection(x.shape[0], source_distance, det_distance, det_width)
 #projection = ParallelBeamProjection(x.shape[0])
-radon = Radon(projection, angles)
+radon = Radon(x.shape[0], angles)
 
 # radon.rays = fan_beam_rays(x.shape[0], source_distance, det_distance, det_width, clip_to_circle=True)
 # print(radon.rays.size())
 
 y = radon.forward(torch.FloatTensor(x).cuda().view(1, res, res))
+bp = radon.backprojection(y)
 
 print(np.linalg.norm(astra_y - y[0].cpu().numpy()) / np.linalg.norm(astra_y))
+print(np.linalg.norm(astra_bp - bp[0].cpu().numpy()) / np.linalg.norm(astra_bp))
 
 plt.imshow(y[0].cpu())
 plt.show()

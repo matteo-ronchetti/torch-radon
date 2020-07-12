@@ -1,14 +1,14 @@
 #include "texture.h"
 
 void radon_forward_cuda(
-    const float *x, const float *rays, const float *angles,
+    const float *x, const int det_count, const float det_spacing, const float *angles,
     float *y, TextureCache &tex_cache, const int batch_size,
-    const int img_size, const int n_rays, const int n_angles, const int device
+    const int img_size, const int n_angles, const int device
 );
 
 void radon_forward_cuda(
-    const unsigned short *x, const float *rays, const float *angles,
+    const unsigned short *x, const int det_count, const float det_spacing, const float *angles,
     unsigned short *y, TextureCache &tex_cache, const int batch_size,
-    const int img_size, const int n_rays, const int n_angles, const int device
+    const int img_size, const int n_angles, const int device
 );
 

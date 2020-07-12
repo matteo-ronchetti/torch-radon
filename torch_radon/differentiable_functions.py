@@ -4,29 +4,33 @@ from torch.autograd import Function
 
 class RadonForward(Function):
     @staticmethod
-    def forward(ctx, x, rays, angles, tex_cache):
-        sinogram = torch_radon_cuda.forward(x, rays, angles, tex_cache)
+    def forward(ctx, x, det_count, det_spacing, angles, tex_cache):
+        sinogram = torch_radon_cuda.forward(x, det_count, det_spacing, angles, tex_cache)
         ctx.tex_cache = tex_cache
-        ctx.save_for_backward(rays, angles)
+        ctx.det_count = det_count
+        ctx.det_spacing = det_spacing
+        ctx.save_for_backward(angles)
 
         return sinogram
 
     @staticmethod
     def backward(ctx, grad_x):
-        rays, angles = ctx.saved_variables
-        return torch_radon_cuda.backward(grad_x, rays, angles, ctx.tex_cache, False), None, None, None, None
+        angles, = ctx.saved_variables
+        return torch_radon_cuda.backward(grad_x, ctx.det_count, ctx.det_spacing, angles, ctx.tex_cache), None, None, None, None
 
 
 class RadonBackprojection(Function):
     @staticmethod
-    def forward(ctx, x, rays, angles, tex_cache, extend):
-        image = torch_radon_cuda.backward(x, rays, angles, tex_cache, extend)
+    def forward(ctx, x, det_count, det_spacing, angles, tex_cache):
+        image = torch_radon_cuda.backward(x, det_count, det_spacing, angles, tex_cache)
         ctx.tex_cache = tex_cache
-        ctx.save_for_backward(rays, angles)
+        ctx.det_count = det_count
+        ctx.det_spacing = det_spacing
+        ctx.save_for_backward(angles)
 
         return image
 
     @staticmethod
     def backward(ctx, grad_x):
-        rays, angles = ctx.saved_variables
-        return torch_radon_cuda.forward(grad_x, rays, angles, ctx.tex_cache), None, None, None, None
+        angles, = ctx.saved_variables
+        return torch_radon_cuda.forward(grad_x, ctx.det_count, ctx.det_spacing, angles, ctx.tex_cache), None, None, None, None

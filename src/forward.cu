@@ -9,15 +9,15 @@
 
 template<int angles_per_thread, int channels>
 __global__ void
-radon_forward_kernel(float *__restrict__ output, cudaTextureObject_t texture, const float *__restrict__ rays,
+radon_forward_kernel(float *__restrict__ output, cudaTextureObject_t texture, const int det_count, const float det_spacing,
                      const float *__restrict__ angles,
-                     const int img_size, const int n_rays, const int n_angles) {
+                     const int img_size, const int n_angles) {
     // Calculate texture coordinates
     const int ray_id = blockIdx.x * blockDim.x + threadIdx.x;
     const int angle_id = (blockIdx.y * blockDim.y + threadIdx.y) * angles_per_thread;
     const int batch_id = blockIdx.z * channels;
 
-    if (angle_id < n_angles) {
+    if (angle_id < n_angles && ray_id < det_count) {
         // define registry caches
         float accumulator[angles_per_thread * channels];
         float2 s[angles_per_thread];
@@ -28,16 +28,16 @@ radon_forward_kernel(float *__restrict__ output, cudaTextureObject_t texture, co
             accumulator[i] = 0.0f;
         }
 
-        const float rsx = rays[ray_id * 4 + 0];
-        const float rsy = rays[ray_id * 4 + 1];
-        const float rex = rays[ray_id * 4 + 2];
-        const float rey = rays[ray_id * 4 + 3];
-        const float v = (img_size) / 2.0; //
+        const float v = (img_size) / 2.0;
+        const float rsx = ray_id - v + 0.5f;
+        const float rsy = 0.71f*img_size;
+        const float rex = ray_id - v + 0.5f;
+        const float rey = -rsy;
 
-        const uint n_steps = __float2uint_ru(hypot(rex - rsx, rey - rsy)); //
-        const float vx = (rex - rsx) / n_steps; //
-        const float vy = (rey - rsy) / n_steps; //
-        const float n = hypot(vx, vy); //
+        const uint n_steps = __float2uint_ru(hypot(rex - rsx, rey - rsy));
+        const float vx = (rex - rsx) / n_steps;
+        const float vy = (rey - rsy) / n_steps;
+        const float n = hypot(vx, vy);
 
         // rotate ray
 #pragma unroll
@@ -75,7 +75,7 @@ radon_forward_kernel(float *__restrict__ output, cudaTextureObject_t texture, co
         for (int i = 0; i < angles_per_thread; i++) {
 #pragma unroll
             for (int b = 0; b < channels; b++) {
-                output[(batch_id + b) * n_rays * n_angles + (angle_id + i) * n_rays + ray_id] =
+                output[(batch_id + b) * det_count * n_angles + (angle_id + i) * det_count + ray_id] =
                         accumulator[i * channels + b] * n;
             }
         }
@@ -83,9 +83,9 @@ radon_forward_kernel(float *__restrict__ output, cudaTextureObject_t texture, co
 }
 
 
-void radon_forward_cuda(const float *x, const float *rays, const float *angles, float *y, TextureCache &tex_cache,
+void radon_forward_cuda(const float *x, const int det_count, const float det_spacing, const float *angles, float *y, TextureCache &tex_cache,
                         const int batch_size,
-                        const int img_size, const int n_rays, const int n_angles, const int device) {
+                        const int img_size, const int n_angles, const int device) {
     checkCudaErrors(cudaFuncSetCacheConfig(radon_forward_kernel<4, 1>, cudaFuncCachePreferL1));
     checkCudaErrors(cudaFuncSetCacheConfig(radon_forward_kernel<1, 1>, cudaFuncCachePreferL1));
     checkCudaErrors(cudaFuncSetCacheConfig(radon_forward_kernel<4, 4>, cudaFuncCachePreferL1));
@@ -105,27 +105,27 @@ void radon_forward_cuda(const float *x, const float *rays, const float *angles, 
     if (n_angles <= 64) {
         if (channels == 1) {
             radon_forward_kernel<1, 1> << < grid_dim, block_dim >> >
-                                                      (y, tex->texture, rays, angles, img_size, n_rays, n_angles);
+                                                      (y, tex->texture, det_count, det_spacing, angles, img_size, n_angles);
         } else {
             radon_forward_kernel<1, 4> << < grid_dim, block_dim >> >
-                                                      (y, tex->texture, rays, angles, img_size, n_rays, n_angles);
+                                                      (y, tex->texture, det_count, det_spacing, angles, img_size, n_angles);
         }
     } else {
         if (channels == 1) {
             radon_forward_kernel<4, 1> << < grid_dim, block_dim >> >
-                                                      (y, tex->texture, rays, angles, img_size, n_rays, n_angles);
+                                                      (y, tex->texture, det_count, det_spacing, angles, img_size, n_angles);
         } else {
             radon_forward_kernel<4, 4> << < grid_dim, block_dim >> >
-                                                      (y, tex->texture, rays, angles, img_size, n_rays, n_angles);
+                                                      (y, tex->texture, det_count, det_spacing, angles, img_size, n_angles);
         }
     }
 }
 
 template<int angles_per_thread>
 __global__ void
-radon_forward_kernel_half(__half *__restrict__ output, cudaTextureObject_t texture, const float *__restrict__ rays,
+radon_forward_kernel_half(__half *__restrict__ output, cudaTextureObject_t texture, const int det_count, const float det_spacing,
                           const float *__restrict__ angles,
-                          const int img_size, const int n_rays, const int n_angles) {
+                          const int img_size, const int n_angles) {
     // Calculate texture coordinates
     const int ray_id = blockIdx.x * blockDim.x + threadIdx.x;
     const int angle_id = (blockIdx.y * blockDim.y + threadIdx.y) * angles_per_thread;
@@ -142,16 +142,16 @@ radon_forward_kernel_half(__half *__restrict__ output, cudaTextureObject_t textu
             accumulator[i] = 0.0f;
         }
 
-        const float rsx = rays[ray_id * 4 + 0];
-        const float rsy = rays[ray_id * 4 + 1];
-        const float rex = rays[ray_id * 4 + 2];
-        const float rey = rays[ray_id * 4 + 3];
-        const float v = (img_size) / 2.0; //
+        const float v = (img_size) / 2.0;
+        const float rsx = ray_id - v + 0.5f;
+        const float rsy = 0.71f*img_size;
+        const float rex = ray_id - v + 0.5f;
+        const float rey = -rsy;
 
-        const uint n_steps = __float2uint_ru(hypot(rex - rsx, rey - rsy)); //
-        const float vx = (rex - rsx) / n_steps; //
-        const float vy = (rey - rsy) / n_steps; //
-        const float n = hypot(vx, vy); //
+        const uint n_steps = __float2uint_ru(hypot(rex - rsx, rey - rsy));
+        const float vx = (rex - rsx) / n_steps;
+        const float vy = (rey - rsy) / n_steps;
+        const float n = hypot(vx, vy);
 
         // rotate ray
 #pragma unroll
@@ -183,7 +183,7 @@ radon_forward_kernel_half(__half *__restrict__ output, cudaTextureObject_t textu
         for (int i = 0; i < angles_per_thread; i++) {
 #pragma unroll
             for (int b = 0; b < 4; b++) {
-                output[(batch_id + b) * n_rays * n_angles + (angle_id + i) * n_rays + ray_id] =
+                output[(batch_id + b) * det_count * n_angles + (angle_id + i) * det_count + ray_id] =
                         accumulator[i * 4 + b] * n;
             }
         }
@@ -192,9 +192,9 @@ radon_forward_kernel_half(__half *__restrict__ output, cudaTextureObject_t textu
 
 
 void radon_forward_cuda(
-        const unsigned short *x, const float *rays, const float *angles,
+        const unsigned short *x, const int det_count, const float det_spacing, const float *angles,
         unsigned short *y, TextureCache &tex_cache, const int batch_size,
-        const int img_size, const int n_rays, const int n_angles, const int device
+        const int img_size, const int n_angles, const int device
 ) {
     checkCudaErrors(cudaFuncSetCacheConfig(radon_forward_kernel_half<4>, cudaFuncCachePreferL1));
     checkCudaErrors(cudaFuncSetCacheConfig(radon_forward_kernel_half<1>, cudaFuncCachePreferL1));
@@ -210,9 +210,9 @@ void radon_forward_cuda(
 
     if (n_angles <= 64) {
         radon_forward_kernel_half<1> << < grid_dim, block_dim >> >
-                                               ((__half*)y, tex->texture, rays, angles, img_size, n_rays, n_angles);
+                                               ((__half*)y, tex->texture, det_count, det_spacing, angles, img_size, n_angles);
     } else {
         radon_forward_kernel_half<4> << < grid_dim, block_dim >> >
-                                               ((__half*)y, tex->texture, rays, angles, img_size, n_rays, n_angles);
+                                               ((__half*)y, tex->texture, det_count, det_spacing, angles, img_size, n_angles);
     }
 }
