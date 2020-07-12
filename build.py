@@ -33,7 +33,7 @@ def run_compilation(files, f):
             print(f"\u001b[32mSkipping {src}\u001b[0m")
 
 
-def build(compute_capabilites=(61, 70, 75), verbose=False, cuda_home="/usr/local/cuda", cxx="g++"):
+def build(compute_capabilites=(35, 60, 61, 70, 75), verbose=False, cuda_home="/usr/local/cuda", cxx="g++"):
     nvcc = f"{cuda_home}/bin/nvcc"
     include_dirs = ["./include"]
 
