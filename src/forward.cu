@@ -131,7 +131,7 @@ radon_forward_kernel_half(__half *__restrict__ output, cudaTextureObject_t textu
     const int angle_id = (blockIdx.y * blockDim.y + threadIdx.y) * angles_per_thread;
     const int batch_id = blockIdx.z * 4;
 
-    if (angle_id < n_angles) {
+    if (angle_id < n_angles && ray_id < det_count) {
         // define registry caches
         float accumulator[angles_per_thread * 4];
         float2 s[angles_per_thread];
@@ -144,7 +144,8 @@ radon_forward_kernel_half(__half *__restrict__ output, cudaTextureObject_t textu
 
         const float v = (img_size) / 2.0;
         const float rsx = ray_id - v + 0.5f;
-        const float rsy = 0.71f*img_size;
+        //const float radius = 0.71f*img_size;
+        const float rsy = 0.71f*img_size; //sqrtf((radius + rsx)*(radius - rsx));
         const float rex = ray_id - v + 0.5f;
         const float rey = -rsy;
 
@@ -199,7 +200,7 @@ void radon_forward_cuda(
     checkCudaErrors(cudaFuncSetCacheConfig(radon_forward_kernel_half<4>, cudaFuncCachePreferL1));
     checkCudaErrors(cudaFuncSetCacheConfig(radon_forward_kernel_half<1>, cudaFuncCachePreferL1));
 
-    const int angles_per_thread = (n_angles > 64) ? 4 : 1;
+    const int angles_per_thread = 1; //(n_angles > 64) ? 4 : 1;
     // copy x into CUDA Array (allocating it if needed) and bind to texture
     Texture *tex = tex_cache.get({device, batch_size, img_size, img_size, 4, PRECISION_HALF});
     tex->put(x);
@@ -208,11 +209,11 @@ void radon_forward_cuda(
     dim3 block_dim(16, 16);
     dim3 grid_dim(img_size / 16, roundup_div(n_angles, 16 * angles_per_thread), batch_size / 4);
 
-    if (n_angles <= 64) {
+//    if (n_angles <= 64) {
         radon_forward_kernel_half<1> << < grid_dim, block_dim >> >
                                                ((__half*)y, tex->texture, det_count, det_spacing, angles, img_size, n_angles);
-    } else {
-        radon_forward_kernel_half<4> << < grid_dim, block_dim >> >
-                                               ((__half*)y, tex->texture, det_count, det_spacing, angles, img_size, n_angles);
-    }
+//    } else {
+//        radon_forward_kernel_half<4> << < grid_dim, block_dim >> >
+//                                               ((__half*)y, tex->texture, det_count, det_spacing, angles, img_size, n_angles);
+//    }
 }

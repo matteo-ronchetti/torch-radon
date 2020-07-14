@@ -37,30 +37,29 @@ class BaseRadon(abc.ABC):
     def forward(self, x):
         pass
 
-    @normalize_shape
+    @normalize_shape(2)
     def filter_sinogram(self, sinogram):
         return torch_radon_cuda.filter_sinogram(sinogram, self.fft_cache)
 
-    @normalize_shape
     def backward(self, sinogram):
         return self.backprojection(sinogram)
 
-    @normalize_shape
+    @normalize_shape(2)
     def add_noise(self, x, signal, density_normalization=1.0, approximate=False):
         # print("WARN Radon.add_noise is deprecated")
 
         torch_radon_cuda.add_noise(x, self.noise_generator, signal, density_normalization, approximate)
         return x
 
-    @normalize_shape
+    @normalize_shape(2)
     def emulate_readings(self, x, signal, density_normalization=1.0):
         return torch_radon_cuda.emulate_sensor_readings(x, self.noise_generator, signal, density_normalization)
 
-    @normalize_shape
+    @normalize_shape(2)
     def emulate_readings_new(self, x, signal, normal_std, k, bins):
         return torch_radon_cuda.emulate_readings_new(x, self.noise_generator, signal, normal_std, k, bins)
 
-    @normalize_shape
+    @normalize_shape(2)
     def readings_lookup(self, sensor_readings, lookup_table):
         return torch_radon_cuda.readings_lookup(sensor_readings, lookup_table)
 
@@ -84,14 +83,14 @@ class Radon(BaseRadon):
         self.det_count = det_count
         self.det_spacing = det_spacing
 
-    @normalize_shape
+    @normalize_shape(2)
     def forward(self, imgs):
         assert imgs.size(-1) == self.resolution
         self._move_parameters_to_device(imgs.device)
 
         return RadonForward.apply(imgs, self.det_count, self.det_spacing, self.angles, self.tex_cache)
 
-    @normalize_shape
+    @normalize_shape(2)
     def backprojection(self, sinogram):
         assert sinogram.size(-1) == self.resolution
         self._move_parameters_to_device(sinogram.device)
@@ -197,7 +196,7 @@ class ReadingsLookup:
         self.normal_stds.append(normal_std)
         self._need_repacking = True
 
-    @normalize_shape
+    @normalize_shape(2)
     def emulate_readings(self, sinogram, level):
         if self._need_repacking or self._mu.device != sinogram.device:
             self.repack(sinogram.device)
@@ -209,7 +208,7 @@ class ReadingsLookup:
             return torch_radon_cuda.emulate_readings_new(sinogram, self.radon.noise_generator, self.signals[level],
                                                          self.normal_stds[level], self.ks[level], self.bins)
 
-    @normalize_shape
+    @normalize_shape(2)
     def lookup(self, readings, level):
         if self._need_repacking or self._mu.device != readings.device:
             self.repack(readings.device)

@@ -33,7 +33,7 @@ class Shearlet:
         if device != self.shifted_spectrograms.device:
             self.shifted_spectrograms = self.shifted_spectrograms.to(device)
 
-    # @normalize_shape
+    @normalize_shape(2)
     def forward(self, x):
         self._move_parameters_to_device(x.device)
 
@@ -42,7 +42,7 @@ class Shearlet:
         cs = torch.einsum("fij,bijc->bfijc", self.shifted_spectrograms, c)
         return torch.irfft(cs, 2, normalized=True, onesided=False)
 
-    # @normalize_shape
+    @normalize_shape(3)
     def backward(self, cs):
         cs_fft = torch.rfft(cs, 2, normalized=True, onesided=False)
         # print(cs.size(), cs_fft.size())
