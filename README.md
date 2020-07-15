@@ -74,11 +74,11 @@ You can try the library from your browser using Google Colab, you can find an ex
 notebook [here](https://colab.research.google.com/drive/10GdKHk_6346aR4jl5VjPPAod1gTEsza9?usp=sharing).
 
 ### Docker Image
-Docker images with PyTorch CUDA and Torch Radon are available (here)[https://hub.docker.com/repository/docker/matteoronchetti/torch-radon].
+Docker images with PyTorch CUDA and Torch Radon are available [here](https://hub.docker.com/repository/docker/matteoronchetti/torch-radon).
 ```shell script
 docker pull matteoronchetti/torch-radon
 ```
-To use the GPU in docker you need to use (nvidia-docker)[https://github.com/NVIDIA/nvidia-docker]
+To use the GPU in docker you need to use [nvidia-docker](https://github.com/NVIDIA/nvidia-docker)
 
 ### Build from source
 You need to have [CUDA](https://developer.nvidia.com/cuda-toolkit) and [PyTorch](https://pytorch.org/get-started/locally/) installed, then run:
