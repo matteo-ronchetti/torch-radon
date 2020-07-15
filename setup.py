@@ -19,10 +19,10 @@ setup(name='torch_radon',
       long_description_content_type="text/markdown",
       url="https://github.com/matteo-ronchetti/torch-radon",
 
-      packages=['torch_radon', "torch_radon.shearlet"],
+      packages=['torch_radon'],  # "torch_radon.shearlet"],
       package_dir={
           'torch_radon': './torch_radon',
-          'torch_radon.shearlet': './torch_radon/shearlet'
+          # 'torch_radon.shearlet': './torch_radon/shearlet'
       },
       ext_modules=[
           CUDAExtension('torch_radon_cuda', [os.path.abspath('src/pytorch.cpp')],
