@@ -14,7 +14,8 @@
 #define CHECK_INPUT(x) CHECK_CUDA(x); CHECK_CONTIGUOUS(x)
 
 
-torch::Tensor radon_forward(torch::Tensor x, const int det_count, const float det_spacing, torch::Tensor angles, TextureCache &tex_cache) {
+torch::Tensor radon_forward(torch::Tensor x, const int det_count, const float det_spacing, torch::Tensor angles,
+                            TextureCache &tex_cache) {
     CHECK_INPUT(x);
     CHECK_INPUT(angles);
     //
@@ -50,7 +51,8 @@ torch::Tensor radon_forward(torch::Tensor x, const int det_count, const float de
 }
 
 torch::Tensor
-radon_backward(torch::Tensor x, const int det_count, const float det_spacing, torch::Tensor angles, TextureCache &tex_cache) {
+radon_backward(torch::Tensor x, const int det_count, const float det_spacing, torch::Tensor angles,
+               TextureCache &tex_cache) {
     CHECK_INPUT(x);
     CHECK_INPUT(angles);
 
@@ -248,7 +250,7 @@ torch_compute_lookup_table(torch::Tensor x, torch::Tensor weights, const float s
 
     compute_lookup_table(x.data_ptr<float>(), weights.data_ptr<float>(), y_mean.data_ptr<float>(),
                          y_var.data_ptr<float>(), log_factorial.data_ptr<float>(), border_w.data_ptr<float>(),
-                                 x.size(0), weights.size(0), signal, bins, scale, device);
+                         x.size(0), weights.size(0), signal, bins, scale, device);
 
     return make_pair(y_mean, y_var);
 }
@@ -270,29 +272,17 @@ m.def("emulate_readings_new", &torch_emulate_readings_new, "TODO");
 m.def("emulate_readings_multilevel", &emulate_readings_multilevel, "TODO");
 m.def("readings_lookup_multilevel", &readings_lookup_multilevel, "TODO");
 
+py::class_<TextureCache>(m,"TextureCache")
+        .def(py::init<size_t>())
+        .def("free", &TextureCache::free);
 
-py::class_<TextureCache>(m,
-"TextureCache")
-.
+py::class_<FFTCache>(m,"FFTCache")
+        .def(py::init<size_t>())
+        .def("free", &FFTCache::free);
 
-def (py::init<size_t>())
-
-.def("free", &TextureCache::free);
-
-py::class_<FFTCache>(m,
-"FFTCache")
-.
-
-def (py::init<size_t>())
-
-.def("free", &FFTCache::free);
-
-py::class_<RadonNoiseGenerator>(m,
-"RadonNoiseGenerator")
-.
-
-def (py::init<const uint>())
-
-.def("set_seed", (void (RadonNoiseGenerator::*)(const uint)) &RadonNoiseGenerator::set_seed)
-.def("free", &RadonNoiseGenerator::free);
+py::class_<RadonNoiseGenerator>(m,"RadonNoiseGenerator")
+        .def(py::init<const uint>())
+        .def("set_seed", (void (RadonNoiseGenerator::*)(const uint)) &RadonNoiseGenerator::set_seed)
+        .def("free", &RadonNoiseGenerator::free);
 }
+
