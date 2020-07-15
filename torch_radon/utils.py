@@ -2,33 +2,27 @@ import numpy as np
 import torch
 
 
-def normalize_shape(f):
-    def inner(self, x, *args, **kwargs):
-        # if input has shape BATCH x CHANNELS x W x H reshape to BATCH*CHANNELS x W x H
-        old_shape = None
-        if len(x.size()) == 4:
-            old_shape = x.size()
-            x = x.view(-1, old_shape[-2], old_shape[-1])
+def normalize_shape(d):
+    """
+    Input with shape (batch_1, ..., batch_n, s_1, ..., s_d) is reshaped to (batch, s_1, s_2, ...., s_d)
+    fed to f and output is reshaped to (batch_1, ..., batch_n, s_1, ..., s_o).
+    :param d: Number of non-batch dimensions
+    """
+    def wrap(f):
+        def wrapped(self, x, *args, **kwargs):
+            old_shape = x.size()[:-d]
+            x = x.view(-1, *(x.size()[-d:]))
 
-        y = f(self, x, *args, **kwargs)
+            y = f(self, x, *args, **kwargs)
 
-        # return to old shape
-        if old_shape is not None:
             if isinstance(y, torch.Tensor):
-                y = y.view(old_shape[0], old_shape[1], -1, old_shape[-1])
+                y = y.view(*old_shape, *(y.size()[1:]))
             elif isinstance(y, tuple):
-                y = [yy.view(old_shape[0], old_shape[1], -1, old_shape[-1]) for yy in y]
+                y = [yy.view(*old_shape, *(yy.size()[1:])) for yy in y]
 
-        return y
+            return y
 
-    return inner
+        return wrapped
 
+    return wrap
 
-def compute_rays(resolution):
-    s = resolution // 2
-    locations = np.arange(2 * s) - s + 0.5
-    ys = np.sqrt(s ** 2 - locations ** 2) - 0.5
-    locations = locations.reshape(-1, 1)
-    ys = ys.reshape(-1, 1)
-    rays = np.hstack((locations, -ys, locations, ys))
-    return torch.FloatTensor(rays)

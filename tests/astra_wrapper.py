@@ -13,7 +13,7 @@ class AstraWrapper:
     def forward(self, x):
         vol_geom = astra.create_vol_geom(x.shape[1], x.shape[2], x.shape[0])
         phantom_id = astra.data3d.create('-vol', vol_geom, data=x)
-        proj_geom = astra.create_proj_geom('parallel3d', 1.0, 1.0, x.shape[0], x.shape[1], self.angles)
+        proj_geom = astra.create_proj_geom('parallel3d', 1.0, 1.0, x.shape[0], x.shape[1], -self.angles)
 
         proj_id, y = astra.creators.create_sino3d_gpu(phantom_id, proj_geom, vol_geom)
 
@@ -42,7 +42,7 @@ class AstraWrapper:
 
     def forward_single(self, x):
         vol_geom = astra.create_vol_geom(x.shape[0], x.shape[1])
-        proj_geom = astra.create_proj_geom('parallel', 1.0, x.shape[0], -self.angles)
+        proj_geom = astra.create_proj_geom('parallel', 1.0, x.shape[0], self.angles)
         proj_id = astra.create_projector('cuda', proj_geom, vol_geom)
 
         self.projectors.append(proj_id)

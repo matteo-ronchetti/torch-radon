@@ -1,24 +1,22 @@
 import numpy as np
 import torch
-from torch import nn
 import scipy.stats
+import abc
 
 import torch_radon_cuda
 from .differentiable_functions import RadonForward, RadonBackprojection
-from .utils import compute_rays, normalize_shape
+from .utils import normalize_shape
+from .projections import Projection, FanBeamProjection, ParallelBeamProjection
 
 
-class Radon:
-    def __init__(self, resolution, angles):
-        super().__init__()
-
-        assert resolution % 2 == 0, "Resolution must be even"
+class BaseRadon(abc.ABC):
+    def __init__(self, resolution: int, angles):
         self.resolution = resolution
         if not isinstance(angles, torch.Tensor):
             angles = torch.FloatTensor(angles)
 
-        self.rays = compute_rays(resolution)  # nn.Parameter(compute_rays(resolution), requires_grad=False)
-        self.angles = angles  # nn.Parameter(angles, requires_grad=False)
+        # change sign to conform to Astra and Scikit
+        self.angles = -angles
 
         # caches used to avoid reallocation of resources
         self.tex_cache = torch_radon_cuda.TextureCache(8)
@@ -27,54 +25,41 @@ class Radon:
         seed = np.random.get_state()[1][0]
         self.noise_generator = torch_radon_cuda.RadonNoiseGenerator(seed)
 
-    def to(self, device):
-        print("WARN Radon.to(device) is deprecated, device handling is now automatic")
-        self._move_parameters_to_device(device)
-        return self
-
     def _move_parameters_to_device(self, device):
-        if device != self.rays.device:
-            self.rays = self.rays.to(device)
+        if device != self.angles.device:
             self.angles = self.angles.to(device)
 
-    @normalize_shape
-    def forward(self, imgs):
-        assert imgs.size(-1) == self.resolution
-        self._move_parameters_to_device(imgs.device)
+    @abc.abstractmethod
+    def backprojection(self, sinogram):
+        pass
 
-        return RadonForward.apply(imgs, self.rays, self.angles, self.tex_cache)
+    @abc.abstractmethod
+    def forward(self, x):
+        pass
 
-    @normalize_shape
-    def backprojection(self, sinogram, extend=True):
-        assert sinogram.size(-1) == self.resolution
-        self._move_parameters_to_device(sinogram.device)
-
-        return RadonBackprojection.apply(sinogram, self.rays, self.angles, self.tex_cache, extend)
-
-    @normalize_shape
-    def backward(self, sinogram, extend=True):
-        return self.backprojection(sinogram, extend)
-
-    @normalize_shape
+    @normalize_shape(2)
     def filter_sinogram(self, sinogram):
         return torch_radon_cuda.filter_sinogram(sinogram, self.fft_cache)
 
-    @normalize_shape
+    def backward(self, sinogram):
+        return self.backprojection(sinogram)
+
+    @normalize_shape(2)
     def add_noise(self, x, signal, density_normalization=1.0, approximate=False):
-        print("WARN Radon.add_noise is deprecated")
+        # print("WARN Radon.add_noise is deprecated")
 
         torch_radon_cuda.add_noise(x, self.noise_generator, signal, density_normalization, approximate)
         return x
 
-    @normalize_shape
+    @normalize_shape(2)
     def emulate_readings(self, x, signal, density_normalization=1.0):
         return torch_radon_cuda.emulate_sensor_readings(x, self.noise_generator, signal, density_normalization)
 
-    @normalize_shape
+    @normalize_shape(2)
     def emulate_readings_new(self, x, signal, normal_std, k, bins):
         return torch_radon_cuda.emulate_readings_new(x, self.noise_generator, signal, normal_std, k, bins)
 
-    @normalize_shape
+    @normalize_shape(2)
     def readings_lookup(self, sensor_readings, lookup_table):
         return torch_radon_cuda.readings_lookup(sensor_readings, lookup_table)
 
@@ -86,6 +71,31 @@ class Radon:
 
     def __del__(self):
         self.noise_generator.free()
+
+
+class Radon(BaseRadon):
+    def __init__(self, resolution: int, angles, det_count=-1, det_spacing=1.0):
+        super().__init__(resolution, angles)
+
+        if det_count < 0:
+            det_count = resolution
+
+        self.det_count = det_count
+        self.det_spacing = det_spacing
+
+    @normalize_shape(2)
+    def forward(self, imgs):
+        assert imgs.size(-1) == self.resolution
+        self._move_parameters_to_device(imgs.device)
+
+        return RadonForward.apply(imgs, self.det_count, self.det_spacing, self.angles, self.tex_cache)
+
+    @normalize_shape(2)
+    def backprojection(self, sinogram):
+        assert sinogram.size(-1) == self.resolution
+        self._move_parameters_to_device(sinogram.device)
+
+        return RadonBackprojection.apply(sinogram, self.det_count, self.det_spacing, self.angles, self.tex_cache)
 
 
 def compute_lookup_table(sinogram, signal, normal_std, bins=4096, eps=0.01, eps_prob=0.99, eps_k=0.01, verbose=False):
@@ -176,7 +186,8 @@ class ReadingsLookup:
                  normal_stds=self._normal_stds, bins=self.bins)
 
     def add_lookup_table(self, sinogram, signal, normal_std, eps=0.01, eps_prob=0.99, eps_k=0.01, verbose=True):
-        lookup, lookup_var, k = compute_lookup_table(sinogram, signal, normal_std, self.bins, eps, eps_prob, eps_k, verbose)
+        lookup, lookup_var, k = compute_lookup_table(sinogram, signal, normal_std, self.bins, eps, eps_prob, eps_k,
+                                                     verbose)
 
         self.mu.append(lookup.cpu().numpy())
         self.sigma.append(lookup_var.cpu().numpy())
@@ -185,7 +196,7 @@ class ReadingsLookup:
         self.normal_stds.append(normal_std)
         self._need_repacking = True
 
-    @normalize_shape
+    @normalize_shape(2)
     def emulate_readings(self, sinogram, level):
         if self._need_repacking or self._mu.device != sinogram.device:
             self.repack(sinogram.device)
@@ -197,7 +208,7 @@ class ReadingsLookup:
             return torch_radon_cuda.emulate_readings_new(sinogram, self.radon.noise_generator, self.signals[level],
                                                          self.normal_stds[level], self.ks[level], self.bins)
 
-    @normalize_shape
+    @normalize_shape(2)
     def lookup(self, readings, level):
         if self._need_repacking or self._mu.device != readings.device:
             self.repack(readings.device)
