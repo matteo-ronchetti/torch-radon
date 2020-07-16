@@ -16,26 +16,10 @@ radon_backward_kernel(float *output, cudaTextureObject_t texture, const int det_
                       const int img_size, const int n_angles) {
 
     // Calculate image coordinates
-    
-    const uint x = blockIdx.x * blockDim.x + threadIdx.x;
-    const uint y = blockIdx.y * blockDim.y + threadIdx.y;
-    const uint tid = threadIdx.y * blockDim.x + threadIdx.x;
-    
-    const float center = img_size / 2.0f;
-    const float dx = float(x) - center + 0.5f;
-    const float dy = float(y) - center + 0.5f;
-
+    {{ COMPUTE_IMAGE_COORDINATES }}
     const uint batch_id = blockIdx.z * channels;
 
-    
-    __shared__ float s_sin[512];
-    __shared__ float s_cos[512];
-
-    for (int i = tid; i < n_angles; i += 256) {
-        s_sin[i] = __sinf(angles[i]);
-        s_cos[i] = __cosf(angles[i]);
-    }
-    __syncthreads();
+    {{ COMPUTE_SIN_COS }}
 
     if (channels == 1) {
         float tmp = 0.0f;
@@ -43,20 +27,10 @@ radon_backward_kernel(float *output, cudaTextureObject_t texture, const int det_
         if(clip_to_circle){
             const float r = hypot(dx, dy);
             if (r <= center) {
-                
-        for (int i = 0; i < n_angles; i++) {
-            float j = s_cos[i] * dx + s_sin[i] * dy + center;
-            tmp += tex2DLayered<float>(texture, j, i + 0.5f, batch_id);
-        }
-
+                {{ BACK_FP1_LOOP }}
             }
         }else{
-            
-        for (int i = 0; i < n_angles; i++) {
-            float j = s_cos[i] * dx + s_sin[i] * dy + center;
-            tmp += tex2DLayered<float>(texture, j, i + 0.5f, batch_id);
-        }
-
+            {{ BACK_FP1_LOOP }}
         }
 
         output[batch_id * img_size * img_size + y * img_size + x] = tmp;
@@ -68,28 +42,10 @@ radon_backward_kernel(float *output, cudaTextureObject_t texture, const int det_
         if(clip_to_circle){
             const float r = hypot(dx, dy);
             if (r <= center) {
-                
-        for (int i = 0; i < n_angles; i++) {
-            float j = s_cos[i] * dx + s_sin[i] * dy + center;
-
-            float4 read = tex2DLayered<float4>(texture, j, i + 0.5f, blockIdx.z);
-            tmp[0] += read.x;
-            tmp[1] += read.y;
-            tmp[2] += read.z;
-            tmp[3] += read.w;
-        }
+                {{ BACK_FPCH_LOOP }}
             }
         }else{
-            
-        for (int i = 0; i < n_angles; i++) {
-            float j = s_cos[i] * dx + s_sin[i] * dy + center;
-
-            float4 read = tex2DLayered<float4>(texture, j, i + 0.5f, blockIdx.z);
-            tmp[0] += read.x;
-            tmp[1] += read.y;
-            tmp[2] += read.z;
-            tmp[3] += read.w;
-        }
+            {{ BACK_FPCH_LOOP }}
         }
 
 #pragma unroll
@@ -105,26 +61,10 @@ __global__ void
 radon_backward_kernel_half(__half *output, cudaTextureObject_t texture, const int det_count, const float det_spacing,
                            const float *angles, const int img_size, const int n_angles) {
     // Calculate image coordinates
-    
-    const uint x = blockIdx.x * blockDim.x + threadIdx.x;
-    const uint y = blockIdx.y * blockDim.y + threadIdx.y;
-    const uint tid = threadIdx.y * blockDim.x + threadIdx.x;
-    
-    const float center = img_size / 2.0f;
-    const float dx = float(x) - center + 0.5f;
-    const float dy = float(y) - center + 0.5f;
-
+    {{ COMPUTE_IMAGE_COORDINATES }}
     const uint batch_id = blockIdx.z * 4 * wpt;
 
-    
-    __shared__ float s_sin[512];
-    __shared__ float s_cos[512];
-
-    for (int i = tid; i < n_angles; i += 256) {
-        s_sin[i] = __sinf(angles[i]);
-        s_cos[i] = __cosf(angles[i]);
-    }
-    __syncthreads();
+    {{ COMPUTE_SIN_COS }}
 
     float tmp[4 * wpt];
 #pragma unroll
@@ -133,34 +73,10 @@ radon_backward_kernel_half(__half *output, cudaTextureObject_t texture, const in
     if(clip_to_circle){
         const float r = hypot(dx, dy);
         if (r <= center) {
-            
-    for (int i = 0; i < n_angles; i++) {
-        float j = s_cos[i] * dx + s_sin[i] * dy + center;
-#pragma unroll
-        for (int h = 0; h < wpt; h++) {
-            // read 4 values at the given position and accumulate
-            float4 read = tex2DLayered<float4>(texture, j, i + 0.5f, blockIdx.z * wpt + h);
-            tmp[h * 4 + 0] += read.x;
-            tmp[h * 4 + 1] += read.y;
-            tmp[h * 4 + 2] += read.z;
-            tmp[h * 4 + 3] += read.w;
-        }
-    }
+            {{ BACK_HP_LOOP }}
         }
     }else{
-        
-    for (int i = 0; i < n_angles; i++) {
-        float j = s_cos[i] * dx + s_sin[i] * dy + center;
-#pragma unroll
-        for (int h = 0; h < wpt; h++) {
-            // read 4 values at the given position and accumulate
-            float4 read = tex2DLayered<float4>(texture, j, i + 0.5f, blockIdx.z * wpt + h);
-            tmp[h * 4 + 0] += read.x;
-            tmp[h * 4 + 1] += read.y;
-            tmp[h * 4 + 2] += read.z;
-            tmp[h * 4 + 3] += read.w;
-        }
-    }
+        {{ BACK_HP_LOOP }}
     }
 
 #pragma unroll
