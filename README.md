@@ -92,10 +92,10 @@ If you encounter any problem please contact the author or open an issue.
 ## Benchmarks
 The library is noticeably faster than the Astra Toolbox, especially when data is already on the GPU. Main disadvantage of Astra is that it only takes inputs which are on the CPU, this makes training end-to-end neural networks very inefficient.
 The following benchmark compares the speed of Astra Toolbox and Torch Radon:
-![V100 Benchmark](pictures/V100.png?raw=true)
+![V100 Benchmark](pictures/v100.png?raw=true)
 
 If we set `clip_to_circle=True` (consider only the part of the image that is inside the circle) the speed difference is even larger:
-![V100 Benchmark circle](pictures/V100_circle.png?raw=true)
+![V100 Benchmark circle](pictures/v100_circle.png?raw=true)
 
 These results hold also on a cheap mobile GPU: 
 ![GTX1650 Benchmark](pictures/gtx1650.png?raw=true)
