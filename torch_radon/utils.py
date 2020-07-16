@@ -1,4 +1,3 @@
-import numpy as np
 import torch
 
 
@@ -8,6 +7,7 @@ def normalize_shape(d):
     fed to f and output is reshaped to (batch_1, ..., batch_n, s_1, ..., s_o).
     :param d: Number of non-batch dimensions
     """
+
     def wrap(f):
         def wrapped(self, x, *args, **kwargs):
             old_shape = x.size()[:-d]
@@ -25,4 +25,3 @@ def normalize_shape(d):
         return wrapped
 
     return wrap
-

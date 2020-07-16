@@ -15,7 +15,7 @@
 
 
 torch::Tensor radon_forward(torch::Tensor x, const int det_count, const float det_spacing, torch::Tensor angles,
-                            TextureCache &tex_cache) {
+                            TextureCache &tex_cache, const bool clip_to_circle) {
     CHECK_INPUT(x);
     CHECK_INPUT(angles);
     //
@@ -41,18 +41,18 @@ torch::Tensor radon_forward(torch::Tensor x, const int det_count, const float de
         radon_forward_cuda((unsigned short *) x.data_ptr<at::Half>(), det_count, det_spacing, angles.data_ptr<float>(),
                            (unsigned short *) y.data_ptr<at::Half>(),
                            tex_cache,
-                           batch_size, img_size, n_angles, device);
+                           batch_size, img_size, n_angles, device, clip_to_circle);
     } else {
         radon_forward_cuda(x.data_ptr<float>(), det_count, det_spacing, angles.data_ptr<float>(), y.data_ptr<float>(),
                            tex_cache,
-                           batch_size, img_size, n_angles, device);
+                           batch_size, img_size, n_angles, device, clip_to_circle);
     }
     return y;
 }
 
 torch::Tensor
 radon_backward(torch::Tensor x, const int det_count, const float det_spacing, torch::Tensor angles,
-               TextureCache &tex_cache) {
+               TextureCache &tex_cache, const bool clip_to_circle) {
     CHECK_INPUT(x);
     CHECK_INPUT(angles);
 
@@ -77,10 +77,10 @@ radon_backward(torch::Tensor x, const int det_count, const float det_spacing, to
     if (dtype == torch::kFloat16) {
         radon_backward_cuda((unsigned short *) x.data_ptr<at::Half>(), det_count, det_spacing, angles.data_ptr<float>(),
                             (unsigned short *) y.data_ptr<at::Half>(),
-                            tex_cache, batch_size, img_size, n_angles, device);
+                            tex_cache, batch_size, img_size, n_angles, device, clip_to_circle);
     } else {
         radon_backward_cuda(x.data_ptr<float>(), det_count, det_spacing, angles.data_ptr<float>(), y.data_ptr<float>(),
-                            tex_cache, batch_size, img_size, n_angles, device);
+                            tex_cache, batch_size, img_size, n_angles, device, clip_to_circle);
     }
 
 

@@ -1,0 +1,135 @@
+#include <iostream>
+#include <cuda.h>
+#include <cuda_runtime.h>
+#include <cuda_fp16.h>
+
+
+#include "utils.h"
+#include "texture.h"
+
+template<int channels, bool clip_to_circle>
+__global__ void
+radon_forward_kernel(float *__restrict__ output, cudaTextureObject_t texture, const int det_count,
+                     const float det_spacing,
+                     const float *__restrict__ angles,
+                     const int img_size, const int n_angles) {
+    // Calculate texture coordinates
+    const int ray_id = blockIdx.x * blockDim.x + threadIdx.x;
+    const int angle_id = blockIdx.y * blockDim.y + threadIdx.y;
+    const int batch_id = blockIdx.z * channels;
+
+    if (angle_id < n_angles && ray_id < det_count) {
+        {{ DEFINE_ACCUMULATOR }}
+
+        // compute ray
+        {{ PARALLEL_BEAM_RAY }}
+
+        {{ ROTATE_RAY }}
+
+        if(clip_to_circle){
+            {{ CLIP_TO_CIRCLE }}
+        }else{
+            {{ CLIP_TO_SQUARE }}
+        }
+        {{ ACCUMULATE_LOOP }}
+
+        {{ OUTPUT_LOOP }}
+    }
+}
+
+template<bool clip_to_circle>
+__global__ void
+radon_forward_kernel_half(__half *__restrict__ output, cudaTextureObject_t texture, const int det_count,
+                          const float det_spacing,
+                          const float *__restrict__ angles,
+                          const int img_size, const int n_angles) {
+    constexpr int channels = 4;
+    // Calculate texture coordinates
+    const int ray_id = blockIdx.x * blockDim.x + threadIdx.x;
+    const int angle_id = blockIdx.y * blockDim.y + threadIdx.y;
+    const int batch_id = blockIdx.z * 4;
+
+    if (angle_id < n_angles && ray_id < det_count) {
+        {{ DEFINE_ACCUMULATOR }}
+
+        // compute ray
+        {{ PARALLEL_BEAM_RAY }}
+
+        {{ ROTATE_RAY }}
+
+        if(clip_to_circle){
+            {{ CLIP_TO_CIRCLE }}
+        }else{
+            {{ CLIP_TO_SQUARE }}
+        }
+
+        {{ ACCUMULATE_LOOP }}
+
+        {{ OUTPUT_LOOP }}
+    }
+}
+
+
+void radon_forward_cuda(const float *x, const int det_count, const float det_spacing, const float *angles, float *y,
+                        TextureCache &tex_cache,
+                        const int batch_size,
+                        const int img_size, const int n_angles, const int device, const bool clip_to_circle) {
+    checkCudaErrors(cudaFuncSetCacheConfig(radon_forward_kernel<1, false>, cudaFuncCachePreferL1));
+    checkCudaErrors(cudaFuncSetCacheConfig(radon_forward_kernel<4, false>, cudaFuncCachePreferL1));
+    checkCudaErrors(cudaFuncSetCacheConfig(radon_forward_kernel<1, true>, cudaFuncCachePreferL1));
+    checkCudaErrors(cudaFuncSetCacheConfig(radon_forward_kernel<4, true>, cudaFuncCachePreferL1));
+
+    const int channels = (batch_size % 4 == 0) ? 4 : 1;
+    // copy x into CUDA Array (allocating it if needed) and bind to texture
+    Texture *tex = tex_cache.get({device, batch_size, img_size, img_size, channels, PRECISION_FLOAT});
+    tex->put(x);
+
+    // Invoke kernel
+    dim3 block_dim(16, 16);
+    dim3 grid_dim(img_size / 16, roundup_div(n_angles, 16), batch_size / channels);
+
+    if(clip_to_circle){
+        if (channels == 1) {
+            radon_forward_kernel<1, true> << < grid_dim, block_dim >> >
+                                                   (y, tex->texture, det_count, det_spacing, angles, img_size, n_angles);
+        } else {
+            radon_forward_kernel<4, true> << < grid_dim, block_dim >> >
+                                                   (y, tex->texture, det_count, det_spacing, angles, img_size, n_angles);
+        }
+    }else{
+        if (channels == 1) {
+            radon_forward_kernel<1, false> << < grid_dim, block_dim >> >
+                                                   (y, tex->texture, det_count, det_spacing, angles, img_size, n_angles);
+        } else {
+            radon_forward_kernel<4, false> << < grid_dim, block_dim >> >
+                                                   (y, tex->texture, det_count, det_spacing, angles, img_size, n_angles);
+        }
+    }
+}
+
+
+void radon_forward_cuda(
+        const unsigned short *x, const int det_count, const float det_spacing, const float *angles,
+        unsigned short *y, TextureCache &tex_cache, const int batch_size,
+        const int img_size, const int n_angles, const int device, const bool clip_to_circle
+) {
+    checkCudaErrors(cudaFuncSetCacheConfig(radon_forward_kernel_half<true>, cudaFuncCachePreferL1));
+    checkCudaErrors(cudaFuncSetCacheConfig(radon_forward_kernel_half<false>, cudaFuncCachePreferL1));
+
+    // copy x into CUDA Array (allocating it if needed) and bind to texture
+    Texture *tex = tex_cache.get({device, batch_size, img_size, img_size, 4, PRECISION_HALF});
+    tex->put(x);
+
+    // Invoke kernel
+    dim3 block_dim(16, 16);
+    dim3 grid_dim(img_size / 16, roundup_div(n_angles, 16), batch_size / 4);
+
+    if (clip_to_circle) {
+        radon_forward_kernel_half < true > << <grid_dim, block_dim >> >
+        ((__half *) y, tex->texture, det_count, det_spacing, angles, img_size, n_angles);
+    } else {
+        radon_forward_kernel_half < false > << <grid_dim, block_dim >> >
+        ((__half *) y, tex->texture, det_count, det_spacing, angles, img_size, n_angles);
+    }
+
+}

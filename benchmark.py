@@ -137,6 +137,7 @@ def main():
     parser.add_argument('--samples', default=50, type=int)
     parser.add_argument('--warmup', default=10, type=int)
     parser.add_argument('--output', default="")
+    parser.add_argument('--circle', action='store_true')
 
     args = parser.parse_args()
     if args.angles == -1:
@@ -145,7 +146,7 @@ def main():
     device = torch.device("cuda")
     angles = np.linspace(0, 2 * np.pi, args.angles, endpoint=False).astype(np.float32)
 
-    radon = Radon(args.image_size, angles)
+    radon = Radon(args.image_size, angles, clip_to_circle=args.circle)
     astra = AstraWrapper(angles)
 
     if args.task == "all":

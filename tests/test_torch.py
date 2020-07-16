@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 from torch.autograd import gradcheck
-from torch_radon import Radon, ParallelBeamProjection
+from torch_radon import Radon
 from unittest import TestCase
 from .utils import generate_random_images
 

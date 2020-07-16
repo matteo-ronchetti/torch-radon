@@ -6,12 +6,13 @@ import abc
 import torch_radon_cuda
 from .differentiable_functions import RadonForward, RadonBackprojection
 from .utils import normalize_shape
-from .projections import Projection, FanBeamProjection, ParallelBeamProjection
 
 
 class BaseRadon(abc.ABC):
-    def __init__(self, resolution: int, angles):
+    def __init__(self, resolution: int, angles, clip_to_circle=False):
         self.resolution = resolution
+        self.clip_to_circle = clip_to_circle
+
         if not isinstance(angles, torch.Tensor):
             angles = torch.FloatTensor(angles)
 
@@ -74,8 +75,8 @@ class BaseRadon(abc.ABC):
 
 
 class Radon(BaseRadon):
-    def __init__(self, resolution: int, angles, det_count=-1, det_spacing=1.0):
-        super().__init__(resolution, angles)
+    def __init__(self, resolution: int, angles, det_count=-1, det_spacing=1.0, clip_to_circle=False):
+        super().__init__(resolution, angles, clip_to_circle)
 
         if det_count < 0:
             det_count = resolution
@@ -88,14 +89,16 @@ class Radon(BaseRadon):
         assert imgs.size(-1) == self.resolution
         self._move_parameters_to_device(imgs.device)
 
-        return RadonForward.apply(imgs, self.det_count, self.det_spacing, self.angles, self.tex_cache)
+        return RadonForward.apply(imgs, self.det_count, self.det_spacing, self.angles, self.tex_cache,
+                                  self.clip_to_circle)
 
     @normalize_shape(2)
     def backprojection(self, sinogram):
         assert sinogram.size(-1) == self.resolution
         self._move_parameters_to_device(sinogram.device)
 
-        return RadonBackprojection.apply(sinogram, self.det_count, self.det_spacing, self.angles, self.tex_cache)
+        return RadonBackprojection.apply(sinogram, self.det_count, self.det_spacing, self.angles, self.tex_cache,
+                                         self.clip_to_circle)
 
 
 def compute_lookup_table(sinogram, signal, normal_std, bins=4096, eps=0.01, eps_prob=0.99, eps_k=0.01, verbose=False):
