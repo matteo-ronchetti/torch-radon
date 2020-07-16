@@ -42,7 +42,7 @@ def render_template(src, dst):
     # render template and generate CUDA source code
     generate_source(template_path, cu_src_path)
 
-    return f"-c {src} -o {dst}"
+    return f"-c {cu_src_path} -o {dst}"
 
 
 def build(compute_capabilites=(35, 60, 61, 70, 75), verbose=False, cuda_home="/usr/local/cuda", cxx="g++"):
