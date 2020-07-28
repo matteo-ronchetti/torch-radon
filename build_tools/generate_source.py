@@ -11,10 +11,18 @@ DEFINE_ACCUMULATOR = """
 
 PARALLEL_BEAM_RAY = """
         const float v = img_size / 2.0;
-        const float sx = ray_id - v + 0.5f;
+        const float sx = (ray_id - v + 0.5f)*det_spacing;
         const float sy = 0.71f * img_size;
-        const float ex = ray_id - v + 0.5f;
+        const float ex = sx;
         const float ey = -sy;
+"""
+
+FANBEAM_RAY = """
+        const float v = img_size / 2.0;
+        const float sy = s_dist;
+        const float sx = 0.0f;
+        const float ey = -d_dist;
+        const float ex = (ray_id - v + 0.5f)*det_spacing;
 """
 
 ROTATE_RAY = """
@@ -38,6 +46,14 @@ CLIP_TO_SQUARE = """
         const float alpha_y_p = (v - rsy)/rdy;
         const float alpha_s = max(min(alpha_x_p, alpha_x_m), min(alpha_y_p, alpha_y_m));
         const float alpha_e = min(max(alpha_x_p, alpha_x_m), max(alpha_y_p, alpha_y_m));
+
+        if(alpha_s > alpha_e){
+            #pragma unroll
+            for (int b = 0; b < channels; b++) {
+                output[(batch_id + b) * det_count * n_angles + angle_id * det_count + ray_id] = 0.0f;
+            }
+            return;
+        }
 
         rsx += rdx*alpha_s + v;
         rsy += rdy*alpha_s + v;
@@ -113,14 +129,14 @@ COMPUTE_IMAGE_COORDINATES = """
 
 BACK_FP1_LOOP = """
         for (int i = 0; i < n_angles; i++) {
-            float j = s_cos[i] * dx + s_sin[i] * dy + center;
+            float j = (s_cos[i] * dx + s_sin[i] * dy)/det_spacing + center;
             tmp += tex2DLayered<float>(texture, j, i + 0.5f, batch_id);
         }
 """
 
 BACK_FPCH_LOOP = """
         for (int i = 0; i < n_angles; i++) {
-            float j = s_cos[i] * dx + s_sin[i] * dy + center;
+            float j = (s_cos[i] * dx + s_sin[i] * dy)/det_spacing + center;
 
             float4 read = tex2DLayered<float4>(texture, j, i + 0.5f, blockIdx.z);
             tmp[0] += read.x;
@@ -131,7 +147,7 @@ BACK_FPCH_LOOP = """
 
 BACK_HP_LOOP = """
     for (int i = 0; i < n_angles; i++) {
-        float j = s_cos[i] * dx + s_sin[i] * dy + center;
+            float j = (s_cos[i] * dx + s_sin[i] * dy)/det_spacing + center;
 #pragma unroll
         for (int h = 0; h < wpt; h++) {
             // read 4 values at the given position and accumulate
@@ -143,9 +159,56 @@ BACK_HP_LOOP = """
         }
     }"""
 
+BACK_FB_FP1_LOOP = """
+        const float kk = __fdividef(1.0f, s_dist + d_dist);
+        const float ids = __fdividef(1.0f, det_spacing);
+        for (int i = 0; i < n_angles; i++) {
+            float den = kk*(-s_cos[i] * dy + s_sin[i] * dx + s_dist);
+            float iden = __fdividef(1.0f, den);
+            float j = (s_cos[i] * dx + s_sin[i] * dy)*ids*iden + center;
+
+            tmp += tex2DLayered<float>(texture, j, i + 0.5f, batch_id) / den;
+        }
+"""
+
+BACK_FB_FPCH_LOOP = """
+        const float kk = __fdividef(1.0f, s_dist + d_dist);
+        const float ids = __fdividef(1.0f, det_spacing);
+        for (int i = 0; i < n_angles; i++) {
+            float den = kk*(-s_cos[i] * dy + s_sin[i] * dx + s_dist);
+            float iden = __fdividef(1.0f, den);
+            float j = (s_cos[i] * dx + s_sin[i] * dy)*ids*iden + center;
+
+            float4 read = tex2DLayered<float4>(texture, j, i + 0.5f, blockIdx.z);
+            tmp[0] += read.x * iden;
+            tmp[1] += read.y * iden;
+            tmp[2] += read.z * iden;
+            tmp[3] += read.w * iden;
+        }"""
+
+BACK_FB_HP_LOOP = """
+        const float kk = __fdividef(1.0f, s_dist + d_dist);
+        const float ids = __fdividef(1.0f, det_spacing);
+        for (int i = 0; i < n_angles; i++) {
+            float den = kk*(-s_cos[i] * dy + s_sin[i] * dx + s_dist);
+            float iden = __fdividef(1.0f, den);
+            float j = (s_cos[i] * dx + s_sin[i] * dy)*ids*iden + center;
+#pragma unroll
+        for (int h = 0; h < wpt; h++) {
+            // read 4 values at the given position and accumulate
+            float4 read = tex2DLayered<float4>(texture, j, i + 0.5f, blockIdx.z * wpt + h);
+            tmp[h * 4 + 0] += read.x * iden;
+            tmp[h * 4 + 1] += read.y * iden;
+            tmp[h * 4 + 2] += read.z * iden;
+            tmp[h * 4 + 3] += read.w * iden;
+        }
+    }"""
+
 variables = {
     "DEFINE_ACCUMULATOR": DEFINE_ACCUMULATOR,
+
     "PARALLEL_BEAM_RAY": PARALLEL_BEAM_RAY,
+    "FANBEAM_RAY": FANBEAM_RAY,
     "ROTATE_RAY": ROTATE_RAY,
 
     "CLIP_TO_SQUARE": CLIP_TO_SQUARE,
@@ -160,6 +223,10 @@ variables = {
     "BACK_FP1_LOOP": BACK_FP1_LOOP,
     "BACK_FPCH_LOOP": BACK_FPCH_LOOP,
     "BACK_HP_LOOP": BACK_HP_LOOP,
+
+    "BACK_FB_FP1_LOOP": BACK_FB_FP1_LOOP,
+    "BACK_FB_FPCH_LOOP": BACK_FB_FPCH_LOOP,
+    "BACK_FB_HP_LOOP": BACK_FB_HP_LOOP,
 }
 
 

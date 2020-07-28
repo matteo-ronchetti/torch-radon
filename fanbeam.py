@@ -1,4 +1,5 @@
-from torch_radon import Radon
+from torch_radon import Radon, RadonFanbeam
+from tests.astra_wrapper import AstraWrapper
 import astra
 import torch
 import numpy as np
@@ -82,46 +83,61 @@ def generate_random_images(n, size):
 
     # generate images and apply mask
     batch = np.random.uniform(0.0, 1.0, (n, size, size)).astype(np.float32)
-    batch[0] = cv2.GaussianBlur(batch[0], (3, 3), -1)
-    batch *= mask
+    #batch[0] = cv2.GaussianBlur(batch[0], (3, 3), -1)
+    #batch *= mask
 
     return batch
 
 
-res = 512
-angles = np.linspace(0, 2 * np.pi, res).astype(np.float32)
+res = 160
+angles = np.linspace(0, np.pi, 60).astype(np.float32)  # np.linspace(0, 2 * np.pi, 180).astype(np.float32)
 
-x = np.load("examples/phantom.npy")
-x[:1,:1] = 1000.0
-#x = generate_random_images(1, res)[0]
+#x = np.load("examples/phantom.npy")
+x = generate_random_images(16, res)[0]
+# plt.imshow(x)
+# plt.show()
+print(x.shape)
 
-source_distance = res
-det_distance = res
+
+source_distance = 1.2*res
+det_distance = 3.0*res
 det_width = 2.0
 
+# astra
+# astra = AstraWrapper(angles)
+#
+# astra_fp_id, astra_y = astra.forward(x, det_width)
+# astra_bp = astra.backproject(astra_fp_id, res, 1)
+
 vol_geom = astra.create_vol_geom(x.shape[0], x.shape[1])
-#proj_geom = astra.create_proj_geom('fanflat', det_width, x.shape[0], -angles, source_distance, det_distance)
-proj_geom = astra.create_proj_geom('parallel', 1.0, x.shape[0], angles)
+proj_geom = astra.create_proj_geom('fanflat', det_width, x.shape[0], angles, source_distance, det_distance)
+#proj_geom = astra.create_proj_geom('parallel', det_width, x.shape[0], angles)
 proj_id = astra.create_projector('cuda', proj_geom, vol_geom)
 
 id, astra_y = astra.create_sino(x, proj_id)
 _, astra_bp = astra.create_backprojection(astra_y, proj_id)
 
-plt.imshow(astra_y)
-
-plt.figure()
-projection = FanBeamProjection(x.shape[0], source_distance, det_distance, det_width)
-#projection = ParallelBeamProjection(x.shape[0])
-radon = Radon(x.shape[0], angles)
-
+plt.imshow(astra_bp)
+# #
+# # plt.figure()
+# # # projection = FanBeamProjection(x.shape[0], source_distance, det_distance, det_width)
+# # # projection = ParallelBeamProjection(x.shape[0])
+radon = RadonFanbeam(x.shape[-1], angles, source_distance, det_distance, det_spacing=det_width)
+print(source_distance + det_distance)
 # radon.rays = fan_beam_rays(x.shape[0], source_distance, det_distance, det_width, clip_to_circle=True)
 # print(radon.rays.size())
 
-y = radon.forward(torch.FloatTensor(x).cuda().view(1, res, res))
+x = torch.FloatTensor(x).cuda().view(1, x.shape[0], x.shape[1])
+# repeat data to fill batch size
+x = torch.cat([x]*8, dim=0)
+y = radon.forward(x)
 bp = radon.backprojection(y)
 
-print(np.linalg.norm(astra_y - y[0].cpu().numpy()) / np.linalg.norm(astra_y))
+print(np.linalg.norm(astra_y - y.cpu().numpy()) / np.linalg.norm(astra_y))
+scale = np.mean(astra_bp) / np.mean(bp[0].cpu().numpy())
+print(scale)
 print(np.linalg.norm(astra_bp - bp[0].cpu().numpy()) / np.linalg.norm(astra_bp))
 
-plt.imshow(y[0].cpu())
+plt.figure()
+plt.imshow(bp[0].cpu().numpy())
 plt.show()

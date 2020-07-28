@@ -18,7 +18,6 @@ torch::Tensor radon_forward(torch::Tensor x, const int det_count, const float de
                             TextureCache &tex_cache, const bool clip_to_circle) {
     CHECK_INPUT(x);
     CHECK_INPUT(angles);
-    //
 
     auto dtype = x.dtype();
 
@@ -26,12 +25,6 @@ torch::Tensor radon_forward(torch::Tensor x, const int det_count, const float de
     const int img_size = x.size(1);
     const int n_angles = angles.size(0);
     const int device = x.device().index();
-
-    TORCH_CHECK(x.size(2) == img_size, "Images in x must be square")
-    TORCH_CHECK(img_size % 16 == 0, "Size of images in x must be multiple of 16")
-    if (dtype == torch::kFloat16) {
-        TORCH_CHECK(batch_size % 4 == 0, "Batch size must be multiple of 4 when using half precision")
-    }
 
     // allocate output sinogram tensor
     auto options = torch::TensorOptions().dtype(dtype).device(x.device());
@@ -44,6 +37,35 @@ torch::Tensor radon_forward(torch::Tensor x, const int det_count, const float de
                            batch_size, img_size, n_angles, device, clip_to_circle);
     } else {
         radon_forward_cuda(x.data_ptr<float>(), det_count, det_spacing, angles.data_ptr<float>(), y.data_ptr<float>(),
+                           tex_cache,
+                           batch_size, img_size, n_angles, device, clip_to_circle);
+    }
+    return y;
+}
+
+torch::Tensor radon_forward_fanbeam(torch::Tensor x, const float s_dist, const float d_dist, const int det_count, const float det_spacing, torch::Tensor angles,
+                            TextureCache &tex_cache, const bool clip_to_circle) {
+    CHECK_INPUT(x);
+    CHECK_INPUT(angles);
+
+    auto dtype = x.dtype();
+
+    const int batch_size = x.size(0);
+    const int img_size = x.size(1);
+    const int n_angles = angles.size(0);
+    const int device = x.device().index();
+
+    // allocate output sinogram tensor
+    auto options = torch::TensorOptions().dtype(dtype).device(x.device());
+    auto y = torch::empty({batch_size, n_angles, det_count}, options);
+
+    if (dtype == torch::kFloat16) {
+        radon_forward_fanbeam_cuda((unsigned short *) x.data_ptr<at::Half>(), s_dist, d_dist, det_count, det_spacing, angles.data_ptr<float>(),
+                           (unsigned short *) y.data_ptr<at::Half>(),
+                           tex_cache,
+                           batch_size, img_size, n_angles, device, clip_to_circle);
+    } else {
+        radon_forward_fanbeam_cuda(x.data_ptr<float>(), s_dist, d_dist, det_count, det_spacing, angles.data_ptr<float>(), y.data_ptr<float>(),
                            tex_cache,
                            batch_size, img_size, n_angles, device, clip_to_circle);
     }
@@ -85,7 +107,36 @@ radon_backward(torch::Tensor x, const int det_count, const float det_spacing, to
 
 
     return y;
+}
 
+torch::Tensor
+radon_backward_fanbeam(torch::Tensor x, const float s_dist, const float d_dist, const int det_count, const float det_spacing, torch::Tensor angles,
+               TextureCache &tex_cache, const bool clip_to_circle) {
+    CHECK_INPUT(x);
+    CHECK_INPUT(angles);
+
+    auto dtype = x.dtype();
+
+    const int batch_size = x.size(0);
+    const int n_angles = x.size(1);
+    const int img_size = x.size(2);
+    const int device = x.device().index();
+
+    // create output image tensor
+    auto options = torch::TensorOptions().dtype(dtype).device(x.device());
+    auto y = torch::empty({batch_size, img_size, img_size}, options);
+
+    if (dtype == torch::kFloat16) {
+        radon_backward_fanbeam_cuda((unsigned short *) x.data_ptr<at::Half>(), s_dist, d_dist, det_count, det_spacing, angles.data_ptr<float>(),
+                            (unsigned short *) y.data_ptr<at::Half>(),
+                            tex_cache, batch_size, img_size, n_angles, device, clip_to_circle);
+    } else {
+        radon_backward_fanbeam_cuda(x.data_ptr<float>(), s_dist, d_dist, det_count, det_spacing, angles.data_ptr<float>(), y.data_ptr<float>(),
+                            tex_cache, batch_size, img_size, n_angles, device, clip_to_circle);
+    }
+
+
+    return y;
 }
 
 void radon_add_noise(torch::Tensor x, RadonNoiseGenerator &noise_generator, const float signal,
@@ -95,7 +146,7 @@ void radon_add_noise(torch::Tensor x, RadonNoiseGenerator &noise_generator, cons
     const int height = x.size(0) * x.size(1);
     const int width = x.size(2);
     const int device = x.device().index();
-
+    
 
     noise_generator.add_noise(x.data_ptr<float>(), signal, density_normalization, approximate, width, height, device);
 }
@@ -259,8 +310,11 @@ torch_compute_lookup_table(torch::Tensor x, torch::Tensor weights, const float s
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m
 ) {
 m.def("forward", &radon_forward, "Radon forward projection");
+m.def("forward_fanbeam", &radon_forward_fanbeam, "Radon forward projection with Fanbeam geometry");
 
 m.def("backward", &radon_backward, "Radon back projection");
+m.def("backward_fanbeam", &radon_backward_fanbeam, "Radon back projection with Fanbeam geometry");
+
 //m.def("backward_lb", &radon_backward_lb, "Radon back projection");
 m.def("add_noise", &radon_add_noise, "Add noise to sinogram");
 m.def("emulate_sensor_readings", &emulate_sensor_readings, "Emulate sensor readings");

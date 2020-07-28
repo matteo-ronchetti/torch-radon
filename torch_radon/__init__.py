@@ -2,9 +2,10 @@ import numpy as np
 import torch
 import scipy.stats
 import abc
+import warnings
 
 import torch_radon_cuda
-from .differentiable_functions import RadonForward, RadonBackprojection
+from .differentiable_functions import RadonForward, RadonBackprojection, RadonForwardFanbeam, RadonBackprojectionFanbeam
 from .utils import normalize_shape
 
 
@@ -29,6 +30,23 @@ class BaseRadon(abc.ABC):
     def _move_parameters_to_device(self, device):
         if device != self.angles.device:
             self.angles = self.angles.to(device)
+
+    def _check_input(self, x, square=False):
+        if not x.is_contiguous():
+            x = x.contiguous()
+
+        assert x.size(
+            -1) == self.resolution, f"Input size (normalized to {x.size()}) doesn't match Radon resolution ({self.resolution}). {x.size(-1)} != {self.resolution}"
+
+        if square:
+            assert x.size(1) == x.size(2), f"Input images must be square, got shape ({x.size(1)}, {x.size(2)})."
+            assert x.size(2) % 16 == 0, f"Size of images must be multiple of 16, got shape ({x.size(1)}, {x.size(2)})."
+
+        if x.dtype == torch.float16:
+            assert x.size(
+                0) % 4 == 0, f"Batch size must be multiple of 4 when using half precision. Got batch size {x.size(0)}"
+
+        return x
 
     @abc.abstractmethod
     def backprojection(self, sinogram):
@@ -78,7 +96,7 @@ class Radon(BaseRadon):
     def __init__(self, resolution: int, angles, det_count=-1, det_spacing=1.0, clip_to_circle=False):
         super().__init__(resolution, angles, clip_to_circle)
 
-        if det_count < 0:
+        if det_count <= 0:
             det_count = resolution
 
         self.det_count = det_count
@@ -86,7 +104,7 @@ class Radon(BaseRadon):
 
     @normalize_shape(2)
     def forward(self, imgs):
-        assert imgs.size(-1) == self.resolution
+        imgs = self._check_input(imgs, square=True)
         self._move_parameters_to_device(imgs.device)
 
         return RadonForward.apply(imgs, self.det_count, self.det_spacing, self.angles, self.tex_cache,
@@ -94,11 +112,56 @@ class Radon(BaseRadon):
 
     @normalize_shape(2)
     def backprojection(self, sinogram):
-        assert sinogram.size(-1) == self.resolution
+        sinogram = self._check_input(sinogram)
         self._move_parameters_to_device(sinogram.device)
 
         return RadonBackprojection.apply(sinogram, self.det_count, self.det_spacing, self.angles, self.tex_cache,
                                          self.clip_to_circle)
+
+
+class RadonFanbeam(BaseRadon):
+    def __init__(self, resolution: int, angles, source_distance: float, det_distance: float = -1, det_count: int = -1,
+                 det_spacing: float = -1, clip_to_circle=False):
+        super().__init__(resolution, angles, clip_to_circle)
+
+        if det_count <= 0:
+            det_count = resolution
+
+        if det_distance < 0:
+            det_distance = source_distance
+            det_spacing = 2.0
+        if det_spacing < 0:
+            det_spacing = (source_distance + det_distance) / source_distance
+
+        self.source_distance = source_distance
+        self.det_distance = det_distance
+        self.det_count = det_count
+        self.det_spacing = det_spacing
+
+    @normalize_shape(2)
+    def forward(self, imgs):
+        imgs = self._check_input(imgs, square=True)
+        self._move_parameters_to_device(imgs.device)
+
+        return RadonForwardFanbeam.apply(imgs, self.source_distance, self.det_distance, self.det_count,
+                                         self.det_spacing, self.angles, self.tex_cache,
+                                         self.clip_to_circle)
+
+    @normalize_shape(2)
+    def backprojection(self, sinogram):
+        #TODO check input
+        self._move_parameters_to_device(sinogram.device)
+
+        return RadonBackprojectionFanbeam.apply(sinogram, self.source_distance, self.det_distance, self.det_count,
+                                         self.det_spacing, self.angles, self.tex_cache,
+                                         self.clip_to_circle)
+    # @normalize_shape(2)
+    # def backprojection(self, sinogram):
+    #     assert sinogram.size(-1) == self.resolution
+    #     self._move_parameters_to_device(sinogram.device)
+    #
+    #     return RadonBackprojection.apply(sinogram, self.det_count, self.det_spacing, self.angles, self.tex_cache,
+    #                                      self.clip_to_circle)
 
 
 def compute_lookup_table(sinogram, signal, normal_std, bins=4096, eps=0.01, eps_prob=0.99, eps_k=0.01, verbose=False):
