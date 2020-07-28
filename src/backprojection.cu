@@ -43,16 +43,18 @@ radon_backward_kernel(float *output, cudaTextureObject_t texture, const int det_
             const float r = hypot(dx, dy);
             if (r <= center) {
                 
+        const float ids = __fdividef(1.0f, det_spacing);
         for (int i = 0; i < n_angles; i++) {
-            float j = (s_cos[i] * dx + s_sin[i] * dy)/det_spacing + center;
+            float j = (s_cos[i] * dx + s_sin[i] * dy) * ids + center;
             tmp += tex2DLayered<float>(texture, j, i + 0.5f, batch_id);
         }
 
             }
         }else{
             
+        const float ids = __fdividef(1.0f, det_spacing);
         for (int i = 0; i < n_angles; i++) {
-            float j = (s_cos[i] * dx + s_sin[i] * dy)/det_spacing + center;
+            float j = (s_cos[i] * dx + s_sin[i] * dy) * ids + center;
             tmp += tex2DLayered<float>(texture, j, i + 0.5f, batch_id);
         }
 
@@ -68,8 +70,9 @@ radon_backward_kernel(float *output, cudaTextureObject_t texture, const int det_
             const float r = hypot(dx, dy);
             if (r <= center) {
                 
+        const float ids = __fdividef(1.0f, det_spacing);
         for (int i = 0; i < n_angles; i++) {
-            float j = (s_cos[i] * dx + s_sin[i] * dy)/det_spacing + center;
+            float j = (s_cos[i] * dx + s_sin[i] * dy) * ids + center;
 
             float4 read = tex2DLayered<float4>(texture, j, i + 0.5f, blockIdx.z);
             tmp[0] += read.x;
@@ -80,8 +83,9 @@ radon_backward_kernel(float *output, cudaTextureObject_t texture, const int det_
             }
         }else{
             
+        const float ids = __fdividef(1.0f, det_spacing);
         for (int i = 0; i < n_angles; i++) {
-            float j = (s_cos[i] * dx + s_sin[i] * dy)/det_spacing + center;
+            float j = (s_cos[i] * dx + s_sin[i] * dy) * ids + center;
 
             float4 read = tex2DLayered<float4>(texture, j, i + 0.5f, blockIdx.z);
             tmp[0] += read.x;
@@ -133,8 +137,9 @@ radon_backward_kernel_half(__half *output, cudaTextureObject_t texture, const in
         const float r = hypot(dx, dy);
         if (r <= center) {
             
+    const float ids = __fdividef(1.0f, det_spacing);
     for (int i = 0; i < n_angles; i++) {
-            float j = (s_cos[i] * dx + s_sin[i] * dy)/det_spacing + center;
+            float j = (s_cos[i] * dx + s_sin[i] * dy) * ids + center;
 #pragma unroll
         for (int h = 0; h < wpt; h++) {
             // read 4 values at the given position and accumulate
@@ -148,8 +153,9 @@ radon_backward_kernel_half(__half *output, cudaTextureObject_t texture, const in
         }
     }else{
         
+    const float ids = __fdividef(1.0f, det_spacing);
     for (int i = 0; i < n_angles; i++) {
-            float j = (s_cos[i] * dx + s_sin[i] * dy)/det_spacing + center;
+            float j = (s_cos[i] * dx + s_sin[i] * dy) * ids + center;
 #pragma unroll
         for (int h = 0; h < wpt; h++) {
             // read 4 values at the given position and accumulate
@@ -451,7 +457,6 @@ void radon_backward_fanbeam_cuda(const float *x, const float s_dist, const float
     // copy x into CUDA Array (allocating it if needed) and bind to texture
     Texture *tex = tex_cache.get({device, batch_size, det_count, n_angles, channels, PRECISION_FLOAT});
     tex->put(x);
-
 
     // if batch size is multiple of 4 each thread does 4 batches (is faster) (wpt = work per thread)
     const int grid_size = img_size / 16;

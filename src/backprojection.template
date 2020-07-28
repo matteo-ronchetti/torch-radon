@@ -258,7 +258,6 @@ void radon_backward_fanbeam_cuda(const float *x, const float s_dist, const float
     Texture *tex = tex_cache.get({device, batch_size, det_count, n_angles, channels, PRECISION_FLOAT});
     tex->put(x);
 
-
     // if batch size is multiple of 4 each thread does 4 batches (is faster) (wpt = work per thread)
     const int grid_size = img_size / 16;
     dim3 dimGrid(grid_size, grid_size, batch_size / channels);

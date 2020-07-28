@@ -135,7 +135,6 @@ radon_backward_fanbeam(torch::Tensor x, const float s_dist, const float d_dist, 
                             tex_cache, batch_size, img_size, n_angles, device, clip_to_circle);
     }
 
-
     return y;
 }
 

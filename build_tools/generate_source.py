@@ -128,15 +128,17 @@ COMPUTE_IMAGE_COORDINATES = """
 """
 
 BACK_FP1_LOOP = """
+        const float ids = __fdividef(1.0f, det_spacing);
         for (int i = 0; i < n_angles; i++) {
-            float j = (s_cos[i] * dx + s_sin[i] * dy)/det_spacing + center;
+            float j = (s_cos[i] * dx + s_sin[i] * dy) * ids + center;
             tmp += tex2DLayered<float>(texture, j, i + 0.5f, batch_id);
         }
 """
 
 BACK_FPCH_LOOP = """
+        const float ids = __fdividef(1.0f, det_spacing);
         for (int i = 0; i < n_angles; i++) {
-            float j = (s_cos[i] * dx + s_sin[i] * dy)/det_spacing + center;
+            float j = (s_cos[i] * dx + s_sin[i] * dy) * ids + center;
 
             float4 read = tex2DLayered<float4>(texture, j, i + 0.5f, blockIdx.z);
             tmp[0] += read.x;
@@ -146,8 +148,9 @@ BACK_FPCH_LOOP = """
         }"""
 
 BACK_HP_LOOP = """
+    const float ids = __fdividef(1.0f, det_spacing);
     for (int i = 0; i < n_angles; i++) {
-            float j = (s_cos[i] * dx + s_sin[i] * dy)/det_spacing + center;
+            float j = (s_cos[i] * dx + s_sin[i] * dy) * ids + center;
 #pragma unroll
         for (int h = 0; h < wpt; h++) {
             // read 4 values at the given position and accumulate
