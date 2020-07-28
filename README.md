@@ -85,7 +85,7 @@ You need to have [CUDA](https://developer.nvidia.com/cuda-toolkit) and [PyTorch]
 ```shell script
 git clone https://github.com/matteo-ronchetti/torch-radon.git
 cd torch-radon
-make install
+python setup.py install
 ```
 If you encounter any problem please contact the author or open an issue.
 
