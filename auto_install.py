@@ -2,7 +2,7 @@ import os
 import sys
 
 version = "0.0.1"
-base_url = "https://rosh-public.s3-eu-west-1.amazonaws.com/radon-dev"
+base_url = "https://rosh-public.s3-eu-west-1.amazonaws.com/radon"
 
 green = "\u001b[32m"
 red = "\u001b[31m"
