@@ -102,7 +102,7 @@ class Radon(BaseRadon):
     r"""
     |
     .. image:: https://raw.githubusercontent.com/matteo-ronchetti/torch-radon/
-            master/figures/parallelbeam.svg?sanitize=true
+            master/pictures/parallelbeam.svg?sanitize=true
         :align: center
         :width: 400px
     |
@@ -163,7 +163,7 @@ class RadonFanbeam(BaseRadon):
     r"""
     |
     .. image:: https://raw.githubusercontent.com/matteo-ronchetti/torch-radon/
-            master/figures/fanbeam.svg?sanitize=true
+            master/pictures/fanbeam.svg?sanitize=true
         :align: center
         :width: 400px
     |
