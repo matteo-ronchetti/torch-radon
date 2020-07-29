@@ -3,7 +3,7 @@ import sphinx_rtd_theme
 import doctest
 import sys
 import os
-sys.path.insert(0, os.path.abspath(os.path.dirname(os.path.realpath(__file__))))
+sys.path.insert(0, os.path.join(os.path.abspath(os.path.dirname(os.path.realpath(__file__))), ".."))
 
 #import torch_radon
 
