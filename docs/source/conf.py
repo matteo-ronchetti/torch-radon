@@ -1,7 +1,8 @@
 import datetime
 import sphinx_rtd_theme
 import doctest
-import torch_radon
+
+# import torch_radon
 
 extensions = [
     'sphinx.ext.autodoc',
@@ -20,8 +21,8 @@ author = 'Matteo Ronchetti'
 project = 'torch_radon'
 copyright = '{}, {}'.format(datetime.datetime.now().year, author)
 
-version = torch_radon.__version__
-release = torch_radon.__version__
+version = "0.0.1"  # torch_radon.__version__
+release = "0.0.1"  # torch_radon.__version__
 
 html_theme = 'sphinx_rtd_theme'
 html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
