@@ -1,6 +1,7 @@
 .idea/
 .ipynb_checkpoints/
 
+docs/build
 build/
 dist/
 radon.egg-info/

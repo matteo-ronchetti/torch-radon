@@ -22,6 +22,7 @@ def normalize_shape(d):
 
             return y
 
+        wrapped.__doc__ = f.__doc__
         return wrapped
 
     return wrap

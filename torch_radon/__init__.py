@@ -8,6 +8,8 @@ import torch_radon_cuda
 from .differentiable_functions import RadonForward, RadonBackprojection, RadonForwardFanbeam, RadonBackprojectionFanbeam
 from .utils import normalize_shape
 
+__version__ = "0.0.1"
+
 
 class BaseRadon(abc.ABC):
     def __init__(self, resolution: int, angles, clip_to_circle=False):
@@ -61,6 +63,7 @@ class BaseRadon(abc.ABC):
         return torch_radon_cuda.filter_sinogram(sinogram, self.fft_cache)
 
     def backward(self, sinogram):
+        r"""Same as backprojection"""
         return self.backprojection(sinogram)
 
     @normalize_shape(2)
@@ -93,7 +96,29 @@ class BaseRadon(abc.ABC):
 
 
 class Radon(BaseRadon):
+    r"""
+    |
+    .. image:: https://raw.githubusercontent.com/matteo-ronchetti/torch-radon/
+            master/figures/parallelbeam.svg?sanitize=true
+        :align: center
+        :width: 400px
+    |
+
+    Class that implements Radon projection for the Parallel Beam geometry.
+
+    :param resolution: The resolution of the input images.
+    :param angles: Array containing the list of measuring angles. Can be a Numpy array or a PyTorch tensor.
+    :param det_count: Number of rays that will be projected. By default it is = :attr:`resolution`
+    :param det_spacing: Distance between two contiguous rays.
+    :param clip_to_circle: If True both forward and backward projection will be restricted to pixels inside the circle
+        (highlighted in cyan).
+
+    .. note::
+        Currently only support resolutions which are multiples of 16.
+    """
+
     def __init__(self, resolution: int, angles, det_count=-1, det_spacing=1.0, clip_to_circle=False):
+        r"""init"""
         super().__init__(resolution, angles, clip_to_circle)
 
         if det_count <= 0:
@@ -103,15 +128,27 @@ class Radon(BaseRadon):
         self.det_spacing = det_spacing
 
     @normalize_shape(2)
-    def forward(self, imgs):
-        imgs = self._check_input(imgs, square=True)
-        self._move_parameters_to_device(imgs.device)
+    def forward(self, x):
+        r"""Radon forward projection.
 
-        return RadonForward.apply(imgs, self.det_count, self.det_spacing, self.angles, self.tex_cache,
+        :param x: PyTorch GPU tensor with shape :math:`(d_1, \dots, d_n, r, r)` where :math:`r` is the :attr:`resolution`
+            given to the constructor of this class.
+        :returns: PyTorch GPU tensor containing sinograms. Has shape :math:`(d_1, \dots, d_n, len(angles), det\_count)`.
+        """
+        x = self._check_input(x, square=True)
+        self._move_parameters_to_device(x.device)
+
+        return RadonForward.apply(x, self.det_count, self.det_spacing, self.angles, self.tex_cache,
                                   self.clip_to_circle)
 
     @normalize_shape(2)
     def backprojection(self, sinogram):
+        r"""Radon backward projection.
+
+        :param sinogram: PyTorch GPU tensor containing sinograms with shape  :math:`(d_1, \dots, d_n, len(angles), det\_count)`.
+        :returns: PyTorch GPU tensor with shape :math:`(d_1, \dots, d_n, r, r)` where :math:`r` is the :attr:`resolution`
+            given to the constructor of this class.
+        """
         sinogram = self._check_input(sinogram)
         self._move_parameters_to_device(sinogram.device)
 
@@ -120,6 +157,30 @@ class Radon(BaseRadon):
 
 
 class RadonFanbeam(BaseRadon):
+    r"""
+    |
+    .. image:: https://raw.githubusercontent.com/matteo-ronchetti/torch-radon/
+            master/figures/fanbeam.svg?sanitize=true
+        :align: center
+        :width: 400px
+    |
+
+    Class that implements Radon projection for the Fanbeam geometry.
+
+    :param resolution: The resolution of the input images.
+    :param angles: Array containing the list of measuring angles. Can be a Numpy array or a PyTorch tensor.
+    :param source_distance: Distance between the source of rays and the center of the image.
+    :param det_distance: Distance between the detector plane and the center of the image.
+        By default it is =  :attr:`source_distance`.
+    :param det_count: Number of rays that will be projected. By default it is = :attr:`resolution`.
+    :param det_spacing: Distance between two contiguous rays.
+    :param clip_to_circle: If True both forward and backward projection will be restricted to pixels inside the circle
+        (highlighted in cyan).
+
+    .. note::
+        Currently only support resolutions which are multiples of 16.
+    """
+
     def __init__(self, resolution: int, angles, source_distance: float, det_distance: float = -1, det_count: int = -1,
                  det_spacing: float = -1, clip_to_circle=False):
         super().__init__(resolution, angles, clip_to_circle)
@@ -140,6 +201,13 @@ class RadonFanbeam(BaseRadon):
 
     @normalize_shape(2)
     def forward(self, imgs):
+        r"""Radon forward projection.
+
+        :param x: PyTorch GPU tensor with shape :math:`(d_1, \dots, d_n, r, r)` where :math:`r` is the :attr:`resolution`
+            given to the constructor of this class.
+        :returns: PyTorch GPU tensor containing sinograms. Has shape :math:`(d_1, \dots, d_n, len(angles), det\_count)`.
+        """
+
         imgs = self._check_input(imgs, square=True)
         self._move_parameters_to_device(imgs.device)
 
@@ -149,12 +217,19 @@ class RadonFanbeam(BaseRadon):
 
     @normalize_shape(2)
     def backprojection(self, sinogram):
-        #TODO check input
+        r"""Radon backward projection.
+
+        :param sinogram: PyTorch GPU tensor containing sinograms with shape  :math:`(d_1, \dots, d_n, len(angles), det\_count)`.
+        :returns: PyTorch GPU tensor with shape :math:`(d_1, \dots, d_n, r, r)` where :math:`r` is the :attr:`resolution`
+            given to the constructor of this class.
+        """
+
+        # TODO check input
         self._move_parameters_to_device(sinogram.device)
 
         return RadonBackprojectionFanbeam.apply(sinogram, self.source_distance, self.det_distance, self.det_count,
-                                         self.det_spacing, self.angles, self.tex_cache,
-                                         self.clip_to_circle)
+                                                self.det_spacing, self.angles, self.tex_cache,
+                                                self.clip_to_circle)
     # @normalize_shape(2)
     # def backprojection(self, sinogram):
     #     assert sinogram.size(-1) == self.resolution
