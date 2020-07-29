@@ -1,8 +1,11 @@
 import datetime
 import sphinx_rtd_theme
 import doctest
+import sys
+import os
+sys.path.insert(os.path.abspath(os.path.dirname(os.path.realpath(__file__))))
 
-# import torch_radon
+#import torch_radon
 
 extensions = [
     'sphinx.ext.autodoc',
