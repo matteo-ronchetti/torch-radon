@@ -2,14 +2,12 @@ import torch
 
 
 class Landweber:
-    def __init__(self, operator, circle_mask=True):
+    def __init__(self, operator):
         self.operator = operator
-        self.circle_mask = circle_mask
 
     def project(self, x):
         with torch.no_grad():
             x = torch.relu(x)
-            # TODO circle mask
             return x
 
     def normalize(self, x):
@@ -26,9 +24,9 @@ class Landweber:
             next_x = self.operator.backward(self.operator.forward(x))
             x, v = self.normalize(next_x)
 
-        return 2.0/v
+        return 2.0 / v
 
-    def run(self, guess, y, alpha, iterations=1, callback=None):
+    def run(self, guess, y, alpha, iterations=100, callback=None):
         res = []
         with torch.no_grad():
             x = guess
