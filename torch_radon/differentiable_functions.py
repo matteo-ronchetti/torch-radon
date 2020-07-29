@@ -1,4 +1,8 @@
-import torch_radon_cuda
+try:
+    import torch_radon_cuda
+except Exception as e:
+    print("Importing exception")
+
 from torch.autograd import Function
 
 

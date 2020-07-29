@@ -2,9 +2,12 @@ import numpy as np
 import torch
 import scipy.stats
 import abc
-import warnings
 
-import torch_radon_cuda
+try:
+    import torch_radon_cuda
+except Exception as e:
+    print("Importing exception")
+
 from .differentiable_functions import RadonForward, RadonBackprojection, RadonForwardFanbeam, RadonBackprojectionFanbeam
 from .utils import normalize_shape
 
