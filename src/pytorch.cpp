@@ -145,7 +145,6 @@ void radon_add_noise(torch::Tensor x, RadonNoiseGenerator &noise_generator, cons
     const int height = x.size(0) * x.size(1);
     const int width = x.size(2);
     const int device = x.device().index();
-    
 
     noise_generator.add_noise(x.data_ptr<float>(), signal, density_normalization, approximate, width, height, device);
 }
