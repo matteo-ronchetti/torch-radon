@@ -28,7 +28,7 @@ Projection types:
    :maxdepth: 1
    :caption: Package reference
 
-   functions/*
+   modules/*
 
 Indices and tables
 ==================
