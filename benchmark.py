@@ -1,6 +1,7 @@
-from tests.astra_wrapper import AstraWrapper
+# from tests.astra_wrapper import AstraWrapper
 from tests.utils import generate_random_images
 import argparse
+import astra
 from examples.utils import show_images
 import time
 import numpy as np
@@ -128,6 +129,61 @@ def benchmark_function(f, x, samples, warmup, sync=False):
 #     z = radon.backward(y)
 #     return z.cpu()
 
+class AstraParallelWrapper:
+    def __init__(self, angles, img_size):
+        self.angles = angles
+        self.vol_geom = astra.create_vol_geom(img_size, img_size)
+        self.proj_geom = astra.create_proj_geom('parallel', 1.0, img_size, self.angles)
+        self.proj_id = astra.create_projector('cuda', self.proj_geom, self.vol_geom)
+
+    def forward(self, x):
+        device = x.device
+        x = x.cpu().numpy()
+        Y = np.empty((x.shape[0], len(self.angles), x.shape[1]), dtype=np.float32)
+
+        for i in range(x.shape[0]):
+            _, Y[i] = astra.create_sino(x[i], self.proj_id)
+
+        return torch.from_numpy(Y).to(device)
+
+    def backward(self, x):
+        device = x.device
+        x = x.cpu().numpy()
+        Y = np.empty((x.shape[0], x.shape[1], x.shape[1]), dtype=np.float32)
+
+        for i in range(x.shape[0]):
+            _, Y[i] = astra.create_backprojection(x[i], self.proj_id)
+
+        return torch.from_numpy(Y).to(device)
+
+
+class AstraFanbeamWrapper:
+    def __init__(self, angles, img_size):
+        self.angles = angles
+        self.vol_geom = astra.create_vol_geom(img_size, img_size)
+        self.proj_geom = astra.create_proj_geom('fanflat', 1.0, img_size, self.angles, img_size, img_size)
+        self.proj_id = astra.create_projector('cuda', self.proj_geom, self.vol_geom)
+
+    def forward(self, x):
+        device = x.device
+        x = x.cpu().numpy()
+        Y = np.empty((x.shape[0], len(self.angles), x.shape[1]), dtype=np.float32)
+
+        for i in range(x.shape[0]):
+            _, Y[i] = astra.create_sino(x[i], self.proj_id)
+
+        return torch.from_numpy(Y).to(device)
+
+    def backward(self, x):
+        device = x.device
+        x = x.cpu().numpy()
+        Y = np.empty((x.shape[0], x.shape[1], x.shape[1]), dtype=np.float32)
+
+        for i in range(x.shape[0]):
+            _, Y[i] = astra.create_backprojection(x[i], self.proj_id)
+
+        return torch.from_numpy(Y).to(device)
+
 
 def main():
     parser = argparse.ArgumentParser(description='Benchmark and compare with Astra Toolbox')
@@ -149,7 +205,10 @@ def main():
 
     radon = Radon(args.image_size, angles, clip_to_circle=args.circle)
     radon_fb = RadonFanbeam(args.image_size, angles, args.image_size, clip_to_circle=args.circle)
-    astra = AstraWrapper(angles)
+
+    astra_pw = AstraParallelWrapper(angles, args.image_size)
+    astra_fw = AstraFanbeamWrapper(angles, args.image_size)
+    #astra = AstraWrapper(angles)
 
     if args.task == "all":
         tasks = ["forward", "backward", "fanbeam forward", "fanbeam backward"]
@@ -219,7 +278,8 @@ def main():
         print("Benchmarking forward from device")
         x = generate_random_images(args.batch_size, args.image_size)
         dx = torch.FloatTensor(x).to(device)
-        astra_time = benchmark_function(lambda y: astra.forward(y), x, args.samples, args.warmup)
+
+        astra_time = benchmark_function(lambda y: astra_pw.forward(y), dx, args.samples, args.warmup)
         radon_time = benchmark_function(lambda y: radon.forward(y), dx, args.samples,
                                         args.warmup, sync=True)
         radon_half_time = benchmark_function(lambda y: radon.forward(y), dx.half(),
@@ -229,16 +289,16 @@ def main():
         radon_fps.append(args.batch_size / radon_time)
         radon_half_fps.append(args.batch_size / radon_half_time)
 
-        print(astra_time, radon_time, radon_half_time)
-        astra.clean()
+        print("Speedup:", astra_time/radon_time)
+        print("Speedup half-precision:", astra_time/radon_half_time)
+        print()
 
     if "backward" in tasks:
         print("Benchmarking backward from device")
         x = generate_random_images(args.batch_size, args.image_size)
         dx = torch.FloatTensor(x).to(device)
-        pid, x = astra.forward(x)
 
-        astra_time = benchmark_function(lambda y: astra.backproject(pid, args.image_size, args.batch_size), x,
+        astra_time = benchmark_function(lambda y: astra_pw.backward(y), dx,
                                         args.samples, args.warmup)
         radon_time = benchmark_function(lambda y: radon.backward(y), dx, args.samples,
                                         args.warmup, sync=True)
@@ -249,46 +309,49 @@ def main():
         radon_fps.append(args.batch_size / radon_time)
         radon_half_fps.append(args.batch_size / radon_half_time)
 
-        print(astra_time, radon_time, radon_half_time)
-        astra.clean()
+        print("Speedup:", astra_time/radon_time)
+        print("Speedup half-precision:", astra_time/radon_half_time)
+        print()
 
     if "fanbeam forward" in tasks:
         print("Benchmarking fanbeam forward")
         x = generate_random_images(args.batch_size, args.image_size)
         dx = torch.FloatTensor(x).to(device)
         #
-        # astra_time = benchmark_function(lambda y: astra.backproject(pid, args.image_size, args.batch_size), x,
-        #                                 args.samples, args.warmup)
+        astra_time = benchmark_function(lambda y: astra_fw.forward(y), dx,
+                                        args.samples, args.warmup)
         radon_time = benchmark_function(lambda y: radon_fb.forward(y), dx, args.samples,
                                         args.warmup, sync=True)
         radon_half_time = benchmark_function(lambda y: radon_fb.forward(y), dx.half(),
                                              args.samples, args.warmup, sync=True)
 
-        astra_fps.append(0.0)
+        astra_fps.append(args.batch_size / astra_time)
         radon_fps.append(args.batch_size / radon_time)
         radon_half_fps.append(args.batch_size / radon_half_time)
 
-        #print(astra_time, radon_time, radon_half_time)
-        astra.clean()
+        print("Speedup:", astra_time/radon_time)
+        print("Speedup half-precision:", astra_time/radon_half_time)
+        print()
 
     if "fanbeam backward" in tasks:
         print("Benchmarking fanbeam backward")
         x = generate_random_images(args.batch_size, args.image_size)
         dx = torch.FloatTensor(x).to(device)
         #
-        # astra_time = benchmark_function(lambda y: astra.backproject(pid, args.image_size, args.batch_size), x,
-        #                                 args.samples, args.warmup)
+        astra_time = benchmark_function(lambda y: astra_fw.backward(y), dx,
+                                        args.samples, args.warmup)
         radon_time = benchmark_function(lambda y: radon_fb.backprojection(y), dx, args.samples,
                                         args.warmup, sync=True)
         radon_half_time = benchmark_function(lambda y: radon_fb.backprojection(y), dx.half(),
                                              args.samples, args.warmup, sync=True)
 
-        astra_fps.append(0.0)
+        astra_fps.append(args.batch_size / astra_time)
         radon_fps.append(args.batch_size / radon_time)
         radon_half_fps.append(args.batch_size / radon_half_time)
 
-        #print(astra_time, radon_time, radon_half_time)
-        astra.clean()
+        print("Speedup:", astra_time / radon_time)
+        print("Speedup half-precision:", astra_time / radon_half_time)
+        print()
 
     title = f"Image size {args.image_size}x{args.image_size}, {args.angles} angles and batch size {args.batch_size} on a {torch.cuda.get_device_name(0)}"
 

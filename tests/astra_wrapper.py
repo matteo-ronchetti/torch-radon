@@ -1,4 +1,5 @@
 import astra
+import numpy as np
 
 
 class AstraWrapper:
@@ -10,17 +11,31 @@ class AstraWrapper:
         self.data2d = []
         self.data3d = []
 
-    def forward(self, x, spacing=1.0):
-        vol_geom = astra.create_vol_geom(x.shape[1], x.shape[2], x.shape[0])
-        phantom_id = astra.data3d.create('-vol', vol_geom, data=x)
-        proj_geom = astra.create_proj_geom('parallel3d', spacing, 1.0, x.shape[0], x.shape[1], -self.angles)
-
-        proj_id, y = astra.creators.create_sino3d_gpu(phantom_id, proj_geom, vol_geom)
+    # def forward(self, x, spacing=1.0):
+    #     vol_geom = astra.create_vol_geom(x.shape[1], x.shape[2], x.shape[0])
+    #     phantom_id = astra.data3d.create('-vol', vol_geom, data=x)
+    #     proj_geom = astra.create_proj_geom('parallel3d', spacing, 1.0, x.shape[0], x.shape[1], -self.angles)
+    #
+    #     proj_id, y = astra.creators.create_sino3d_gpu(phantom_id, proj_geom, vol_geom)
+    #
+    #     self.projectors.append(proj_id)
+    #     self.data3d.append(phantom_id)
+    #
+    #     return proj_id, y
+    def forward(self, x):
+        vol_geom = astra.create_vol_geom(x.shape[1], x.shape[2])
+        proj_geom = astra.create_proj_geom('parallel', 1.0, x.shape[1], self.angles)
+        proj_id = astra.create_projector('cuda', proj_geom, vol_geom)
 
         self.projectors.append(proj_id)
-        self.data3d.append(phantom_id)
 
-        return proj_id, y
+        ys = []
+        for i in range(x.shape[0]):
+            _, y = astra.create_sino(x[i], proj_id)
+            ys.append(y.reshape(1, y.shape[0], y.shape[1]))
+
+        y = np.vstack(ys)
+        return y
 
     def backproject(self, proj_id, s, bs):
         vol_geom = astra.create_vol_geom(s, s, bs)
