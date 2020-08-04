@@ -42,6 +42,7 @@ setup(name='torch_radon',
           "License :: OSI Approved :: GNU General Public License v3 (GPLv3)"
       ],
       install_requires=[
-          "scipy"
+          "scipy",
+          "alpha-transform"
       ],
       )

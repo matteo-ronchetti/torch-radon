@@ -16,6 +16,7 @@ Projection types:
  - Parallel Beam
  - Fan Beam
 
+
 .. toctree::
    :glob:
    :maxdepth: 1

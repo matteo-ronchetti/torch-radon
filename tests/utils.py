@@ -2,7 +2,7 @@ import numpy as np
 
 
 def relative_error(ref, x):
-    return np.linalg.norm(ref - x) / np.linalg.norm(ref)
+    return np.linalg.norm(ref - x) / (np.linalg.norm(ref) + 1e-6)
 
 
 def circle_mask(size):
