@@ -1,4 +1,5 @@
 ![Travis (.com)](https://img.shields.io/travis/com/matteo-ronchetti/torch-radon)
+[![Documentation Status](https://readthedocs.org/projects/torch-radon/badge/?version=latest)](http://torch-radon.readthedocs.io/?badge=latest)
 ![GitHub](https://img.shields.io/github/license/matteo-ronchetti/torch-radon)
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/10GdKHk_6346aR4jl5VjPPAod1gTEsza9)
 # Torch Radon: Computational Tomography in PyTorch
