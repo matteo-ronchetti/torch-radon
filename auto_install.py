@@ -49,7 +49,7 @@ print("PyTorch:", end=" ")
 if torch_available:
     torch_version = torch.__version__[:3]
     print(torch_version, end=" ")
-    if torch_version in ["1.5"]:
+    if torch_version in ["1.6", "1.5", "1.4"]:
         print(ok)
     else:
         print(error)
