@@ -7,7 +7,7 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 cuda_home = os.getenv("CUDA_HOME", "/usr/local/cuda")
-print(cuda_home)
+print(f"Using CUDA_HOME={cuda_home}")
 build(cuda_home=cuda_home)
 
 setup(name='torch_radon',
@@ -19,10 +19,9 @@ setup(name='torch_radon',
       long_description_content_type="text/markdown",
       url="https://github.com/matteo-ronchetti/torch-radon",
 
-      packages=['torch_radon'],  # "torch_radon.shearlet"],
+      packages=['torch_radon'],
       package_dir={
           'torch_radon': './torch_radon',
-          # 'torch_radon.shearlet': './torch_radon/shearlet'
       },
       ext_modules=[
           CUDAExtension('torch_radon_cuda', [os.path.abspath('src/pytorch.cpp')],

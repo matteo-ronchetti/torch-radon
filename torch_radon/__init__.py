@@ -2,6 +2,8 @@ import numpy as np
 import torch
 import scipy.stats
 import abc
+import torch.nn.functional as F
+import warnings
 
 try:
     import torch_radon_cuda
@@ -10,6 +12,7 @@ except Exception as e:
 
 from .differentiable_functions import RadonForward, RadonBackprojection, RadonForwardFanbeam, RadonBackprojectionFanbeam
 from .utils import normalize_shape
+from .filtering import FourierFilters
 
 __version__ = "0.0.1"
 
@@ -27,7 +30,7 @@ class BaseRadon(abc.ABC):
 
         # caches used to avoid reallocation of resources
         self.tex_cache = torch_radon_cuda.TextureCache(8)
-        self.fft_cache = torch_radon_cuda.FFTCache(8)
+        self.fourier_filters = FourierFilters()
 
         seed = np.random.get_state()[1][0]
         self.noise_generator = torch_radon_cuda.RadonNoiseGenerator(seed)
@@ -62,8 +65,33 @@ class BaseRadon(abc.ABC):
         pass
 
     @normalize_shape(2)
-    def filter_sinogram(self, sinogram):
-        return torch_radon_cuda.filter_sinogram(sinogram, self.fft_cache)
+    def filter_sinogram(self, sinogram, filter_name="ramp"):
+        if not self.clip_to_circle:
+            warnings.warn("Filtered Backprojection with clip_to_circle=True will not produce optimal results."
+                          "To avoid this specify clip_to_circle=False inside Radon constructor.")
+
+        # Pad sinogram to improve accuracy
+        size = sinogram.size(2)
+        n_angles = sinogram.size(1)
+
+        padded_size = max(64, int(2 ** np.ceil(np.log2(2 * size))))
+        pad = padded_size - size
+
+        padded_sinogram = F.pad(sinogram, (0, pad, 0, 0))
+        # TODO should be possible to use onesided=True saving memory and time
+        sino_fft = torch.rfft(padded_sinogram, 1, normalized=True, onesided=False)
+
+        # get filter and apply
+        f = self.fourier_filters.get(padded_size, filter_name, sinogram.device)
+        filtered_sino_fft = sino_fft * f
+
+        # Inverse fft
+        filtered_sinogram = torch.irfft(filtered_sino_fft, 1, normalized=True, onesided=False)
+
+        # pad removal and rescaling
+        filtered_sinogram = filtered_sinogram[:, :, :-pad] * (np.pi / (2 * n_angles))
+
+        return filtered_sinogram
 
     def backward(self, sinogram):
         r"""Same as backprojection"""

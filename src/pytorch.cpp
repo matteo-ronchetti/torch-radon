@@ -6,8 +6,6 @@
 #include "backprojection.h"
 #include "noise.h"
 #include "texture.h"
-#include "filtering.h"
-
 
 #define CHECK_CUDA(x) TORCH_CHECK(x.device().is_cuda(), #x " must be a CUDA tensor")
 #define CHECK_CONTIGUOUS(x) TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")
@@ -256,24 +254,6 @@ torch::Tensor readings_lookup_multilevel(torch::Tensor x, torch::Tensor lookup_t
     return y;
 }
 
-torch::Tensor radon_filter_sinogram(torch::Tensor x, FFTCache &fft_cache) {
-    CHECK_INPUT(x);
-
-    const int batch_size = x.size(0);
-    const int n_angles = x.size(1);
-    const int n_rays = x.size(2);
-    const int device = x.device().index();
-
-    // create output sinogram tensor
-    auto options = torch::TensorOptions().dtype(torch::kFloat32).device(x.device());
-    auto y = torch::empty({batch_size, n_angles, n_rays}, options);
-
-    radon_filter_sinogram_cuda(x.data_ptr<float>(), y.data_ptr<float>(), fft_cache, batch_size, n_angles, n_rays,
-                               device);
-
-    return y;
-}
-
 std::pair<float, float> torch_compute_ab(torch::Tensor x, const float signal, const float eps, const int k) {
     CHECK_INPUT(x);
 
@@ -317,7 +297,6 @@ m.def("backward_fanbeam", &radon_backward_fanbeam, "Radon back projection with F
 m.def("add_noise", &radon_add_noise, "Add noise to sinogram");
 m.def("emulate_sensor_readings", &emulate_sensor_readings, "Emulate sensor readings");
 m.def("readings_lookup", &readings_lookup, "Lookup sensors readings in a table");
-m.def("filter_sinogram", &radon_filter_sinogram, "Apply filtering to a sinogram");
 m.def("compute_ab", &torch_compute_ab, "TODO");
 m.def("compute_lookup_table", &torch_compute_lookup_table, "TODO");
 m.def("emulate_readings_new", &torch_emulate_readings_new, "TODO");
@@ -327,10 +306,6 @@ m.def("readings_lookup_multilevel", &readings_lookup_multilevel, "TODO");
 py::class_<TextureCache>(m,"TextureCache")
         .def(py::init<size_t>())
         .def("free", &TextureCache::free);
-
-py::class_<FFTCache>(m,"FFTCache")
-        .def(py::init<size_t>())
-        .def("free", &FFTCache::free);
 
 py::class_<RadonNoiseGenerator>(m,"RadonNoiseGenerator")
         .def(py::init<const uint>())

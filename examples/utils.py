@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 
 
 def show_images(imgs, titles=None, keep_range=True, shape=None, figsize=(8, 8.5)):
-    imgs = [x[0, 0].cpu().numpy() for x in imgs]
+    imgs = [x.cpu().numpy() for x in imgs]
     combined_data = np.array(imgs)
 
     if titles is None:
