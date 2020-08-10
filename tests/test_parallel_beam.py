@@ -6,6 +6,7 @@ from parameterized import parameterized
 from torch_radon import Radon
 from .astra_wrapper import AstraWrapper
 from .utils import generate_random_images, relative_error, circle_mask
+import matplotlib.pyplot as plt
 
 device = torch.device('cuda')
 
@@ -18,27 +19,30 @@ for batch_size in [1, 8, 16]:  # , 64, 128]:  # , 256, 512]:
     for image_size in [128, 128 + 32, 256]:  # , 512]:
         for angles in [full_angles, limited_angles, sparse_angles]:
             for spacing in [1.0, 0.5, 1.3, 2.0]:
-                for clip_to_circle in [False, True]:
-                    params.append((device, batch_size, image_size, angles, spacing, clip_to_circle))
+                for det_count in [1.0, 1.5]:
+                    for clip_to_circle in [False, True]:
+                        params.append((device, batch_size, image_size, angles, spacing, det_count, clip_to_circle))
 
 half_params = [x for x in params if x[1] % 4 == 0]
 
 
 @parameterized(params)
-def test_error(device, batch_size, image_size, angles, spacing, clip_to_circle):
+def test_error(device, batch_size, image_size, angles, spacing, det_count, clip_to_circle):
     # generate random images
-    x = generate_random_images(batch_size, image_size, masked=clip_to_circle)
+    det_count = int(det_count * image_size)
+    mask_radius = det_count / 2.0 if clip_to_circle else -1
+    x = generate_random_images(batch_size, image_size, mask_radius)
 
     # astra
     astra = AstraWrapper(angles)
 
-    astra_fp_id, astra_fp = astra.forward(x, spacing)
+    astra_fp_id, astra_fp = astra.forward(x, spacing, det_count)
     astra_bp = astra.backproject(astra_fp_id, image_size, batch_size)
     if clip_to_circle:
-        astra_bp *= circle_mask(image_size)
+        astra_bp *= circle_mask(image_size, mask_radius)
 
     # our implementation
-    radon = Radon(image_size, angles, det_spacing=spacing, clip_to_circle=clip_to_circle)
+    radon = Radon(image_size, angles, det_spacing=spacing, det_count=det_count, clip_to_circle=clip_to_circle)
     x = torch.FloatTensor(x).to(device)
 
     our_fp = radon.forward(x)
@@ -47,26 +51,28 @@ def test_error(device, batch_size, image_size, angles, spacing, clip_to_circle):
     forward_error = relative_error(astra_fp, our_fp.cpu().numpy())
     back_error = relative_error(astra_bp, our_bp.cpu().numpy())
 
-    # if forward_error > 10:
-    #     plt.imshow(astra_fp[0])
+    # if back_error > 5e-3:
+    #     plt.imshow(astra_bp[5])
     #     plt.figure()
-    #     plt.imshow(our_fp[0].cpu().numpy())
+    #     plt.imshow((our_bp[5].cpu().numpy()))
     #     plt.show()
 
     print(
-        f"batch: {batch_size}, size: {image_size}, angles: {len(angles)}, spacing: {spacing}, circle: {clip_to_circle}, forward: {forward_error}, back: {back_error}")
+        f"batch: {batch_size}, size: {image_size}, angles: {len(angles)}, spacing: {spacing}, det_count: {det_count}, circle: {clip_to_circle}, forward: {forward_error}, back: {back_error}")
     # TODO better checks
     assert_less(forward_error, 1e-2)
     assert_less(back_error, 5e-3)
 
 
 @parameterized(half_params)
-def test_half(device, batch_size, image_size, angles, spacing, clip_to_circle):
+def test_half(device, batch_size, image_size, angles, spacing, det_count, clip_to_circle):
     # generate random images
-    x = generate_random_images(batch_size, image_size, masked=clip_to_circle)
+    det_count = int(det_count * image_size)
+    mask_radius = det_count / 2.0 if clip_to_circle else -1
+    x = generate_random_images(batch_size, image_size, mask_radius)
 
     # our implementation
-    radon = Radon(image_size, angles, clip_to_circle=clip_to_circle)
+    radon = Radon(image_size, angles, det_spacing=spacing, det_count=det_count, clip_to_circle=clip_to_circle)
     x = torch.FloatTensor(x).to(device)
 
     sinogram = radon.forward(x)

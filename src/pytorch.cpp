@@ -6,131 +6,61 @@
 #include "backprojection.h"
 #include "noise.h"
 #include "texture.h"
+#include "utils.h"
 
 #define CHECK_CUDA(x) TORCH_CHECK(x.device().is_cuda(), #x " must be a CUDA tensor")
 #define CHECK_CONTIGUOUS(x) TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")
 #define CHECK_INPUT(x) CHECK_CUDA(x); CHECK_CONTIGUOUS(x)
 
 
-torch::Tensor radon_forward(torch::Tensor x, const int det_count, const float det_spacing, torch::Tensor angles,
-                            TextureCache &tex_cache, const bool clip_to_circle) {
+torch::Tensor radon_forward(torch::Tensor x, torch::Tensor angles, TextureCache &tex_cache, const RaysCfg rays_cfg) {
     CHECK_INPUT(x);
     CHECK_INPUT(angles);
 
     auto dtype = x.dtype();
 
     const int batch_size = x.size(0);
-    const int img_size = x.size(1);
-    const int n_angles = angles.size(0);
     const int device = x.device().index();
 
     // allocate output sinogram tensor
     auto options = torch::TensorOptions().dtype(dtype).device(x.device());
-    auto y = torch::empty({batch_size, n_angles, det_count}, options);
+    auto y = torch::empty({batch_size, rays_cfg.n_angles, rays_cfg.det_count}, options);
 
     if (dtype == torch::kFloat16) {
-        radon_forward_cuda((unsigned short *) x.data_ptr<at::Half>(), det_count, det_spacing, angles.data_ptr<float>(),
+        radon_forward_cuda((unsigned short *) x.data_ptr<at::Half>(), angles.data_ptr<float>(),
                            (unsigned short *) y.data_ptr<at::Half>(),
-                           tex_cache,
-                           batch_size, img_size, n_angles, device, clip_to_circle);
+                           tex_cache, rays_cfg, batch_size, device);
     } else {
-        radon_forward_cuda(x.data_ptr<float>(), det_count, det_spacing, angles.data_ptr<float>(), y.data_ptr<float>(),
-                           tex_cache,
-                           batch_size, img_size, n_angles, device, clip_to_circle);
-    }
-    return y;
-}
-
-torch::Tensor radon_forward_fanbeam(torch::Tensor x, const float s_dist, const float d_dist, const int det_count, const float det_spacing, torch::Tensor angles,
-                            TextureCache &tex_cache, const bool clip_to_circle) {
-    CHECK_INPUT(x);
-    CHECK_INPUT(angles);
-
-    auto dtype = x.dtype();
-
-    const int batch_size = x.size(0);
-    const int img_size = x.size(1);
-    const int n_angles = angles.size(0);
-    const int device = x.device().index();
-
-    // allocate output sinogram tensor
-    auto options = torch::TensorOptions().dtype(dtype).device(x.device());
-    auto y = torch::empty({batch_size, n_angles, det_count}, options);
-
-    if (dtype == torch::kFloat16) {
-        radon_forward_fanbeam_cuda((unsigned short *) x.data_ptr<at::Half>(), s_dist, d_dist, det_count, det_spacing, angles.data_ptr<float>(),
-                           (unsigned short *) y.data_ptr<at::Half>(),
-                           tex_cache,
-                           batch_size, img_size, n_angles, device, clip_to_circle);
-    } else {
-        radon_forward_fanbeam_cuda(x.data_ptr<float>(), s_dist, d_dist, det_count, det_spacing, angles.data_ptr<float>(), y.data_ptr<float>(),
-                           tex_cache,
-                           batch_size, img_size, n_angles, device, clip_to_circle);
+        radon_forward_cuda(x.data_ptr<float>(), angles.data_ptr<float>(), y.data_ptr<float>(),
+                           tex_cache, rays_cfg, batch_size, device);
     }
     return y;
 }
 
 torch::Tensor
-radon_backward(torch::Tensor x, const int det_count, const float det_spacing, torch::Tensor angles,
-               TextureCache &tex_cache, const bool clip_to_circle) {
+radon_backward(torch::Tensor x, torch::Tensor angles, TextureCache &tex_cache, const RaysCfg rays_cfg) {
     CHECK_INPUT(x);
     CHECK_INPUT(angles);
 
     auto dtype = x.dtype();
 
     const int batch_size = x.size(0);
-    const int n_angles = x.size(1);
-    const int img_size = x.size(2);
     const int device = x.device().index();
 
-    TORCH_CHECK(angles.size(0) == n_angles, "Mismatch between sinogram size and number of angles")
     TORCH_CHECK(angles.size(0) <= 512, "Can only support up to 512 angles")
-    TORCH_CHECK(img_size % 16 == 0, "Dimension 2 of sinogram (i.e. image size) must be multiple of 16")
-    if (dtype == torch::kFloat16) {
-        TORCH_CHECK(batch_size % 4 == 0, "Batch size must be multiple of 4 when using half precision")
-    }
 
     // create output image tensor
     auto options = torch::TensorOptions().dtype(dtype).device(x.device());
-    auto y = torch::empty({batch_size, img_size, img_size}, options);
+    auto y = torch::empty({batch_size, rays_cfg.height, rays_cfg.width}, options);
+
 
     if (dtype == torch::kFloat16) {
-        radon_backward_cuda((unsigned short *) x.data_ptr<at::Half>(), det_count, det_spacing, angles.data_ptr<float>(),
+        radon_backward_cuda((unsigned short *) x.data_ptr<at::Half>(), angles.data_ptr<float>(),
                             (unsigned short *) y.data_ptr<at::Half>(),
-                            tex_cache, batch_size, img_size, n_angles, device, clip_to_circle);
+                            tex_cache, rays_cfg, batch_size, device);
     } else {
-        radon_backward_cuda(x.data_ptr<float>(), det_count, det_spacing, angles.data_ptr<float>(), y.data_ptr<float>(),
-                            tex_cache, batch_size, img_size, n_angles, device, clip_to_circle);
-    }
-
-
-    return y;
-}
-
-torch::Tensor
-radon_backward_fanbeam(torch::Tensor x, const float s_dist, const float d_dist, const int det_count, const float det_spacing, torch::Tensor angles,
-               TextureCache &tex_cache, const bool clip_to_circle) {
-    CHECK_INPUT(x);
-    CHECK_INPUT(angles);
-
-    auto dtype = x.dtype();
-
-    const int batch_size = x.size(0);
-    const int n_angles = x.size(1);
-    const int img_size = x.size(2);
-    const int device = x.device().index();
-
-    // create output image tensor
-    auto options = torch::TensorOptions().dtype(dtype).device(x.device());
-    auto y = torch::empty({batch_size, img_size, img_size}, options);
-
-    if (dtype == torch::kFloat16) {
-        radon_backward_fanbeam_cuda((unsigned short *) x.data_ptr<at::Half>(), s_dist, d_dist, det_count, det_spacing, angles.data_ptr<float>(),
-                            (unsigned short *) y.data_ptr<at::Half>(),
-                            tex_cache, batch_size, img_size, n_angles, device, clip_to_circle);
-    } else {
-        radon_backward_fanbeam_cuda(x.data_ptr<float>(), s_dist, d_dist, det_count, det_spacing, angles.data_ptr<float>(), y.data_ptr<float>(),
-                            tex_cache, batch_size, img_size, n_angles, device, clip_to_circle);
+        radon_backward_cuda(x.data_ptr<float>(), angles.data_ptr<float>(), y.data_ptr<float>(),
+                            tex_cache, rays_cfg, batch_size, device);
     }
 
     return y;
@@ -288,12 +218,8 @@ torch_compute_lookup_table(torch::Tensor x, torch::Tensor weights, const float s
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m
 ) {
 m.def("forward", &radon_forward, "Radon forward projection");
-m.def("forward_fanbeam", &radon_forward_fanbeam, "Radon forward projection with Fanbeam geometry");
-
 m.def("backward", &radon_backward, "Radon back projection");
-m.def("backward_fanbeam", &radon_backward_fanbeam, "Radon back projection with Fanbeam geometry");
 
-//m.def("backward_lb", &radon_backward_lb, "Radon back projection");
 m.def("add_noise", &radon_add_noise, "Add noise to sinogram");
 m.def("emulate_sensor_readings", &emulate_sensor_readings, "Emulate sensor readings");
 m.def("readings_lookup", &readings_lookup, "Lookup sensors readings in a table");
@@ -303,13 +229,33 @@ m.def("emulate_readings_new", &torch_emulate_readings_new, "TODO");
 m.def("emulate_readings_multilevel", &emulate_readings_multilevel, "TODO");
 m.def("readings_lookup_multilevel", &readings_lookup_multilevel, "TODO");
 
-py::class_<TextureCache>(m,"TextureCache")
-        .def(py::init<size_t>())
-        .def("free", &TextureCache::free);
+py::class_<TextureCache>(m,
+"TextureCache")
+.
 
-py::class_<RadonNoiseGenerator>(m,"RadonNoiseGenerator")
-        .def(py::init<const uint>())
-        .def("set_seed", (void (RadonNoiseGenerator::*)(const uint)) &RadonNoiseGenerator::set_seed)
-        .def("free", &RadonNoiseGenerator::free);
+def (py::init<size_t>())
+
+.def("free", &TextureCache::free);
+
+py::class_<RadonNoiseGenerator>(m,
+"RadonNoiseGenerator")
+.
+
+def (py::init<const uint>())
+
+.def("set_seed", (void (RadonNoiseGenerator::*)(const uint)) &RadonNoiseGenerator::set_seed)
+.def("free", &RadonNoiseGenerator::free);
+
+py::class_<RaysCfg>(m,
+"RaysCfg")
+.
+
+def (py::init<int, int, int, float, int, bool>())
+
+.
+
+def (py::init<int, int, int, float, int, bool, float, float>())
+
+.def_readwrite("det_count", &RaysCfg::det_count);
 }
 

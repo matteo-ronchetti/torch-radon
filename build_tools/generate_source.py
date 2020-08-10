@@ -10,19 +10,19 @@ DEFINE_ACCUMULATOR = """
 """
 
 PARALLEL_BEAM_RAY = """
-        const float v = img_size / 2.0;
-        const float sx = (ray_id - v + 0.5f)*det_spacing;
-        const float sy = 0.71f * img_size;
-        const float ex = sx;
-        const float ey = -sy;
+        v = cfg.height / 2.0;
+        sx = (ray_id - cfg.det_count / 2.0f + 0.5f) * cfg.det_spacing;
+        sy = 0.71f * cfg.height;
+        ex = sx;
+        ey = -sy;
 """
 
 FANBEAM_RAY = """
-        const float v = img_size / 2.0;
-        const float sy = s_dist;
-        const float sx = 0.0f;
-        const float ey = -d_dist;
-        const float ex = (ray_id - v + 0.5f)*det_spacing;
+        v = cfg.height / 2.0;
+        sy = cfg.s_dist;
+        sx = 0.0f;
+        ey = -cfg.d_dist;
+        ex = (ray_id - cfg.det_count / 2.0f + 0.5f) * cfg.det_spacing;
 """
 
 ROTATE_RAY = """
@@ -50,7 +50,7 @@ CLIP_TO_SQUARE = """
         if(alpha_s > alpha_e){
             #pragma unroll
             for (int b = 0; b < channels; b++) {
-                output[(batch_id + b) * det_count * n_angles + angle_id * det_count + ray_id] = 0.0f;
+                output[(batch_id + b) * cfg.det_count * cfg.n_angles + angle_id * cfg.det_count + ray_id] = 0.0f;
             }
             return;
         }
@@ -63,9 +63,10 @@ CLIP_TO_SQUARE = """
 
 CLIP_TO_CIRCLE = """
         // clip rays to circle (to reduce memory reads)
+        const float radius = cfg.det_count / 2.0f;
         const float a = rdx * rdx + rdy * rdy;
         const float b = rsx * rdx + rsy * rdy;
-        const float c = rsx * rsx + rsy * rsy - v * v;
+        const float c = rsx * rsx + rsy * rsy - radius * radius;
 
         // min_clip to 1 to avoid getting empty rays
         const float delta_sqrt = sqrtf(max(b * b - a * c, 1.0f));
@@ -102,7 +103,7 @@ ACCUMULATE_LOOP = """
 OUTPUT_LOOP = """
         #pragma unroll
         for (int b = 0; b < channels; b++) {
-            output[(batch_id + b) * det_count * n_angles + angle_id * det_count + ray_id] =
+            output[(batch_id + b) * cfg.det_count * cfg.n_angles + angle_id * cfg.det_count + ray_id] =
                     accumulator[b] * n;
         }
 """
@@ -111,7 +112,7 @@ COMPUTE_SIN_COS = """
     __shared__ float s_sin[512];
     __shared__ float s_cos[512];
 
-    for (int i = tid; i < n_angles; i += 256) {
+    for (int i = tid; i < cfg.n_angles; i += 256) {
         s_sin[i] = __sinf(angles[i]);
         s_cos[i] = __cosf(angles[i]);
     }
@@ -122,23 +123,26 @@ COMPUTE_IMAGE_COORDINATES = """
     const uint y = blockIdx.y * blockDim.y + threadIdx.y;
     const uint tid = threadIdx.y * blockDim.x + threadIdx.x;
     
-    const float center = img_size / 2.0f;
-    const float dx = float(x) - center + 0.5f;
-    const float dy = float(y) - center + 0.5f;
+    const float cx = cfg.width / 2.0f;
+    const float cy = cfg.height / 2.0f;
+    const float cr = cfg.det_count / 2.0f;
+    
+    const float dx = float(x) - cx + 0.5f;
+    const float dy = float(y) - cy + 0.5f;
 """
 
 BACK_FP1_LOOP = """
-        const float ids = __fdividef(1.0f, det_spacing);
-        for (int i = 0; i < n_angles; i++) {
-            float j = (s_cos[i] * dx + s_sin[i] * dy) * ids + center;
+        const float ids = __fdividef(1.0f, rays_cfg.det_spacing);
+        for (int i = 0; i < cfg.n_angles; i++) {
+            float j = (s_cos[i] * dx + s_sin[i] * dy) * ids + cr;
             tmp += tex2DLayered<float>(texture, j, i + 0.5f, batch_id);
         }
 """
 
 BACK_FPCH_LOOP = """
-        const float ids = __fdividef(1.0f, det_spacing);
-        for (int i = 0; i < n_angles; i++) {
-            float j = (s_cos[i] * dx + s_sin[i] * dy) * ids + center;
+        const float ids = __fdividef(1.0f, rays_cfg.det_spacing);
+        for (int i = 0; i < rays_cfg.n_angles; i++) {
+            float j = (s_cos[i] * dx + s_sin[i] * dy) * ids + cr;
 
             float4 read = tex2DLayered<float4>(texture, j, i + 0.5f, blockIdx.z);
             tmp[0] += read.x;
@@ -148,9 +152,9 @@ BACK_FPCH_LOOP = """
         }"""
 
 BACK_HP_LOOP = """
-    const float ids = __fdividef(1.0f, det_spacing);
-    for (int i = 0; i < n_angles; i++) {
-            float j = (s_cos[i] * dx + s_sin[i] * dy) * ids + center;
+    const float ids = __fdividef(1.0f, rays_cfg.det_spacing);
+    for (int i = 0; i < rays_cfg.n_angles; i++) {
+            float j = (s_cos[i] * dx + s_sin[i] * dy) * ids + cr;
 #pragma unroll
         for (int h = 0; h < wpt; h++) {
             // read 4 values at the given position and accumulate
@@ -163,12 +167,12 @@ BACK_HP_LOOP = """
     }"""
 
 BACK_FB_FP1_LOOP = """
-        const float kk = __fdividef(1.0f, s_dist + d_dist);
-        const float ids = __fdividef(1.0f, det_spacing);
-        for (int i = 0; i < n_angles; i++) {
+        const float kk = __fdividef(1.0f, rays_cfg.s_dist + rays_cfg.d_dist);
+        const float ids = __fdividef(1.0f, rays_cfg.det_spacing);
+        for (int i = 0; i < rays_cfg.n_angles; i++) {
             float den = kk*(-s_cos[i] * dy + s_sin[i] * dx + s_dist);
             float iden = __fdividef(1.0f, den);
-            float j = (s_cos[i] * dx + s_sin[i] * dy)*ids*iden + center;
+            float j = (s_cos[i] * dx + s_sin[i] * dy)*ids*iden + cr;
 
             tmp += tex2DLayered<float>(texture, j, i + 0.5f, batch_id) / den;
         }
@@ -177,10 +181,10 @@ BACK_FB_FP1_LOOP = """
 BACK_FB_FPCH_LOOP = """
         const float kk = __fdividef(1.0f, s_dist + d_dist);
         const float ids = __fdividef(1.0f, det_spacing);
-        for (int i = 0; i < n_angles; i++) {
+        for (int i = 0; i < rays_cfg.n_angles; i++) {
             float den = kk*(-s_cos[i] * dy + s_sin[i] * dx + s_dist);
             float iden = __fdividef(1.0f, den);
-            float j = (s_cos[i] * dx + s_sin[i] * dy)*ids*iden + center;
+            float j = (s_cos[i] * dx + s_sin[i] * dy)*ids*iden + cr;
 
             float4 read = tex2DLayered<float4>(texture, j, i + 0.5f, blockIdx.z);
             tmp[0] += read.x * iden;
@@ -192,10 +196,10 @@ BACK_FB_FPCH_LOOP = """
 BACK_FB_HP_LOOP = """
         const float kk = __fdividef(1.0f, s_dist + d_dist);
         const float ids = __fdividef(1.0f, det_spacing);
-        for (int i = 0; i < n_angles; i++) {
+        for (int i = 0; i < rays_cfg.n_angles; i++) {
             float den = kk*(-s_cos[i] * dy + s_sin[i] * dx + s_dist);
             float iden = __fdividef(1.0f, den);
-            float j = (s_cos[i] * dx + s_sin[i] * dy)*ids*iden + center;
+            float j = (s_cos[i] * dx + s_sin[i] * dy)*ids*iden + cr;
 #pragma unroll
         for (int h = 0; h < wpt; h++) {
             // read 4 values at the given position and accumulate

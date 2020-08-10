@@ -11,10 +11,13 @@ class AstraWrapper:
         self.data2d = []
         self.data3d = []
 
-    def forward(self, x, spacing=1.0):
+    def forward(self, x, spacing=1.0, det_count=-1):
+        if det_count < 0:
+            det_count = x.shape[1]
+
         vol_geom = astra.create_vol_geom(x.shape[1], x.shape[2], x.shape[0])
         phantom_id = astra.data3d.create('-vol', vol_geom, data=x)
-        proj_geom = astra.create_proj_geom('parallel3d', spacing, 1.0, x.shape[0], x.shape[1], -self.angles)
+        proj_geom = astra.create_proj_geom('parallel3d', spacing, 1.0, x.shape[0], det_count, -self.angles)
 
         proj_id, y = astra.creators.create_sino3d_gpu(phantom_id, proj_geom, vol_geom)
 

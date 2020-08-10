@@ -31,6 +31,7 @@ Texture::Texture(DeviceSizeKey k) : key(k) {
     // Allocate a layered CUDA array
     cudaChannelFormatDesc channelDesc = get_channel_desc(key.channels, key.precision);
     const cudaExtent extent = make_cudaExtent(k.width, k.height, k.batch / key.channels);
+//    std::cout << k << std::endl;
     checkCudaErrors(cudaMalloc3DArray(&array, &channelDesc, extent, cudaArrayLayered));
 
     // Create resource descriptor
