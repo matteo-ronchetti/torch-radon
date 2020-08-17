@@ -53,7 +53,6 @@ radon_backward(torch::Tensor x, torch::Tensor angles, TextureCache &tex_cache, c
     auto options = torch::TensorOptions().dtype(dtype).device(x.device());
     auto y = torch::empty({batch_size, rays_cfg.height, rays_cfg.width}, options);
 
-
     if (dtype == torch::kFloat16) {
         radon_backward_cuda((unsigned short *) x.data_ptr<at::Half>(), angles.data_ptr<float>(),
                             (unsigned short *) y.data_ptr<at::Half>(),
