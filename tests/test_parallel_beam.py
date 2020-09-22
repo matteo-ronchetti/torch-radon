@@ -16,7 +16,7 @@ sparse_angles = np.linspace(0, 2 * np.pi, 60).astype(np.float32)
 
 params = []  # [(device, 8, 128, full_angles)]
 for batch_size in [1, 8, 16]:  # , 64, 128]:  # , 256, 512]:
-    for image_size in [128, 128 + 32, 256]:  # , 512]:
+    for image_size in [128, 245, 256]:  # , 512]:
         for angles in [full_angles, limited_angles, sparse_angles]:
             for spacing in [1.0, 0.5, 1.3, 2.0]:
                 for det_count in [1.0, 1.5]:
@@ -51,11 +51,11 @@ def test_error(device, batch_size, image_size, angles, spacing, det_count, clip_
     forward_error = relative_error(astra_fp, our_fp.cpu().numpy())
     back_error = relative_error(astra_bp, our_bp.cpu().numpy())
 
-    # if back_error > 5e-3:
-    #     plt.imshow(astra_bp[5])
-    #     plt.figure()
-    #     plt.imshow((our_bp[5].cpu().numpy()))
-    #     plt.show()
+    if back_error > 1e-2:
+        plt.imshow(astra_bp[0])
+        plt.figure()
+        plt.imshow((our_bp[0].cpu().numpy() - astra_bp[0]))
+        plt.show()
 
     print(
         f"batch: {batch_size}, size: {image_size}, angles: {len(angles)}, spacing: {spacing}, det_count: {det_count}, circle: {clip_to_circle}, forward: {forward_error}, back: {back_error}")

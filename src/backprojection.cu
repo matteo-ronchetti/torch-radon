@@ -30,12 +30,13 @@ radon_backward_kernel(T *__restrict__ output, cudaTextureObject_t texture, const
     __shared__ float s_cos[512];
 
 
+    for (int i = tid; i < cfg.n_angles; i += 256) {
+        s_sin[i] = __sinf(angles[i]);
+        s_cos[i] = __cosf(angles[i]);
+    }
+    __syncthreads();
+
     if (x < cfg.width && y < cfg.height) {
-        for (int i = tid; i < cfg.n_angles; i += 256) {
-            s_sin[i] = __sinf(angles[i]);
-            s_cos[i] = __cosf(angles[i]);
-        }
-        __syncthreads();
 
         float accumulator[channels];
 #pragma unroll

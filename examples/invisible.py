@@ -1,146 +1,77 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import torch.nn.functional as F
 import time
 
-from torch_radon import Radon
-from torch_radon.solvers import cgne, cg
+from torch_radon import Radon, RadonFanbeam
+from torch_radon.solvers import cg
+
+from torch_radon.shearlet import ShearletTransform
 
 
-# from torch_radon.shearlet import Shearlet
-# from torch_radon.solvers import Landweber
-# from utils import show_images
-
-
-# def CG(radon, a, b, x, y, max_iter=2000):
-#     Ax = lambda z: a * radon.backprojection(radon.forward(z)) + b * z
-#     r = y - Ax(x)
-#     p = r.clone()
-#     r_n = torch.sum(r ** 2).item()
-#
-#     values = []
-#     for i in range(max_iter):
-#         Ap = Ax(p)
-#         alpha = r_n / torch.sum(p * Ap).item()
-#         x += alpha * p
-#         r_next = r - alpha * Ap
-#
-#         r_next_n = torch.sum(r_next ** 2).item()
-#         if r_next_n < 1e-4:
-#             break
-#         values.append(r_next_n)  # torch.norm(y - Ax(x)).item())
-#
-#         beta = r_next_n / r_n
-#         r_n = r_next_n
-#         p = r_next + beta * p
-#         r = r_next.clone()
-#
-#     plt.plot(values)
-#     plt.yscale("log")
-#     plt.show()
-#
-#     return x, values
+def circle_mask(size, radius):
+    center = (size - 1) / 2
+    c0, c1 = np.ogrid[0:size, 0:size]
+    return ((c0 - center) ** 2 + (c1 - center) ** 2) <= radius ** 2
 
 
 def shrink(a, b):
     return (torch.abs(a) - b).clamp_min(0) * torch.sign(a)
 
 
-batch_size = 1
-n_angles = 512
-image_size = 512
+def main():
+    n_angles = 100
+    image_size = 512
+    circle_radius = 100
+    source_dist = 1.5 * image_size
+    batch_size = 1
+    n_scales = 5
 
-img = np.load("phantom.npy")
-device = torch.device('cuda')
+    angles = (np.linspace(0., 100., n_angles, endpoint=False) - 50.0) / 180.0 * np.pi
 
-# instantiate Radon transform
-angles = np.linspace(0, np.pi, n_angles, endpoint=False)
-radon = Radon(image_size, angles)
+    x = np.zeros((image_size, image_size), dtype=np.float32)
+    x[circle_mask(image_size, circle_radius)] = 1.0
 
-x = torch.FloatTensor(img).to(device).view(1, 512, 512)
-x = torch.cat([x]*4, dim=0).view(2, 2, 512, 512)
-print(x.size())
-y = radon.forward(x)
+    radon = Radon(image_size, angles)  # RadonFanbeam(image_size, angles, source_dist)
+    shearlet = ShearletTransform(image_size, image_size, [0.5] * n_scales)
 
-# CG(radon, 1.0, 0.0, torch.zeros_like(x), radon.backward(y))
-# rec = cgne(radon, torch.zeros_like(x), y, tol=1e-2)
-s = time.time()
-for _ in range(1):
-    with torch.no_grad():
-        rec, values = cg(lambda z: radon.backward(radon.forward(z)), torch.zeros_like(x), radon.backward(y),
-                         callback=lambda x, r: torch.norm(radon.forward(x[0]) - y[0]).item(), max_iter=500)
-        print(torch.norm(x - rec).item() / torch.norm(x).item())
-print("CG", time.time() - s)
+    torch_x = torch.from_numpy(x).cuda()
+    torch_x = torch_x.view(1, image_size, image_size).repeat(batch_size, 1, 1)
+    sinogram = radon.forward(torch_x)
 
-plt.plot(values)
+    bp = radon.backward(sinogram)
+    sc = shearlet.forward(bp)
 
-s = time.time()
-for _ in range(1):
-    with torch.no_grad():
-        rec, values = cgne(radon, torch.zeros_like(x), y, max_iter=500, callback=lambda x: torch.norm(radon.forward(x[0]) - y[0]).item())
-        print(torch.norm(x - rec).item() / torch.norm(x).item())
-print("CGNE", time.time() - s)
+    p_0 = 0.02
+    p_1 = 0.1
+    w = 3 ** shearlet.scales / 400
+    w = w.view(1, -1, 1, 1).cuda()
 
-plt.plot(values)
-plt.yscale("log")
-plt.show()
+    u_2 = torch.zeros_like(bp)
+    z_2 = torch.zeros_like(bp)
+    u_1 = torch.zeros_like(sc)
+    z_1 = torch.zeros_like(sc)
+    f = torch.zeros_like(bp)
 
-# plt.imshow(rec.cpu().numpy())
-# plt.show()
+    relative_error = []
+    start_time = time.time()
+    for i in range(100):
+        cg_y = p_0 * bp + p_1 * shearlet.backward(z_1 - u_1) + (z_2 - u_2)
+        f = cg(lambda x: p_0 * radon.backward(radon.forward(x)) + (1 + p_1) * x, f.clone(), cg_y, max_iter=50)
+        sh_f = shearlet.forward(f)
 
-print(torch.norm(y))
-print(torch.norm(x - rec).item() / torch.norm(x).item())
+        z_1 = shrink(sh_f + u_1, p_0 / p_1 * w)
+        z_2 = (f + u_2).clamp_min(0)
+        u_1 = u_1 + sh_f - z_1
+        u_2 = u_2 + f - z_2
 
-# shearlet = Shearlet(512, 512, [0.5] * 5, cache=None)  # ".cache")
-#
-# with torch.no_grad():
-#     x = torch.FloatTensor(img).reshape(1, image_size, image_size).to(device)
-#     sinogram = radon.forward(x)
-#     bp = radon.backward(sinogram, extend=False)
-#
-#     # f, values = CG(radon, 1.0 / 512**2, 0.0001, bp.clone(), bp)
-#     #
-#     # print(torch.norm(x - f)/torch.norm(x))
-#     sc = shearlet.forward(bp)
-#     p_0 = 0.02
-#     p_1 = 0.1
-#     w = 3 ** shearlet.scales / 400
-#     w = w.view(1, -1, 1, 1).to(device)
-#
-#     u_2 = torch.zeros_like(bp)
-#     z_2 = torch.zeros_like(bp)
-#     u_1 = torch.zeros_like(sc)
-#     z_1 = torch.zeros_like(sc)
-#     f = torch.zeros_like(bp)
-#
-#     s = time.time()
-#     for i in range(50):
-#         cg_y = p_0 * bp + p_1 * shearlet.backward(z_1 - u_1) + (z_2 - u_2)
-#         f, values = CG(radon, p_0, 1 + p_1, f.clone(), cg_y)
-#         sh_f = shearlet.forward(f)
-#
-#         print(torch.norm(radon.forward(f) - sinogram).item() ** 2, torch.sum(torch.abs(sh_f)).item())
-#
-#         z_1 = shrink(sh_f + u_1, p_0 / p_1 * w)
-#         z_2 = (f + u_2).clamp_min(0)
-#         u_1 = u_1 + sh_f - z_1
-#         u_2 = u_2 + f - z_2
-#     e = time.time()
-#     print(e - s)
-#
-#     sc = shearlet.forward(f)
-#     sc_x = shearlet.forward(x)
-#     vs = []
-#     for i in range(59):
-#         vs.append(torch.norm(sc[0, i]).item() / torch.norm(sc_x[0, i]).item())
-#
-#     plt.plot(vs)
-#     plt.show()
-#
-#     plt.imshow(f[0].cpu())
-#     plt.show()
-#
-#     plt.plot(values)
-#     plt.yscale("log")
-#     plt.show()
+        relative_error.append((torch.norm(torch_x[0] - f[0]) / torch.norm(torch_x[0])).item())
+
+    runtime = time.time() - start_time
+    print("Running time:", runtime)
+    print("Running time per image:", runtime / batch_size)
+    print("Relative error: ", 100 * relative_error[-1])
+
+
+with torch.no_grad():
+    main()

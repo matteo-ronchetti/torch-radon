@@ -7,6 +7,7 @@ dist/
 radon.egg-info/
 torch_radon.egg-info/
 objs/
+examples/*.ipynb
 
 *.pyc
 test

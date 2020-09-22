@@ -15,7 +15,7 @@ sparse_angles = np.linspace(0, 2 * np.pi, 60).astype(np.float32)
 
 params = []
 for batch_size in [1, 8]:
-    for image_size in [128, 128 + 32]:
+    for image_size in [128, 151]:
         for angles in [full_angles, limited_angles, sparse_angles]:
             for spacing in [1.0, 0.5, 1.3, 2.0]:
                 for distances in [(1.2, 1.2), (2.0, 2.0), (1.2, 3.0)]:
@@ -67,6 +67,8 @@ def test_fanbeam_error(device, batch_size, image_size, angles, spacing, distance
     #     plt.figure()
     #     plt.imshow(our_bp[0].cpu().numpy())
     #     plt.show()
+    print(np.max(our_fp.cpu().numpy()), np.max(our_bp.cpu().numpy()))
+
 
     print(
         f"batch: {batch_size}, size: {image_size}, angles: {len(angles)}, spacing: {spacing}, distances: {distances} circle: {clip_to_circle}, forward: {forward_error}, back: {back_error}")
