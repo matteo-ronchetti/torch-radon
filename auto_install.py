@@ -49,11 +49,11 @@ print("PyTorch:", end=" ")
 if torch_available:
     torch_version = torch.__version__[:3]
     print(torch_version, end=" ")
-    if torch_version in ["1.6", "1.5", "1.4"]:
+    if torch_version in ["1.6", "1.5", "1.4", "1.3"]:
         print(ok)
     else:
         print(error)
-        print("Precompiled packages are build for PyTorch 1.5")
+        print("Precompiled packages are build for PyTorch 1.3, 1.4, 1.5 and 1.6")
         print("Consider manually compiling torch-radon")
         sys.exit(1)
 else:
