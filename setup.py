@@ -1,3 +1,5 @@
+import setuptools
+print(setuptools.__file__)
 from setuptools import setup
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 import os

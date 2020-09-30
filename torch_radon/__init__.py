@@ -92,7 +92,7 @@ class BaseRadon(abc.ABC):
         padded_size = max(64, int(2 ** np.ceil(np.log2(2 * size))))
         pad = padded_size - size
 
-        padded_sinogram = F.pad(sinogram, (0, pad, 0, 0))
+        padded_sinogram = F.pad(sinogram.float(), (0, pad, 0, 0))
         # TODO should be possible to use onesided=True saving memory and time
         sino_fft = torch.rfft(padded_sinogram, 1, normalized=True, onesided=False)
 
@@ -106,7 +106,7 @@ class BaseRadon(abc.ABC):
         # pad removal and rescaling
         filtered_sinogram = filtered_sinogram[:, :, :-pad] * (np.pi / (2 * n_angles))
 
-        return filtered_sinogram
+        return filtered_sinogram.to(dtype=sinogram.dtype)
 
     def backward(self, sinogram):
         r"""Same as backprojection"""

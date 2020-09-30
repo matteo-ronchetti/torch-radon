@@ -37,8 +37,7 @@ class FourierFilters:
             filter size. Must be even.
         filter_name: str
             Filter used in frequency domain filtering. Filters available:
-            ramp, shepp-logan, cosine, hamming, hann. Assign None to use
-            no filter.
+            ram-lak (ramp), shepp-logan, cosine, hamming, hann.
 
         Returns
         -------
@@ -51,6 +50,8 @@ class FourierFilters:
                Imaging", IEEE Press 1988.
 
         """
+        filter_name = filter_name.lower()
+
         n = np.concatenate((np.arange(1, size / 2 + 1, 2, dtype=np.int),
                             np.arange(size / 2 - 1, 0, -2, dtype=np.int)))
         f = np.zeros(size)
@@ -61,7 +62,7 @@ class FourierFilters:
         # frequency domain representation lessens artifacts and removes a
         # small bias as explained in [1], Chap 3. Equation 61
         fourier_filter = 2 * np.real(fftmodule.fft(f))  # ramp filter
-        if filter_name == "ramp":
+        if filter_name == "ramp" or filter_name == "ram-lak":
             pass
         elif filter_name == "shepp-logan":
             # Start from first element to avoid divide by zero
