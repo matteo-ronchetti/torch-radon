@@ -2,12 +2,9 @@
 [![Documentation Status](https://readthedocs.org/projects/torch-radon/badge/?version=latest)](http://torch-radon.readthedocs.io/?badge=latest)
 ![GitHub](https://img.shields.io/github/license/matteo-ronchetti/torch-radon)
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/10GdKHk_6346aR4jl5VjPPAod1gTEsza9)
-# Torch Radon: Fast Differentiable Routines for Computed Tomography
+# TorchRadon: Fast Differentiable Routines for Computed Tomography
 
-Torch Radon is a fast CUDA implementation of transforms needed for
-working with computed tomography data in Pytorch. It allows the training of end-to-end models that takes sinograms as inputs and produce images as output.
-
-Torch Radon is a PyTorch extension written in CUDA that implement differentiable routines
+TorchRadon is a PyTorch extension written in CUDA that implement differentiable routines
 for solving computed tomography (CT) reconstruction problems.
 The library is designed to help researchers working on CT problems to combine deep learning
 and model-based approaches.
@@ -56,20 +53,6 @@ python setup.py install
 ```
 If you encounter any problem please contact the author or open an issue.
 
-## Cite
-Cite
-
-If you are using TorchRadon in your research, please cite the following paper:
-```
-@misc{torch_radon,
-Author = {Matteo Ronchetti},
-Title = {TorchRadon: Fast Differentiable Routines for Computed Tomography},
-Year = {2020},
-Eprint = {arXiv:2009.14788},
-}
-```
-
-
 ## Benchmarks
 The library is noticeably faster than the Astra Toolbox, especially when data is already on the GPU. Main disadvantage of Astra is that it only takes inputs which are on the CPU, this makes training end-to-end neural networks very inefficient.
 The following benchmark compares the speed of Astra Toolbox and Torch Radon:
@@ -80,6 +63,17 @@ If we set `clip_to_circle=True` (consider only the part of the image that is ins
 
 These results hold also on a cheap laptop GPU: 
 ![GTX1650 Benchmark](pictures/gtx1650.png?raw=true)
+
+## Cite
+If you are using TorchRadon in your research, please cite the following paper:
+```
+@misc{torch_radon,
+Author = {Matteo Ronchetti},
+Title = {TorchRadon: Fast Differentiable Routines for Computed Tomography},
+Year = {2020},
+Eprint = {arXiv:2009.14788},
+}
+```
 
 ## Testing
 Install testing dependencies with `pip install -r test_requirements.txt`
