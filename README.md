@@ -2,68 +2,32 @@
 [![Documentation Status](https://readthedocs.org/projects/torch-radon/badge/?version=latest)](http://torch-radon.readthedocs.io/?badge=latest)
 ![GitHub](https://img.shields.io/github/license/matteo-ronchetti/torch-radon)
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/10GdKHk_6346aR4jl5VjPPAod1gTEsza9)
-# Torch Radon: Computational Tomography in PyTorch
-> This library is still under development, if you encounter any problem feel free to contact the author or open an issue
+# TorchRadon: Fast Differentiable Routines for Computed Tomography
 
-Torch Radon is a fast CUDA implementation of transforms needed for
-working with computed tomography data in Pytorch. It allows the training of end-to-end models that takes sinograms as inputs and produce images as output.
+TorchRadon is a PyTorch extension written in CUDA that implements differentiable routines
+for solving computed tomography (CT) reconstruction problems.
+
+The library is designed to help researchers working on CT problems to combine deep learning
+and model-based approaches.
 
 Main features:
- - All operations work directly on Pytorch GPU tensors.
- - Forward and back projections are differentiable and integrated with Pytorch `.backward()`.
- - Up to 50x faster than Astra Toolbox.
- - Supports half precision and can used togheter with amp for faster training.
+ - Forward projections, back projections and shearlet transforms are **differentiable** and
+ integrated with PyTorch `.backward()`.
+ - Up to 125x **faster** than Astra Toolbox.
+ - **Batch operations**: fully exploit the power of modern GPUs by processing multiple images
+ in parallel.
+ - **Transparent API**: all operations are seamlessly integrated with PyTorch, 
+  gradients can  be  computed using `.backward()`,  half precision can be used with Nvidia AMP.
+ - **Half precision**: storing data in half precision allows to get sensible speedups 
+ when  doing  Radon  forward  and  backward projections with a very small accuracy loss.
  
-Projection types:
- - Parallel Beam
- - Fan Beam
+Implemented operations:
+ - Parallel Beam projections
+ - Fan Beam projections
+ - Shearlet transform
  
-## Example
-Simple example that uses Pytorch models to filter both the sinogram and the image.
-More examples can be found in the `examples` folder.
-```python
-import torch
-import torch.nn as nn
-import numpy as np
-from torch_radon import Radon
-
-batch_size = 8
-n_angles = 64
-image_size = 128
-channels = 4
-
-device = torch.device('cuda')
-criterion = nn.L1Loss()
-
-# Instantiate a model for the sinogram and one for the image
-sino_model = nn.Conv2d(1, channels, 5, padding=2).to(device)
-image_model = nn.Conv2d(channels, 1, 3, padding=1).to(device)
-
-# create empty images
-x = torch.FloatTensor(batch_size, 1, image_size, image_size).to(device)
-
-# instantiate Radon transform
-angles = np.linspace(0, np.pi, n_angles)
-radon = Radon(image_size, angles)
-
-# forward projection
-sinogram = radon.forward(x)
-
-# apply sino_model to sinograms
-filtered_sinogram = sino_model(sinogram)
-
-# backprojection
-backprojected = radon.backprojection(filtered_sinogram)
-
-# apply image_model to backprojected images
-y = image_model(backprojected)
-
-# backward works as usual
-loss = criterion(y, x)
-loss.backward()
-```
-
-## Getting Started
+ 
+## Installation
 ### Precompiled packages
 If you are running Linux you can install Torch Radon by running:
 ```shell script
@@ -98,13 +62,19 @@ The following benchmark compares the speed of Astra Toolbox and Torch Radon:
 If we set `clip_to_circle=True` (consider only the part of the image that is inside the circle) the speed difference is even larger:
 ![V100 Benchmark circle](pictures/v100_circle.png?raw=true)
 
-These results hold also on a cheap mobile GPU: 
+These results hold also on a cheap laptop GPU: 
 ![GTX1650 Benchmark](pictures/gtx1650.png?raw=true)
-Note: batch size with Astra is achieved by using a 3D parallel projection.
 
-## Half Precision
-Storing input data in half precision (float16) makes forward and back projection operations a lot (2x-2.6x times) faster.
-Arithmetical operations are still done in single precision, therefore numerical error is small.
+## Cite
+If you are using TorchRadon in your research, please cite the following paper:
+```
+@misc{torch_radon,
+Author = {Matteo Ronchetti},
+Title = {TorchRadon: Fast Differentiable Routines for Computed Tomography},
+Year = {2020},
+Eprint = {arXiv:2009.14788},
+}
+```
 
 ## Testing
 Install testing dependencies with `pip install -r test_requirements.txt`

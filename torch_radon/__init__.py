@@ -15,7 +15,7 @@ from .differentiable_functions import RadonForward, RadonBackprojection
 from .utils import normalize_shape
 from .filtering import FourierFilters
 
-__version__ = "0.0.1"
+__version__ = "1.0.0"
 
 
 class BaseRadon(abc.ABC):
@@ -45,7 +45,6 @@ class BaseRadon(abc.ABC):
 
         if square:
             assert x.size(1) == x.size(2), f"Input images must be square, got shape ({x.size(1)}, {x.size(2)})."
-            # assert x.size(2) % 16 == 0, f"Size of images must be multiple of 16, got shape ({x.size(1)}, {x.size(2)})."
 
         if x.dtype == torch.float16:
             assert x.size(
