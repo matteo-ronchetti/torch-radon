@@ -68,11 +68,12 @@ These results hold also on a cheap laptop GPU:
 ## Cite
 If you are using TorchRadon in your research, please cite the following paper:
 ```
-@misc{torch_radon,
+@article{torch_radon,
 Author = {Matteo Ronchetti},
 Title = {TorchRadon: Fast Differentiable Routines for Computed Tomography},
 Year = {2020},
 Eprint = {arXiv:2009.14788},
+journal={arXiv preprint arXiv:2009.14788},
 }
 ```
 
