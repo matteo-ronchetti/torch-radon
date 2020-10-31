@@ -7,7 +7,7 @@ script = [
 
 for python in ["37", "36"]:
     for cuda in ["10.2", "10.1"]:
-        for torch in ["1.6", "1.5", "1.4", "1.3"]:
+        for torch in ["1.7", "1.6", "1.5", "1.4"]:
             script += [
                 "",
                 f"# Python {python}, PyTorch {torch}, CUDA {cuda}",
