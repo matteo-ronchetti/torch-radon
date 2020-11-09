@@ -1,0 +1,1 @@
+docker run -v "$(pwd)":/code -w /code/pyronn --gpus all tensorflow/tensorflow:latest-gpu bash bench.sh

@@ -9,5 +9,8 @@ torch_radon.egg-info/
 objs/
 examples/*.ipynb
 
+benchmarks/**/*.npy
+benchmarks/**/*.ipynb
+
 *.pyc
 test

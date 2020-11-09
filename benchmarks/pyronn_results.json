@@ -1,0 +1,40 @@
+{
+    "library": "pyronn",
+    "batch_size": 32,
+    "warmup": 25,
+    "repeats": 100,
+    "results": [
+        {
+            "task": "parallel forward",
+            "num angles": 256,
+            "det count": 256,
+            "time": 7.396382808685303,
+            "fps": 432.64391294652256
+        },
+        {
+            "task": "parallel backward",
+            "num angles": 256,
+            "det count": 256,
+            "time": 1.531296730041504,
+            "fps": 2089.7321448033576
+        },
+        {
+            "task": "fanbeam forward",
+            "num angles": 256,
+            "det count": 256,
+            "source distance": 256,
+            "detector distance": 256,
+            "time": 7.971291780471802,
+            "fps": 401.4405805392059
+        },
+        {
+            "task": "fanbeam backward",
+            "num angles": 256,
+            "det count": 256,
+            "source distance": 256,
+            "detector distance": 256,
+            "time": 3.299412727355957,
+            "fps": 969.8695690503615
+        }
+    ]
+}
