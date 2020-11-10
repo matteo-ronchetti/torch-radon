@@ -1,13 +1,13 @@
 script = [
     "cd /code",
-    'eval "$(conda shell.bash hook)"',
+    'eval "$(/opt/conda/bin/conda shell.bash hook)"',
     "mkdir output",
     "export CXX=g++"
 ]
 
 for python in ["38", "37", "36"]:
     for cuda in ["11.0", "10.2", "10.1"]:
-        for torch in ["1.7", "1.6", "1.5", "1.4"]:
+        for torch in ["1.7", "1.6", "1.5"]:
             script += [
                 "",
                 f"# Python {python}, PyTorch {torch}, CUDA {cuda}",
