@@ -5,8 +5,8 @@ script = [
     "export CXX=g++"
 ]
 
-for python in ["37", "36"]:
-    for cuda in ["10.2", "10.1"]:
+for python in ["38", "37", "36"]:
+    for cuda in ["11.0", "10.2", "10.1"]:
         for torch in ["1.7", "1.6", "1.5", "1.4"]:
             script += [
                 "",
