@@ -26,9 +26,8 @@ radon_backward_kernel(T *__restrict__ output, cudaTextureObject_t texture, const
 
     const uint batch_id = blockIdx.z * channels;
 
-    __shared__ float s_sin[512];
-    __shared__ float s_cos[512];
-
+    __shared__ float s_sin[4096];
+    __shared__ float s_cos[4096];
 
     for (int i = tid; i < cfg.n_angles; i += 256) {
         s_sin[i] = __sinf(angles[i]);

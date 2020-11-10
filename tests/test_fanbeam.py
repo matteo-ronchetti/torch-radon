@@ -12,11 +12,12 @@ device = torch.device('cuda')
 full_angles = np.linspace(0, 2 * np.pi, 180).astype(np.float32)
 limited_angles = np.linspace(0.2 * np.pi, 0.5 * np.pi, 50).astype(np.float32)
 sparse_angles = np.linspace(0, 2 * np.pi, 60).astype(np.float32)
+many_angles = np.linspace(0, 2 * np.pi, 800).astype(np.float32)
 
 params = []
 for batch_size in [1, 8]:
     for image_size in [128, 151]:
-        for angles in [full_angles, limited_angles, sparse_angles]:
+        for angles in [full_angles, limited_angles, sparse_angles, many_angles]:
             for spacing in [1.0, 0.5, 1.3, 2.0]:
                 for distances in [(1.2, 1.2), (2.0, 2.0), (1.2, 3.0)]:
                     for det_count in [1.0, 1.5]:

@@ -47,7 +47,7 @@ radon_backward(torch::Tensor x, torch::Tensor angles, TextureCache &tex_cache, c
     const int batch_size = x.size(0);
     const int device = x.device().index();
 
-    TORCH_CHECK(angles.size(0) <= 512, "Can only support up to 512 angles")
+    TORCH_CHECK(angles.size(0) <= 4096, "Can only support up to 4096 angles")
 
     // create output image tensor
     auto options = torch::TensorOptions().dtype(dtype).device(x.device());

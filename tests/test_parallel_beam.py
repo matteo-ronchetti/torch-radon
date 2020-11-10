@@ -13,11 +13,12 @@ device = torch.device('cuda')
 full_angles = np.linspace(0, 2 * np.pi, 180).astype(np.float32)
 limited_angles = np.linspace(0.2 * np.pi, 0.5 * np.pi, 50).astype(np.float32)
 sparse_angles = np.linspace(0, 2 * np.pi, 60).astype(np.float32)
+many_angles = np.linspace(0, 2 * np.pi, 800).astype(np.float32)
 
 params = []  # [(device, 8, 128, full_angles)]
 for batch_size in [1, 8, 16]:  # , 64, 128]:  # , 256, 512]:
     for image_size in [128, 245, 256]:  # , 512]:
-        for angles in [full_angles, limited_angles, sparse_angles]:
+        for angles in [full_angles, limited_angles, sparse_angles, many_angles]:
             for spacing in [1.0, 0.5, 1.3, 2.0]:
                 for det_count in [1.0, 1.5]:
                     for clip_to_circle in [False, True]:
@@ -71,6 +72,9 @@ def test_half(device, batch_size, image_size, angles, spacing, det_count, clip_t
     mask_radius = det_count / 2.0 if clip_to_circle else -1
     x = generate_random_images(batch_size, image_size, mask_radius)
 
+    # scale used to avoid overflow in BP
+    bp_scale = np.pi / len(angles)
+
     # our implementation
     radon = Radon(image_size, angles, det_spacing=spacing, det_count=det_count, clip_to_circle=clip_to_circle)
     x = torch.FloatTensor(x).to(device)
@@ -79,10 +83,10 @@ def test_half(device, batch_size, image_size, angles, spacing, det_count, clip_t
     single_precision = radon.backprojection(sinogram)
 
     h_sino = radon.forward(x.half())
-    half_precision = radon.backprojection(h_sino)
+    half_precision = radon.backprojection(h_sino * bp_scale)
 
     forward_error = relative_error(sinogram.cpu().numpy(), h_sino.cpu().numpy())
-    back_error = relative_error(single_precision.cpu().numpy(), half_precision.cpu().numpy())
+    back_error = relative_error(single_precision.cpu().numpy(), half_precision.cpu().float().numpy() / bp_scale)
 
     print(
         f"batch: {batch_size}, size: {image_size}, angles: {len(angles)}, spacing: {spacing}, circle: {clip_to_circle}, forward: {forward_error}, back: {back_error}")

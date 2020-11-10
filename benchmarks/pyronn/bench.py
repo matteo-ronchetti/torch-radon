@@ -17,6 +17,29 @@ from pyronn.ct_reconstruction.geometry.geometry_fan_2d import GeometryFan2D
 from pyronn.ct_reconstruction.helpers.phantoms import shepp_logan
 from pyronn.ct_reconstruction.helpers.trajectories import circular_trajectory
 
+import sys
+import ctypes
+
+
+def get_gpu_name():
+    libnames = ('libcuda.so', 'libcuda.dylib', 'cuda.dll')
+    for libname in libnames:
+        try:
+            cuda = ctypes.CDLL(libname)
+        except OSError:
+            continue
+        else:
+            break
+    else:
+        raise OSError("could not load any of: " + ' '.join(libnames))
+
+    name = b' ' * 100
+    device = ctypes.c_int()
+
+    cuda.cuDeviceGet(ctypes.byref(device), 0)
+    cuda.cuDeviceGetName(ctypes.c_char_p(name), len(name), device)
+    return name.split(b'\0', 1)[0].decode()
+
 
 def benchmark(f, x, warmup, repeats):
     for _ in range(warmup):
@@ -124,6 +147,9 @@ print(phantom.shape)
 with tf.device('/GPU:0'):
     phantom = tf.convert_to_tensor(phantom, dtype=tf.float32)
 
+gpu_name = get_gpu_name()
+print(f"Running benchmarks on {gpu_name}")
+
 print("\n")
 results = []
 for task in config["tasks"]:
@@ -140,9 +166,9 @@ for task in config["tasks"]:
                                              warmup, repeats)
     elif task["task"] == "fanbeam backward":
         exec_time, y = bench_fanbeam_backward(phantom,
-                                             task["num angles"], task["det count"],
-                                             task["source distance"], task["detector distance"],
-                                             warmup, repeats)
+                                              task["num angles"], task["det count"],
+                                              task["source distance"], task["detector distance"],
+                                              warmup, repeats)
     else:
         print(f"ERROR Unknown task '{task['task']}'")
 
@@ -167,91 +193,7 @@ with open("../pyronn_results.json", "w") as f:
         "batch_size": config["batch size"],
         "warmup": config["warmup"],
         "repeats": config["repeats"],
+        "gpu": gpu_name,
 
         "results": results
     }, f, indent=4)
-#
-# def example_parallel_2d():
-#     # ------------------ Declare Parameters ------------------
-#
-#     # Volume Parameters:
-#     volume_size = 256
-#     volume_shape = [volume_size, volume_size]
-#     volume_spacing = [1, 1]
-#
-#     # Detector Parameters:
-#     detector_shape = 256
-#     detector_spacing = 1
-#
-#     # Trajectory Parameters:
-#     number_of_projections = 256
-#     angular_range = np.pi
-#
-#     # create Geometry class
-#     geometry = GeometryParallel2D(volume_shape, volume_spacing, detector_shape, detector_spacing, number_of_projections,
-#                                   angular_range)
-#     geometry.set_trajectory(circular_trajectory.circular_trajectory_2d(geometry))
-#
-#     # Get Phantom
-#     phantom = shepp_logan.shepp_logan_enhanced(volume_shape)
-#     np.save("phantom.npy", phantom)
-#
-#     # Add required batch dimension
-#     phantom = np.expand_dims(phantom, axis=0)
-#     phantom = np.vstack([phantom] * batch_size)
-#     print(phantom.shape)
-#
-#     # Place tensors on the GPU
-#     with tf.device('/GPU:0'):
-#         phantom = tf.convert_to_tensor(phantom, dtype=tf.float32)
-#
-#     # ------------------ Call Layers ------------------
-#     for _ in range(warmup):
-#         sinogram = parallel_projection2d(phantom, geometry)
-#
-#     s = time.time()
-#     for _ in range(repeats):
-#         sinogram = parallel_projection2d(phantom, geometry)
-#     execution_time = time.time() - s
-#
-#     print("FPS:", (batch_size * repeats) / execution_time)
-#
-#     for _ in range(warmup):
-#         reco = parallel_backprojection2d(sinogram, geometry)
-#
-#     s = time.time()
-#     for _ in range(repeats):
-#         reco = parallel_backprojection2d(sinogram, geometry)
-#     execution_time = time.time() - s
-#     print("FPS:", (batch_size * repeats) / execution_time)
-#
-#     source_detector_distance = 1200
-#     source_isocenter_distance = 750
-#
-#     # create Geometry class
-#     geometry = GeometryFan2D(volume_shape, volume_spacing, detector_shape, detector_spacing, number_of_projections,
-#                              angular_range, source_detector_distance, source_isocenter_distance)
-#     geometry.set_trajectory(circular_trajectory.circular_trajectory_2d(geometry))
-#
-#     for _ in range(warmup):
-#         sinogram = fan_projection2d(phantom, geometry)
-#
-#     s = time.time()
-#     for _ in range(repeats):
-#         sinogram = fan_projection2d(phantom, geometry)
-#     execution_time = time.time() - s
-#
-#     print("FPS:", (batch_size * repeats) / execution_time)
-#
-#     for _ in range(warmup):
-#         reco = fan_backprojection2d(sinogram, geometry)
-#
-#     s = time.time()
-#     for _ in range(repeats):
-#         reco = fan_backprojection2d(sinogram, geometry)
-#     execution_time = time.time() - s
-#     print("FPS:", (batch_size * repeats) / execution_time)
-#
-#
-# if __name__ == '__main__':
-#     example_parallel_2d()

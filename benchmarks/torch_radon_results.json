@@ -1,5 +1,5 @@
 {
-    "library": "pyronn",
+    "library": "TorchRadon",
     "batch_size": 32,
     "warmup": 50,
     "repeats": 250,
@@ -9,15 +9,15 @@
             "task": "parallel forward",
             "num angles": 256,
             "det count": 256,
-            "time": 18.54387640953064,
-            "fps": 431.4092600341315
+            "time": 1.220390796661377,
+            "fps": 6555.277229134798
         },
         {
             "task": "parallel backward",
             "num angles": 256,
             "det count": 256,
-            "time": 3.9722940921783447,
-            "fps": 2013.949575322839
+            "time": 1.2455790042877197,
+            "fps": 6422.715839349567
         },
         {
             "task": "fanbeam forward",
@@ -25,8 +25,8 @@
             "det count": 256,
             "source distance": 256,
             "detector distance": 256,
-            "time": 20.46932625770569,
-            "fps": 390.82869163748836
+            "time": 1.2151730060577393,
+            "fps": 6583.424714110114
         },
         {
             "task": "fanbeam backward",
@@ -34,8 +34,8 @@
             "det count": 256,
             "source distance": 256,
             "detector distance": 256,
-            "time": 8.142483711242676,
-            "fps": 982.5011978782417
+            "time": 1.2279400825500488,
+            "fps": 6514.9758637949935
         }
     ]
 }

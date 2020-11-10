@@ -1,8 +1,8 @@
 {
   "batch size": 32,
   "input": "phantom.npy",
-  "warmup": 25,
-  "repeats": 100,
+  "warmup": 50,
+  "repeats": 250,
   "tasks": [
     {
       "task": "parallel forward",

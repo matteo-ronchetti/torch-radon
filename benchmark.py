@@ -60,9 +60,9 @@ def benchmark_function(f, x, samples, warmup, sync=False):
     for _ in range(warmup):
         f(x)
 
-    s = time.time()
     if sync:
         torch.cuda.synchronize()
+    s = time.time()
     for _ in range(samples):
         f(x)
     if sync:
