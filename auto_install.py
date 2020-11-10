@@ -30,11 +30,11 @@ else:
 python_version = sys.version_info.major * 10 + sys.version_info.minor
 python_version_str = f"{sys.version_info.major}.{sys.version_info.minor}"
 print("Python version:", python_version_str, end=" ")
-if python_version in [36, 37]:
+if python_version in [36, 37, 38]:
     print(ok)
 else:
     print(error)
-    print("Precompiled packages are only available for Python 3.6 and 3.7")
+    print("Precompiled packages are only available for Python 3.6, 3.7 and 3.8")
     sys.exit(1)
 
 # PyTorch
@@ -65,11 +65,11 @@ else:
 cuda_version = torch.version.cuda
 print("CUDA:", cuda_version, end=" ")
 
-if cuda_version in ["10.1", "10.2"]:
+if cuda_version in ["10.1", "10.2", "11.0"]:
     print(ok)
 else:
     print(error)
-    print("Precompiled packages are build for CUDA 10.1 and 10.2")
+    print("Precompiled packages are build for CUDA 10.1, 10.2 and 11.0")
     print("Consider manually compiling torch-radon")
     sys.exit(1)
 
