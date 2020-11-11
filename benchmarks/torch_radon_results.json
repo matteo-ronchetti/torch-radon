@@ -9,15 +9,15 @@
             "task": "parallel forward",
             "num angles": 256,
             "det count": 256,
-            "time": 1.220390796661377,
-            "fps": 6555.277229134798
+            "time": 1.209118127822876,
+            "fps": 6616.39240692281
         },
         {
             "task": "parallel backward",
             "num angles": 256,
             "det count": 256,
-            "time": 1.2455790042877197,
-            "fps": 6422.715839349567
+            "time": 1.2396612167358398,
+            "fps": 6453.376045001111
         },
         {
             "task": "fanbeam forward",
@@ -25,8 +25,8 @@
             "det count": 256,
             "source distance": 256,
             "detector distance": 256,
-            "time": 1.2151730060577393,
-            "fps": 6583.424714110114
+            "time": 1.2110826969146729,
+            "fps": 6605.6595642730435
         },
         {
             "task": "fanbeam backward",
@@ -34,8 +34,8 @@
             "det count": 256,
             "source distance": 256,
             "detector distance": 256,
-            "time": 1.2279400825500488,
-            "fps": 6514.9758637949935
+            "time": 1.2170476913452148,
+            "fps": 6573.283904065847
         }
     ]
 }

@@ -14,7 +14,7 @@ def benchmark(f, x, warmup, repeats):
     s = time.time()
     for _ in range(repeats):
         y = f(x)
-    torch.cuda.synchronize()
+        torch.cuda.synchronize()
     execution_time = time.time() - s
 
     return execution_time, y
