@@ -13,7 +13,7 @@ for python in ["38", "37", "36"]:
                 f"# Python {python}, PyTorch {torch}, CUDA {cuda}",
                 f"mkdir -p output/cuda-{cuda}/torch-{torch}",
                 f"conda install -n py{python}cu{cuda.replace('.', '')} pytorch={torch} cudatoolkit={cuda} -c pytorch",
-                f"source activate py{python}cu{cuda.replace('.', '')}",
+                f"source /opt/conda/bin/activate py{python}cu{cuda.replace('.', '')}",
                 "python --version",
                 'python -c "import torch; print(torch.version.cuda)"',
                 "python build.py clean",
