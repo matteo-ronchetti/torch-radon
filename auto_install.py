@@ -75,6 +75,6 @@ else:
 python_version = f"cp{python_version}-cp{python_version}m" if python_version < 38 else f"cp{python_version}-cp{python_version}"
 
 package_url = f"{base_url}/cuda-{cuda_version}/torch-{torch_version}/torch_radon-{version}-{python_version}-linux_x86_64.whl"
-install_command = f"pip install {package_url}"
+install_command = f"pip install --force-reinstall {package_url}"
 print(f"{blue}Executing: {install_command}{reset}")
 os.system(install_command)

@@ -45,6 +45,9 @@ def render_template(src, dst):
     return f"-c {cu_src_path} -o {dst}"
 
 
+CXX_ADDITIONAL_FLAGS = []
+
+
 # 80, 86 are only for CUDA 11
 def build(compute_capabilites=(60, 70, 75), verbose=False, cuda_home="/usr/local/cuda", cxx="g++"):
     nvcc = f"{cuda_home}/bin/nvcc"
@@ -58,8 +61,9 @@ def build(compute_capabilites=(60, 70, 75), verbose=False, cuda_home="/usr/local
     all_objects = [y for x, y in cu_files + cpp_files]
 
     include_flags = [f"-I{x}" for x in include_dirs]
-    cxx_flags = ["-std=c++11 -fPIC -static"] + include_flags + ["-O3"]
-    nvcc_flags = ["-std=c++11", f"-ccbin={cxx}", "-Xcompiler", "-fPIC", "-Xcompiler -static"] + include_flags + \
+    cxx_flags = ["-std=c++11 -fPIC -static -static-libgcc -static-libstdc++"] + include_flags + ["-O3"]
+    nvcc_flags = ["-std=c++11", f"-ccbin={cxx}", "-Xcompiler", "-fPIC", "-Xcompiler -static",
+                  "-Xcompiler -static-libgcc", "-Xcompiler -static-libstdc++"] + include_flags + \
                  [f"-gencode arch=compute_{x},code=sm_{x}" for x in compute_capabilites] + [
                      "-DNDEBUG -O3 --generate-line-info --compiler-options -Wall"]
 

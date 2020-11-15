@@ -28,7 +28,7 @@ setup(name='torch_radon',
                         include_dirs=[os.path.abspath('include')],
                         library_dirs=[os.path.abspath("objs")],
                         libraries=["radon"],
-                        extra_compile_args=["-static"],
+                        extra_compile_args=["-static", "-static-libgcc", "-static-libstdc++"],
                         # strip debug symbols
                         extra_link_args=["-Wl,--strip-all"]
                         )
