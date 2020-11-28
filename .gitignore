@@ -1,5 +1,8 @@
 .idea/
+.vscode/
 .ipynb_checkpoints/
+
+intermediates/
 
 docs/build
 build/
@@ -13,4 +16,5 @@ benchmarks/**/*.npy
 benchmarks/**/*.ipynb
 
 *.pyc
+*.ncu-rep
 test
