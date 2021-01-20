@@ -28,6 +28,7 @@ Implemented operations:
  
  
 ## Installation
+Currently only Linux is supported, if you are running a different OS please use Google Colab or the Docker image.
 ### Precompiled packages
 If you are running Linux you can install Torch Radon by running:
 ```shell script
