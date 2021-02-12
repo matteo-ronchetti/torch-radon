@@ -96,10 +96,10 @@ radon_forward_kernel(T *__restrict__ output, cudaTextureObject_t texture, const 
 
         }
         
-        const uint n_steps = __float2uint_ru(hypot(rdx, rdy));
+        const uint n_steps = __float2uint_ru(::hypot(rdx, rdy));
         const float vx = rdx / n_steps;
         const float vy = rdy / n_steps;
-        const float n = hypot(vx, vy);
+        const float n = ::hypot(vx, vy);
 
         for (uint j = 0; j <= n_steps; j++) { //changing j and n_steps to int makes everything way slower (WHY???)
             if (channels == 1) {
