@@ -44,7 +44,7 @@ radon_backward_kernel(T *__restrict__ output, cudaTextureObject_t texture, const
         }
 
         if (clip_to_circle) {
-            const float r = hypot(dx, dy);
+            const float r = ::hypot(dx, dy);
             if (r > cfg.det_count * 0.5f) {
                 goto out;
             }
