@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+import torch.fft
 
 try:
     import scipy.fft
@@ -19,7 +20,7 @@ class FourierFilters:
         key = (size, filter_name)
 
         if key not in self.cache:
-            ff = torch.FloatTensor(self.construct_fourier_filter(size, filter_name)).view(1, -1, 1).to(device)
+            ff = torch.FloatTensor(self.construct_fourier_filter(size, filter_name)).view(1, 1, -1).to(device)
             self.cache[key] = ff
 
         return self.cache[key].to(device)
@@ -80,4 +81,4 @@ class FourierFilters:
             print(
                 f"[TorchRadon] Error, unknown filter type '{filter_name}', available filters are: 'ramp', 'shepp-logan', 'cosine', 'hamming', 'hann'")
 
-        return fourier_filter
+        return fourier_filter[:size//2+1]

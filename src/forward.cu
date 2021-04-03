@@ -3,109 +3,124 @@
 #include <cuda_runtime.h>
 #include <cuda_fp16.h>
 
-
 #include "utils.h"
 #include "texture.h"
+#include "parameter_classes.h"
 
-template<bool parallel_beam, int channels, bool clip_to_circle, typename T>
+
+template<bool parallel_beam, int channels, typename T>
 __global__ void
 radon_forward_kernel(T *__restrict__ output, cudaTextureObject_t texture, const float *__restrict__ angles,
-                     RaysCfg cfg) {
+                     const VolumeCfg vol_cfg, const ProjectionCfg proj_cfg, const float sampling_rate=1.0) {
+    // TODO sampling rate is not beneficial at all... remove it
+
     // Calculate texture coordinates
     const int ray_id = blockIdx.x * blockDim.x + threadIdx.x;
     const int angle_id = blockIdx.y * blockDim.y + threadIdx.y;
-    const int batch_id = blockIdx.z * channels;
+//    const int batch_id = blockIdx.z * channels;
 
-    if (angle_id < cfg.n_angles && ray_id < cfg.det_count) {
-        
+    const int base = ray_id + proj_cfg.det_count_u * (angle_id + proj_cfg.n_angles * blockIdx.z);
+    const int pitch = proj_cfg.det_count_u * proj_cfg.n_angles * blockDim.z * gridDim.z;
+
+    if (angle_id < proj_cfg.n_angles && ray_id < proj_cfg.det_count_u) {
         float accumulator[channels];
 
-        #pragma unroll
-        for (int i = 0; i < channels; i++) {
-            accumulator[i] = 0.0f;
-        }
-
+#pragma unroll
+        for (int i = 0; i < channels; i++) accumulator[i] = 0.0f;
 
         // compute ray
-        float v, sx, sy, ex, ey;
+        float sx, sy, ex, ey;
         if (parallel_beam) {
-            v = cfg.height / 2.0;
-            sx = (ray_id - cfg.det_count / 2.0f + 0.5f) * cfg.det_spacing;
-            sy = 0.71f * cfg.height;
+            sx = (ray_id - proj_cfg.det_count_u * 0.5f + 0.5f) * proj_cfg.det_spacing_u;
+            sy = hypot(abs(vol_cfg.dx) + vol_cfg.width * 0.5f, abs(vol_cfg.dy) + vol_cfg.height * 0.5f);
             ex = sx;
             ey = -sy;
         } else {
-            v = cfg.height / 2.0;
-            sy = cfg.s_dist;
+            sy = proj_cfg.s_dist;
             sx = 0.0f;
-            ey = -cfg.d_dist;
-            ex = (ray_id - cfg.det_count / 2.0f + 0.5f) * cfg.det_spacing;
+            ey = -proj_cfg.d_dist;
+            ex = (ray_id - proj_cfg.det_count_u * 0.5f + 0.5f) * proj_cfg.det_spacing_u;
         }
 
-        
         // rotate ray
         const float angle = angles[angle_id];
         const float cs = __cosf(angle);
         const float sn = __sinf(angle);
 
-        // start position rs and direction rd
+        // start position rs and direction rd (in detector coordinate system)
         float rsx = sx * cs - sy * sn;
         float rsy = sx * sn + sy * cs;
         float rdx = ex * cs - ey * sn - rsx;
         float rdy = ex * sn + ey * cs - rsy;
 
+        // convert coordinates to volume coordinate system
+        const float vol_orig_x = vol_cfg.dx - 0.5f * vol_cfg.width * vol_cfg.sx;
+        const float vol_orig_y = vol_cfg.dy - 0.5f * vol_cfg.height * vol_cfg.sy;
+        rsx = (rsx - vol_orig_x) * vol_cfg.inv_scale_x; 
+        rsy = (rsy - vol_orig_y) * vol_cfg.inv_scale_y; 
+        rdx = rdx * vol_cfg.inv_scale_x; 
+        rdy = rdy * vol_cfg.inv_scale_y; 
 
-        if (cfg.clip_to_circle) {
-            // clip rays to circle (to reduce memory reads)
-            const float radius = cfg.det_count / 2.0f;
-            const float a = rdx * rdx + rdy * rdy;
-            const float b = rsx * rdx + rsy * rdy;
-            const float c = rsx * rsx + rsy * rsy - radius * radius;
+//        if(angle_id == 0 && ray_id < 3){
+//            printf("%d %d\n", pitch, blockDim.z);
+////            printf("O %f %f -> %f %f\n", rsx, rsy, rdx, rdy);
+//        }
 
-            // min_clip to 1 to avoid getting empty rays
-            const float delta_sqrt = sqrtf(max(b * b - a * c, 1.0f));
-            const float alpha_s = (-b - delta_sqrt) / a;
-            const float alpha_e = (-b + delta_sqrt) / a;
+        // clip to volume (to reduce memory reads)
+        // TODO pad is not used... remove it
+        constexpr float pad = 0.0f;
 
-            rsx += rdx * alpha_s + v;
-            rsy += rdy * alpha_s + v;
-            rdx *= (alpha_e - alpha_s);
-            rdy *= (alpha_e - alpha_s);
-        } else {
-            
-        // clip to square (to reduce memory reads)
-        const float alpha_x_m = (-v - rsx)/rdx;
-        const float alpha_x_p = (v - rsx)/rdx;
-        const float alpha_y_m = (-v -rsy)/rdy;
-        const float alpha_y_p = (v - rsy)/rdy;
+        float dx = rdx >= 0 ? max(rdx, 1e-6) : min(rdx, -1e-6);
+        float dy = rdy >= 0 ? max(rdy, 1e-6) : min(rdy, -1e-6);
+
+        const float alpha_x_m = (- pad - rsx) / dx;
+        const float alpha_x_p = (vol_cfg.width + pad - rsx) / dx;
+        const float alpha_y_m = (- pad - rsy) / dy;
+        const float alpha_y_p = (vol_cfg.height + pad - rsy) / dy;
         const float alpha_s = max(min(alpha_x_p, alpha_x_m), min(alpha_y_p, alpha_y_m));
         const float alpha_e = min(max(alpha_x_p, alpha_x_m), max(alpha_y_p, alpha_y_m));
 
-        if(alpha_s > alpha_e){
-            #pragma unroll
-            for (int b = 0; b < channels; b++) {
-                output[(batch_id + b) * cfg.det_count * cfg.n_angles + angle_id * cfg.det_count + ray_id] = 0.0f;
-            }
+        // if ray volume intersection is empty exit
+        // TODO use goto?
+        if (alpha_s > alpha_e) {
+#pragma unroll
+            for (int b = 0; b < channels; b++) output[base + b * pitch] = 0.0f;
             return;
         }
 
-        rsx += rdx*alpha_s + v;
-        rsy += rdy*alpha_s + v;
+        rsx += rdx * alpha_s;
+        rsy += rdy * alpha_s;
         rdx *= (alpha_e - alpha_s);
         rdy *= (alpha_e - alpha_s);
 
-        }
+//        const uint n_steps = __float2uint_ru(hypot(rdx, rdy));
+        // const int n_steps = __float2int_ru(sampling_rate*max(abs(rdx), abs(rdy)));
+        const int n_steps = __float2int_rn(max(abs(rdx), abs(rdy)));
+        const float vx = rdx / max(abs(rdx), abs(rdy));
+        const float vy = rdy / max(abs(rdx), abs(rdy));
+        const float n = hypot(vx * vol_cfg.sx, vy * vol_cfg.sy);
         
-        const uint n_steps = __float2uint_ru(::hypot(rdx, rdy));
-        const float vx = rdx / n_steps;
-        const float vy = rdy / n_steps;
-        const float n = ::hypot(vx, vy);
+        // TODO optimize this "if" mess
+        float step;
+        if(abs(rdy) >= abs(rdx)){
+            float y_increment = 0.5f - rsy + __float2int_rn(rsy);
+            step = y_increment / vy;
+            step += vy < 0;
+        }else{
+            float x_increment = 0.5f - rsx + __float2int_rn(rsx);
+            step = x_increment / vx;
+            step += vx < 0;
+        }
+        rsx += step*vx;
+        rsy += step*vy;
 
-        for (uint j = 0; j <= n_steps; j++) { //changing j and n_steps to int makes everything way slower (WHY???)
+        #pragma unroll(4)
+        for (int j = 0; j < n_steps; j++) {
             if (channels == 1) {
                 accumulator[0] += tex2DLayered<float>(texture, rsx, rsy, blockIdx.z);
             } else {
                 float4 read = tex2DLayered<float4>(texture, rsx, rsy, blockIdx.z);
+
                 accumulator[0] += read.x;
                 accumulator[1] += read.y;
                 accumulator[2] += read.z;
@@ -115,92 +130,218 @@ radon_forward_kernel(T *__restrict__ output, cudaTextureObject_t texture, const 
             rsy += vy;
         }
 
-
-        
         #pragma unroll
-        for (int b = 0; b < channels; b++) {
-            output[(batch_id + b) * cfg.det_count * cfg.n_angles + angle_id * cfg.det_count + ray_id] =
-                    accumulator[b] * n;
-        }
-
+        for (int b = 0; b < channels; b++) output[base + b * pitch] = accumulator[b] * n;
     }
 }
 
 template<typename T>
 void radon_forward_cuda(
-        const T *x, const float *angles, T *y,
-        TextureCache &tex_cache, const RaysCfg &cfg, const int batch_size, const int device
+        const T *x, const float *angles, T *y, TextureCache &tex_cache,
+        const VolumeCfg &vol_cfg, const ProjectionCfg &proj_cfg, const ExecCfg &exec_cfg,
+        const int batch_size, const int device
 ) {
-//    checkCudaErrors(cudaFuncSetCacheConfig(radon_forward_kernel_half<true>, cudaFuncCachePreferL1));
-//    checkCudaErrors(cudaFuncSetCacheConfig(radon_forward_kernel_half<false>, cudaFuncCachePreferL1));
-
     constexpr bool is_float = std::is_same<T, float>::value;
     constexpr int precision = is_float ? PRECISION_FLOAT : PRECISION_HALF;
-    const int channels = (batch_size % 4 == 0) ? 4 : 1;
+    const int channels = exec_cfg.get_channels(batch_size);
 
     // copy x into CUDA Array (allocating it if needed) and bind to texture
-    Texture *tex = tex_cache.get({device, batch_size, cfg.height, cfg.width, channels, precision});
+    Texture *tex = tex_cache.get(
+            {device, batch_size / channels, vol_cfg.height, vol_cfg.width, true, channels, precision});
     tex->put(x);
 
     // Invoke kernel
-    dim3 block_dim(16, 16);
-    dim3 grid_dim(roundup_div(cfg.det_count, 16), roundup_div(cfg.n_angles, 16), batch_size / channels);
+    dim3 grid_dim = exec_cfg.get_grid_size(proj_cfg.det_count_u, proj_cfg.n_angles, batch_size / channels);
 
-    if (cfg.is_fanbeam) {
+#ifdef VERBOSE
+    std::cout << "Block Size x:" << exec_cfg.block_dim.x << " y:" << exec_cfg.block_dim.y << " z:" << exec_cfg.block_dim.z << std::endl;
+    std::cout << "Grid Size x:" << grid_dim.x << " y:" << grid_dim.y << " z:" << grid_dim.z << std::endl;
+#endif
+
+    if (proj_cfg.projection_type == FANBEAM) {
         if (channels == 1) {
-            if (cfg.clip_to_circle) {
-                radon_forward_kernel<false, 1, true> << < grid_dim, block_dim >> > (y, tex->texture, angles, cfg);
-            } else {
-                radon_forward_kernel<false, 1, false> << < grid_dim, block_dim >> > (y, tex->texture, angles, cfg);
-            }
+            radon_forward_kernel<false, 1> << < grid_dim, exec_cfg.block_dim >> >
+                                                                     ((float*)y, tex->texture, angles, vol_cfg, proj_cfg, exec_cfg.sampling_rate);
         } else {
             if (is_float) {
-                if (cfg.clip_to_circle) {
-                    radon_forward_kernel<false, 4, true> << < grid_dim, block_dim >> > (y, tex->texture, angles, cfg);
-                } else {
-                    radon_forward_kernel<false, 4, false> << < grid_dim, block_dim >> > (y, tex->texture, angles, cfg);
-                }
+                radon_forward_kernel<false, 4> << < grid_dim, exec_cfg.block_dim >> >
+                                                                         ((float*)y, tex->texture, angles, vol_cfg, proj_cfg, exec_cfg.sampling_rate);
             } else {
-                if (cfg.clip_to_circle) {
-                    radon_forward_kernel<false, 4, true> << < grid_dim, block_dim >> >
-                                                                        ((__half *) y, tex->texture, angles, cfg);
-                } else {
-                    radon_forward_kernel<false, 4, false> << < grid_dim, block_dim >> >
-                                                                         ((__half *) y, tex->texture, angles, cfg);
-                }
+                radon_forward_kernel<false, 4> << < grid_dim, exec_cfg.block_dim >> >
+                                                                         ((__half *) y, tex->texture, angles, vol_cfg, proj_cfg, exec_cfg.sampling_rate);
             }
         }
     } else {
         if (channels == 1) {
-            if (cfg.clip_to_circle) {
-                radon_forward_kernel<true, 1, true> << < grid_dim, block_dim >> > (y, tex->texture, angles, cfg);
-            } else {
-                radon_forward_kernel<true, 1, false> << < grid_dim, block_dim >> > (y, tex->texture, angles, cfg);
-            }
+            radon_forward_kernel<true, 1> << < grid_dim, exec_cfg.block_dim >> >
+                                                                    ((float*)y, tex->texture, angles, vol_cfg, proj_cfg, exec_cfg.sampling_rate);
         } else {
             if (is_float) {
-                if (cfg.clip_to_circle) {
-                    radon_forward_kernel<true, 4, true> << < grid_dim, block_dim >> > (y, tex->texture, angles, cfg);
-                } else {
-                    radon_forward_kernel<true, 4, false> << < grid_dim, block_dim >> > (y, tex->texture, angles, cfg);
-                }
+                radon_forward_kernel<true, 4> << < grid_dim, exec_cfg.block_dim >> >
+                                                                        ((float*)y, tex->texture, angles, vol_cfg, proj_cfg, exec_cfg.sampling_rate);
             } else {
-                if (cfg.clip_to_circle) {
-                    radon_forward_kernel<true, 4, true> << < grid_dim, block_dim >> >
-                                                                       ((__half *) y, tex->texture, angles, cfg);
-                } else {
-                    radon_forward_kernel<true, 4, false> << < grid_dim, block_dim >> >
-                                                                        ((__half *) y, tex->texture, angles, cfg);
-                }
+                radon_forward_kernel<true, 4> << < grid_dim, exec_cfg.block_dim >> >
+                                                                        ((__half *) y, tex->texture, angles, vol_cfg, proj_cfg, exec_cfg.sampling_rate);
             }
         }
     }
 }
 
 template void
-radon_forward_cuda<float>(const float *x, const float *angles, float *y, TextureCache &tex_cache, const RaysCfg &cfg,
+radon_forward_cuda<float>(const float *x, const float *angles, float *y, TextureCache &tex_cache,
+                          const VolumeCfg &vol_cfg, const ProjectionCfg &proj_cfg, const ExecCfg &exec_cfg,
                           const int batch_size, const int device);
 
 template void radon_forward_cuda<unsigned short>(const unsigned short *x, const float *angles, unsigned short *y,
-                                                 TextureCache &tex_cache, const RaysCfg &cfg,
+                                                 TextureCache &tex_cache,
+                                                 const VolumeCfg &vol_cfg, const ProjectionCfg &proj_cfg,
+                                                 const ExecCfg &exec_cfg,
                                                  const int batch_size, const int device);
+
+
+template<int channels, typename T>
+__global__ void
+radon_forward_kernel_3d(T *__restrict__ output, cudaTextureObject_t texture, const float *__restrict__ angles,
+                        const VolumeCfg vol_cfg, const ProjectionCfg proj_cfg) {
+    // Calculate sensor coordinates in pixels
+    // TODO is there an "optimal" map from thread to coordinates that maximizes cache hits?
+    // TODO check other permutations (combined with different block sizes)
+    const int pu = blockIdx.x * blockDim.x + threadIdx.x;
+    const int angle_id = blockIdx.y * blockDim.y + threadIdx.y;
+    const int pv = blockIdx.z * blockDim.z + threadIdx.z;
+
+    const uint index = (angle_id * proj_cfg.det_count_v + pv) * proj_cfg.det_count_u + pu;
+    const uint pitch = proj_cfg.n_angles * proj_cfg.det_count_v * proj_cfg.det_count_u;
+
+    if (angle_id < proj_cfg.n_angles && pu < proj_cfg.det_count_u && pv < proj_cfg.det_count_v) {
+        // define accumulator
+        float accumulator[channels];
+#pragma unroll
+        for (int i = 0; i < channels; i++) accumulator[i] = 0.0f;
+
+        // compute ray
+        const float angle = angles[angle_id];
+        const float cs = __cosf(angle);
+        const float sn = __sinf(angle);
+
+        float sx = 0.0f;
+        float sy = -proj_cfg.s_dist;
+        // sz = initial_z + pitch * angle / (2*pi);
+        float rsz = proj_cfg.initial_z + proj_cfg.pitch * angle * 0.1591549f;
+
+        float ex = (pu - proj_cfg.det_count_u * 0.5f + 0.5f) * proj_cfg.det_spacing_u;
+        float ey = proj_cfg.d_dist;
+        // z is not affected by rotation
+        float rdz = (pv - proj_cfg.det_count_v * 0.5f + 0.5f) * proj_cfg.det_spacing_v;
+
+        // rotate start position rs and direction rd
+        float rsx = sx * cs - sy * sn;
+        float rsy = sx * sn + sy * cs;
+        float rdx = ex * cs - ey * sn - rsx;
+        float rdy = ex * sn + ey * cs - rsy;
+
+        // Clip ray to cube (with a little bit of padding) to reduce the number of memory reads
+        // TODO fix dx,dy,dz 
+        constexpr float pad = 0.5f;
+        const float alpha_x_m = (vol_cfg.dx - 0.5f * vol_cfg.width - pad - rsx) / rdx;
+        const float alpha_x_p = (vol_cfg.dx + 0.5f * vol_cfg.width + pad - rsx) / rdx;
+        const float alpha_y_m = (vol_cfg.dy - 0.5f * vol_cfg.height - pad - rsy) / rdy;
+        const float alpha_y_p = (vol_cfg.dy + 0.5f * vol_cfg.height + pad - rsy) / rdy;
+        const float alpha_z_m = (vol_cfg.dz - 0.5f * vol_cfg.depth - pad - rsz) / rdz;
+        const float alpha_z_p = (vol_cfg.dz + 0.5f * vol_cfg.depth + pad - rsz) / rdz;
+
+        const float alpha_s = max(min(alpha_x_p, alpha_x_m), max(min(alpha_y_p, alpha_y_m), min(alpha_z_p, alpha_z_m)));
+        const float alpha_e = min(max(alpha_x_p, alpha_x_m), min(max(alpha_y_p, alpha_y_m), max(alpha_z_p, alpha_z_m)));
+
+        if (alpha_s > alpha_e) {
+#pragma unroll
+            for (int b = 0; b < channels; b++) output[b * pitch + index] = 0.0f;
+            return;
+        }
+
+        // TODO as above
+        rsx += rdx * alpha_s + vol_cfg.width * 0.5f;
+        rsy += rdy * alpha_s + vol_cfg.height * 0.5f;
+        rsz += rdz * alpha_s + vol_cfg.depth * 0.5f;
+        rdx *= (alpha_e - alpha_s);
+        rdy *= (alpha_e - alpha_s);
+        rdz *= (alpha_e - alpha_s);
+
+        // accumulate loop
+        const uint n_steps = __float2uint_ru(max(abs(rdx), max(abs(rdy), abs(rdz))));
+        // const uint n_steps = __float2uint_ru( norm3df(rdx, rdy, rdz));
+        const float vx = rdx / n_steps;
+        const float vy = rdy / n_steps;
+        const float vz = rdz / n_steps;
+        const float n = norm3df(vx, vy, vz);
+        
+        // TODO unroll
+        for (uint j = 0; j <= n_steps; j++) { //changing j and n_steps to int makes everything way slower (WHY???)
+            if (channels == 1) {
+                accumulator[0] += tex3D<float>(texture, rsx, rsy, rsz);
+            } else {
+                float4 read = tex3D<float4>(texture, rsx, rsy, rsz);
+                accumulator[0] += read.x;
+                accumulator[1] += read.y;
+                accumulator[2] += read.z;
+                accumulator[3] += read.w;
+            }
+
+            rsx += vx;
+            rsy += vy;
+            rsz += vz;
+        }
+
+        // output
+#pragma unroll
+        for (int b = 0; b < channels; b++) {
+            output[b * pitch + index] = accumulator[b] * n;
+        }
+    }
+}
+
+template<typename T>
+void radon_forward_cuda_3d(
+        const T *x, const float *angles, T *y, TextureCache &tex_cache,
+        const VolumeCfg &vol_cfg, const ProjectionCfg &proj_cfg, const ExecCfg &exec_cfg,
+        const int batch_size, const int device
+) {
+    constexpr bool is_float = std::is_same<T, float>::value;
+    constexpr int precision = is_float ? PRECISION_FLOAT : PRECISION_HALF;
+    const int channels = exec_cfg.get_channels(batch_size);
+
+    Texture *tex = tex_cache.get(
+            {device, vol_cfg.depth, vol_cfg.height, vol_cfg.width, false, channels, precision});
+
+    dim3 grid_dim = exec_cfg.get_grid_size(proj_cfg.det_count_u, proj_cfg.n_angles, proj_cfg.det_count_v);
+
+    for (int i = 0; i < batch_size; i += channels) {
+        T *local_y = &y[i * proj_cfg.det_count_u * proj_cfg.det_count_v * proj_cfg.n_angles];
+        tex->put(&x[i * vol_cfg.depth * vol_cfg.height * vol_cfg.width]);
+
+        // Invoke kernel
+        if (channels == 1) {
+            radon_forward_kernel_3d<1> << < grid_dim, exec_cfg.block_dim >> >
+                                                      (local_y, tex->texture, angles, vol_cfg, proj_cfg);
+        } else {
+            if (is_float) {
+                radon_forward_kernel_3d<4> << < grid_dim, exec_cfg.block_dim >> >
+                                                          (local_y, tex->texture, angles, vol_cfg, proj_cfg);
+            } else {
+                radon_forward_kernel_3d<4> << < grid_dim, exec_cfg.block_dim >> >
+                                                          ((__half *) local_y, tex->texture, angles, vol_cfg, proj_cfg);
+            }
+        }
+    }
+}
+
+template void
+radon_forward_cuda_3d<float>(const float *x, const float *angles, float *y, TextureCache &tex_cache,
+                             const VolumeCfg &vol_cfg, const ProjectionCfg &proj_cfg, const ExecCfg &exec_cfg,
+                             const int batch_size, const int device);
+
+template void radon_forward_cuda_3d<unsigned short>(const unsigned short *x, const float *angles, unsigned short *y,
+                                                    TextureCache &tex_cache,
+                                                    const VolumeCfg &vol_cfg, const ProjectionCfg &proj_cfg,
+                                                    const ExecCfg &exec_cfg,
+                                                    const int batch_size, const int device);

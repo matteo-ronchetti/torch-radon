@@ -62,14 +62,16 @@ class ShearletTransform:
         """
         self._move_parameters_to_device(x.device)
 
-        c = torch.rfft(x, 2, normalized=True, onesided=False)
+        c = torch.fft.rfft(x, 2, norm="forward")
+        print(self.shifted_spectrograms.size(), c.size())
+
 
         if x.dtype == torch.float64:
             cs = torch.einsum("fij,bijc->bfijc", self.shifted_spectrograms_d, c)
         else:
             cs = torch.einsum("fij,bijc->bfijc", self.shifted_spectrograms, c)
 
-        return torch.irfft(cs, 2, normalized=True, onesided=False)
+        return torch.fft.irfft(cs, 2, norm="forward")
 
     @normalize_shape(3)
     def backward(self, cs):
@@ -82,11 +84,13 @@ class ShearletTransform:
             Has shape :math:`(d_1, \\dots, d_n, h, w)`.
         """
 
-        cs_fft = torch.rfft(cs, 2, normalized=True, onesided=False)
+        cs_fft = torch.fft.rfft(cs, 2, norm="forward")
+        print(self.shifted_spectrograms.size(), cs_fft.size())
 
         if cs.dtype == torch.float64:
             res = torch.einsum("fij,bfijc->bijc", self.shifted_spectrograms_d, cs_fft)
         else:
+            print(self.shifted_spectrograms.size(), cs_fft.size())
             res = torch.einsum("fij,bfijc->bijc", self.shifted_spectrograms, cs_fft)
 
-        return torch.irfft(res, 2, normalized=True, onesided=False)
+        return torch.fft.irfft(res, 2, norm="forward")

@@ -13,7 +13,7 @@ class TestTorch(TestCase):
         x.requires_grad = True
         angles = torch.FloatTensor(np.linspace(0, 2 * np.pi, 10).astype(np.float32)).to(device)
 
-        radon = Radon(64, angles)
+        radon = Radon(angles, 64)
 
         # check that backward is implemented for fp and bp
         y = radon.forward(x)
@@ -27,7 +27,7 @@ class TestTorch(TestCase):
         """
         device = torch.device('cuda')
         angles = torch.FloatTensor(np.linspace(0, 2 * np.pi, 10).astype(np.float32)).to(device)
-        radon = Radon(64, angles)
+        radon = Radon(angles, 64)
 
         # test with 2 batch dimensions
         x = torch.FloatTensor(2, 3, 64, 64).to(device)

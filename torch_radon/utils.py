@@ -16,6 +16,22 @@ def _unnormalize_shape(y, old_shape):
     return y
 
 
+class ShapeNormalizer:
+    def __init__(self, d):
+        self.d = d
+        self.old_shape = None
+
+    def normalize(self, x):
+        x, self.old_shape = _normalize_shape(x, self.d)
+        return x
+
+    def unnormalize(self, y):
+        if self.old_shape is None:
+            raise Exception("Calling `unnormalize` before `normalize` ")
+
+        return _unnormalize_shape(y, self.old_shape)
+
+
 def normalize_shape(d):
     """
     Input with shape (batch_1, ..., batch_n, s_1, ..., s_d) is reshaped to (batch, s_1, s_2, ...., s_d)

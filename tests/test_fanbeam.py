@@ -3,9 +3,8 @@ import astra
 from nose.tools import assert_less, assert_equal
 import torch
 import numpy as np
-from torch_radon import RadonFanbeam
+from torch_radon import Radon, Projection
 from parameterized import parameterized
-import matplotlib.pyplot as plt
 
 device = torch.device('cuda')
 
@@ -21,19 +20,17 @@ for batch_size in [1, 8]:
             for spacing in [1.0, 0.5, 1.3, 2.0]:
                 for distances in [(1.2, 1.2), (2.0, 2.0), (1.2, 3.0)]:
                     for det_count in [1.0, 1.5]:
-                        for clip_to_circle in [False, True]:
-                            params.append((device, batch_size, image_size, angles, spacing, distances, det_count, clip_to_circle))
+                        params.append((device, batch_size, image_size, angles, spacing, distances, det_count))
 
 half_params = [x for x in params if x[1] % 4 == 0]
 
 
 @parameterized(params)
-def test_fanbeam_error(device, batch_size, image_size, angles, spacing, distances, det_count, clip_to_circle):
+def test_fanbeam_error(device, batch_size, image_size, angles, spacing, distances, det_count):
     # generate random images
     # generate random images
     det_count = int(det_count * image_size)
-    mask_radius = det_count / 2.0 if clip_to_circle else -1
-    x = generate_random_images(1, image_size, mask_radius)[0]
+    x = generate_random_images(1, image_size)[0]
 
     s_dist, d_dist = distances
     s_dist *= image_size
@@ -46,13 +43,12 @@ def test_fanbeam_error(device, batch_size, image_size, angles, spacing, distance
 
     id, astra_y = astra.create_sino(x, proj_id)
     _, astra_bp = astra.create_backprojection(astra_y, proj_id)
-    if clip_to_circle:
-        astra_bp *= circle_mask(image_size, mask_radius)
 
     # TODO clean astra structures
 
     # our implementation
-    radon = RadonFanbeam(image_size, angles, s_dist, d_dist, det_count=det_count, det_spacing=spacing, clip_to_circle=clip_to_circle)
+    projection = Projection.fanbeam(s_dist, d_dist, det_count=det_count, det_spacing=spacing)
+    radon = Radon(angles, image_size, projection)
     x = torch.FloatTensor(x).to(device).view(1, x.shape[0], x.shape[1])
     # repeat data to fill batch size
     x = torch.cat([x] * batch_size, dim=0)
@@ -70,27 +66,26 @@ def test_fanbeam_error(device, batch_size, image_size, angles, spacing, distance
     #     plt.show()
     print(np.max(our_fp.cpu().numpy()), np.max(our_bp.cpu().numpy()))
 
-
     print(
-        f"batch: {batch_size}, size: {image_size}, angles: {len(angles)}, spacing: {spacing}, distances: {distances} circle: {clip_to_circle}, forward: {forward_error}, back: {back_error}")
+        f"batch: {batch_size}, size: {image_size}, angles: {len(angles)}, spacing: {spacing}, distances: {distances}, forward: {forward_error}, back: {back_error}")
     # TODO better checks
     assert_less(forward_error, 1e-2)
     assert_less(back_error, 5e-3)
 
 
 @parameterized(half_params)
-def test_half(device, batch_size, image_size, angles, spacing, distances, det_count, clip_to_circle):
+def test_half(device, batch_size, image_size, angles, spacing, distances, det_count):
     # generate random images
     det_count = int(det_count * image_size)
-    mask_radius = det_count / 2.0 if clip_to_circle else -1
-    x = generate_random_images(batch_size, image_size, mask_radius)
+    x = generate_random_images(batch_size, image_size)
 
     s_dist, d_dist = distances
     s_dist *= image_size
     d_dist *= image_size
 
     # our implementation
-    radon = RadonFanbeam(image_size, angles, s_dist, d_dist, det_count=det_count, det_spacing=spacing, clip_to_circle=clip_to_circle)
+    projection = Projection.fanbeam(s_dist, d_dist, det_count=det_count, det_spacing=spacing)
+    radon = Radon(angles, image_size, projection)
     x = torch.FloatTensor(x).to(device)
 
     # divide by len(angles) to avoid half-precision overflow
@@ -105,7 +100,7 @@ def test_half(device, batch_size, image_size, angles, spacing, distances, det_co
     back_error = relative_error(single_precision.cpu().numpy(), half_precision.cpu().numpy())
 
     print(
-        f"batch: {batch_size}, size: {image_size}, angles: {len(angles)}, spacing: {spacing}, circle: {clip_to_circle}, forward: {forward_error}, back: {back_error}")
+        f"batch: {batch_size}, size: {image_size}, angles: {len(angles)}, spacing: {spacing}, forward: {forward_error}, back: {back_error}")
 
     assert_less(forward_error, 1e-3)
     assert_less(back_error, 1e-3)
