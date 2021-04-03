@@ -2,8 +2,8 @@
 [![Documentation Status](https://readthedocs.org/projects/torch-radon/badge/?version=latest)](http://torch-radon.readthedocs.io/?badge=latest)
 ![GitHub](https://img.shields.io/github/license/matteo-ronchetti/torch-radon)
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/10GdKHk_6346aR4jl5VjPPAod1gTEsza9)
-# TorchRadon: Fast Differentiable Routines for Computed Tomography
 
+# TorchRadon: Fast Differentiable Routines for Computed Tomography
 TorchRadon is a PyTorch extension written in CUDA that implements differentiable routines
 for solving computed tomography (CT) reconstruction problems.
 
@@ -24,8 +24,14 @@ Main features:
 Implemented operations:
  - Parallel Beam projections
  - Fan Beam projections
+ - 3D Conebeam projection
  - Shearlet transform
  
+## Speed
+TorchRadon is much faster than competing libraries:
+![benchmark](https://raw.githubusercontent.com/matteo-ronchetti/tomography-benchmarks/master/figures/tesla_t4_barplot.png)
+See the [Tomography Benchmarks repository](https://github.com/matteo-ronchetti/tomography-benchmarks) for more detailed benchmarks.
+
  
 ## Installation
 Currently only Linux is supported, if you are running a different OS please use Google Colab or the Docker image.
@@ -55,17 +61,6 @@ python setup.py install
 ```
 If you encounter any problem please contact the author or open an issue.
 
-## Benchmarks
-The library is noticeably faster than the Astra Toolbox, especially when data is already on the GPU. Main disadvantage of Astra is that it only takes inputs which are on the CPU, this makes training end-to-end neural networks very inefficient.
-The following benchmark compares the speed of Astra Toolbox and Torch Radon:
-![V100 Benchmark](pictures/v100.png?raw=true)
-
-If we set `clip_to_circle=True` (consider only the part of the image that is inside the circle) the speed difference is even larger:
-![V100 Benchmark circle](pictures/v100_circle.png?raw=true)
-
-These results hold also on a cheap laptop GPU: 
-![GTX1650 Benchmark](pictures/gtx1650.png?raw=true)
-
 ## Cite
 If you are using TorchRadon in your research, please cite the following paper:
 ```
@@ -79,7 +74,7 @@ journal={arXiv preprint arXiv:2009.14788},
 ```
 
 ## Testing
-Install testing dependencies with `pip install -r test_requirements.txt`
+Install testing dependencies with `pip install -r dev_requirements.txt`
 then test with:
 ```shell script
 nosetests tests/

@@ -1,7 +1,7 @@
 from setuptools import setup
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 import os
-from build import build
+from make import build
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
@@ -11,7 +11,7 @@ print(f"Using CUDA_HOME={cuda_home}")
 build(cuda_home=cuda_home)
 
 setup(name='torch_radon',
-      version="1.0.0",
+      version="2.0.0",
       author="Matteo Ronchetti",
       author_email="mttronchetti@gmail.com",
       description="Radon transform in PyTorch",

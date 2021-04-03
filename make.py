@@ -2,9 +2,9 @@ import sys
 from glob import glob
 import os
 import shutil
-import argparse
+import json
 
-from .generate_source import generate_source
+from ptx_annotation import annotate_ptx
 
 
 def mapper(src, dst):
@@ -35,41 +35,37 @@ def run_compilation(files, f):
             print(f"\u001b[32mSkipping {src}\u001b[0m")
 
 
-def render_template(src, dst):
-    template_path = src
-    cu_src_path = src[:-8] + "cu"
+def build(compute_capabilites=(60, 70, 75, 80, 86), debug=False, cuda_home="/usr/local/cuda", cxx="g++",
+          keep_intermediate=True):
 
-    # render template and generate CUDA source code
-    generate_source(template_path, cu_src_path)
-
-    return f"-c {cu_src_path} -o {dst}"
-
-
-CXX_ADDITIONAL_FLAGS = []
-
-
-# 80, 86 are only for CUDA 11
-def build(compute_capabilites=(60, 70, 75), verbose=False, cuda_home="/usr/local/cuda", cxx="g++"):
+    cuda_major_version = int(json.load(open(os.path.join(cuda_home, "version.json")))["cuda"]["version"].split(".")[0])
     nvcc = f"{cuda_home}/bin/nvcc"
     include_dirs = ["./include"]
+    intermediate_dir = "intermediates"
 
-    cu_template_files = mapper("src/*.template", "objs/cuda/*.o")
+    # compute capabilities >= 80 are only for cuda >= 11
+    if cuda_major_version < 11:
+        compute_capabilites = [x for x in compute_capabilites if x < 80]
+
     cu_files = mapper("src/*.cu", "objs/cuda/*.o")
     cpp_files = mapper("src/*.cpp", "objs/*.o")
     cpp_files = [x for x in cpp_files if x[0] != "src/pytorch.cpp"]
 
     all_objects = [y for x, y in cu_files + cpp_files]
 
-    include_flags = [f"-I{x}" for x in include_dirs]
-    cxx_flags = ["-std=c++11 -fPIC -static -static-libgcc -static-libstdc++"] + include_flags + ["-O3"]
-    nvcc_flags = ["-std=c++11", f"-ccbin={cxx}", "-Xcompiler", "-fPIC", "-Xcompiler -static",
-                  "-Xcompiler -static-libgcc", "-Xcompiler -static-libstdc++"] + include_flags + \
-                 [f"-gencode arch=compute_{x},code=sm_{x}" for x in compute_capabilites] + [
-                     "-DNDEBUG -O3 --generate-line-info --compiler-options -Wall"]
+    opt_flags = ["-g", "-DVERBOSE"] if debug else ["-DNDEBUG", "-O3"]
 
-    if verbose:
-        cxx_flags.append("-DVERBOSE")
-        nvcc_flags.append("-DVERBOSE")
+    include_flags = [f"-I{x}" for x in include_dirs]
+    cxx_flags = ["-std=c++11 -fPIC -static"] + include_flags + opt_flags
+    nvcc_base_flags = ["-std=c++11", f"-ccbin={cxx}", "-Xcompiler", "-fPIC", "-Xcompiler -static",
+                       "-Xcompiler -D_GLIBCXX_USE_CXX11_ABI=0"] + include_flags + opt_flags + [
+                           "--generate-line-info --compiler-options -Wall --use_fast_math"]
+    nvcc_flags = nvcc_base_flags + [f"-gencode arch=compute_{x},code=sm_{x}" for x in compute_capabilites]
+
+    if keep_intermediate:
+        if not os.path.exists(intermediate_dir):
+            os.mkdir(intermediate_dir)
+        nvcc_flags.append(f"-keep --keep-dir {intermediate_dir}")
 
     cxx_flags = " ".join(cxx_flags)
     nvcc_flags = " ".join(nvcc_flags)
@@ -79,17 +75,25 @@ def build(compute_capabilites=(60, 70, 75), verbose=False, cuda_home="/usr/local
         os.makedirs("objs/cuda")
 
     # compile
-    run_compilation(cu_template_files, lambda src, dst: f"{nvcc} {nvcc_flags} {render_template(src, dst)}")
     run_compilation(cu_files, lambda src, dst: f"{nvcc} {nvcc_flags} -c {src} -o {dst}")
     run_compilation(cpp_files, lambda src, dst: f"{cxx} {cxx_flags} -c {src} -o {dst}")
 
     run(f"ar rc objs/libradon.a {' '.join(all_objects)}")
 
+    if keep_intermediate:
+        for path in os.listdir(intermediate_dir):
+            if path.endswith(".ptx"):
+                annotate_ptx(os.path.join(intermediate_dir, path))
+            else:
+                os.remove(os.path.join(intermediate_dir, path))
+
 
 def clean():
     print(f"\u001b[32mCleaning\u001b[0m")
-    if os.path.exists("objs"):
-        shutil.rmtree("objs")
+    for f in ["objs", "build", "dist", "intermediates", "torch_radon.egg-info"]:
+        if os.path.exists(f):
+            print(f"Removing '{f}'")
+            shutil.rmtree(f)
 
 
 if __name__ == "__main__":
