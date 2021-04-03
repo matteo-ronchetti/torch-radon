@@ -32,7 +32,7 @@ deploy:
     region: eu-west-1
     bucket: rosh-public
     local_dir: output
-    upload_dir: radon-dev
+    upload_dir: radon-v2
     dot_match: false
     acl: public_read
     overwrite: true
@@ -43,4 +43,4 @@ deploy:
       secure: Zainr9HfLrBmNc6/NqlKs0doVqxn3PtnIi+HC0CwbDj5TCuvEDEjVoDvCbESW3YwK63jYiKVb8I8QU4oGTf1U/xJyYqSdvl4+8mSifWNE8dS3/9H6bqZVWVfML1KOqBnJY6U37w5UDGHH5R0eZnPXpjNDxe9+pavQXTp/SfFiQjt+UUC6hxztESyD/hInNK0YumZ3B7+2KSuD2g/hbdaY5BXAJX3V+adc2HSvZ7l9zPWmNPTt1ehmht4SWaLPgyc/T0rWVp6ELECx0oWINEXIiTkcB0tO5KE/wlYeU1uUztxJF73WsqzckLkqTdarLdCQIH1XdTn4EfM+VnP0N6oF5DezoX0EnHIbbr25MBWZmokdouWFTxW3T+9OFD65goDpQY/taCTqjNZ1vafcn7w5E3KGgzixPCOqxtocWJz4TBNOhHz0WJG2skTsAUz2UNJGtWtzioUjOKZcH7Uuh83XMUKG0B/mp8Uc1xwN38M4qYDexZAtpVvXgrltFi8K2VUWLxoKNHvCyiUMqR+eUTbrQqwnyK0jgxgq1a504oKAztB+B2QVFYQ5PejGCHk6jXWm9Mm4i5pbm1tymp6fvSl7vCkTXjf13VKlMo5yriiq111fswYHn/AMsnUVfyxENwoDISNKiz1MBUO5vIuyb4qEFJzCa8m3vADTQR8QKqkx/Q=
 
     on:
-      branch: dev
+      branch: v2
