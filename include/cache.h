@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <string.h>
+#include "log.h"
 
 using namespace std;
 
@@ -34,6 +35,7 @@ public:
 
         // cache is full and didn't match
         if (i == this->cache_size) {
+            LOG_INFO("Cache is full, consider making it larger to avoid eviction.")
             i -= 1;
             delete this->cache[i];
             this->cache[i] = 0;
@@ -53,9 +55,7 @@ public:
     }
 
     void free() {
-#ifdef VERBOSE
-        cout << "[TORCH RADON] Freeing cache" << endl;
-#endif
+        LOG_DEBUG("Freeing cache");
         for (uint i = 0; i < this->cache_size; i++) {
             if (this->cache[i] != 0) {
                 delete this->cache[i];

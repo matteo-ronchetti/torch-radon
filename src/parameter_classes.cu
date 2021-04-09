@@ -1,5 +1,7 @@
 #include "parameter_classes.h"
 #include "utils.h"
+#include <cuda.h>
+
 
 VolumeCfg::VolumeCfg(int d, int h, int w, float _dz, float _dy, float _dx, float _sz, float _sy, float _sx, bool ddd)
         : depth(d), height(h), width(w),
@@ -28,21 +30,16 @@ ProjectionCfg ProjectionCfg::copy() const{
     return ProjectionCfg(*this);
 }
 
-//std::string ProjectionCfg::to_string() const{
-//    switch(projection_type){
-//        case PARALLEL:
-//            return string_format("Projection(type=ParallelBeam, det_count=%d, det_spacing=%f)", det_count_u, det_spacing_u);
-//        default:
-//            return "TODO";
-//    }
-//}
 
+ExecCfg::ExecCfg(int x, int y, int z, int ch)
+        :bx(x), by(y), bz(z), channels(ch) {}
 
-ExecCfg::ExecCfg(int x, int y, int z, int ch, float sr)
-        :block_dim(x, y, z), channels(ch), sampling_rate(sr) {}
+dim3 ExecCfg::get_block_dim() const{
+    return dim3(bx, by, bz);
+}
 
 dim3 ExecCfg::get_grid_size(int x, int y, int z) const{
-    return dim3(roundup_div(x, block_dim.x), roundup_div(y, block_dim.y), roundup_div(z, block_dim.z));
+    return dim3(roundup_div(x, bx), roundup_div(y, by), roundup_div(z, bz));
 }
 
 int ExecCfg::get_channels(int batch_size) const{

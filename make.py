@@ -32,11 +32,11 @@ def run_compilation(files, f):
             command = f(src, dst)
             run(command)
         else:
-            print(f"\u001b[32mSkipping {src}\u001b[0m")
+            print(f"\u001b[32mAlready compiled {src}\u001b[0m")
 
 
-def build(compute_capabilites=(60, 70, 75, 80, 86), debug=False, cuda_home="/usr/local/cuda", cxx="g++",
-          keep_intermediate=True):
+def build(compute_capabilities=(60, 70, 75, 80, 86), debug=False, cuda_home="/usr/local/cuda", cxx="g++",
+          keep_intermediate=False):
 
     cuda_major_version = int(json.load(open(os.path.join(cuda_home, "version.json")))["cuda"]["version"].split(".")[0])
     nvcc = f"{cuda_home}/bin/nvcc"
@@ -45,7 +45,7 @@ def build(compute_capabilites=(60, 70, 75, 80, 86), debug=False, cuda_home="/usr
 
     # compute capabilities >= 80 are only for cuda >= 11
     if cuda_major_version < 11:
-        compute_capabilites = [x for x in compute_capabilites if x < 80]
+        compute_capabilities = [x for x in compute_capabilities if x < 80]
 
     cu_files = mapper("src/*.cu", "objs/cuda/*.o")
     cpp_files = mapper("src/*.cpp", "objs/*.o")
@@ -53,14 +53,14 @@ def build(compute_capabilites=(60, 70, 75, 80, 86), debug=False, cuda_home="/usr
 
     all_objects = [y for x, y in cu_files + cpp_files]
 
-    opt_flags = ["-g", "-DVERBOSE"] if debug else ["-DNDEBUG", "-O3"]
+    opt_flags = ["-g"] if debug else ["-DNDEBUG", "-O3"]
 
     include_flags = [f"-I{x}" for x in include_dirs]
-    cxx_flags = ["-std=c++11 -fPIC -static"] + include_flags + opt_flags
+    cxx_flags = ["-std=c++11 -fPIC -static -D_GLIBCXX_USE_CXX11_ABI=0"] + include_flags + opt_flags
     nvcc_base_flags = ["-std=c++11", f"-ccbin={cxx}", "-Xcompiler", "-fPIC", "-Xcompiler -static",
                        "-Xcompiler -D_GLIBCXX_USE_CXX11_ABI=0"] + include_flags + opt_flags + [
                            "--generate-line-info --compiler-options -Wall --use_fast_math"]
-    nvcc_flags = nvcc_base_flags + [f"-gencode arch=compute_{x},code=sm_{x}" for x in compute_capabilites]
+    nvcc_flags = nvcc_base_flags + [f"-gencode arch=compute_{x},code=sm_{x}" for x in compute_capabilities]
 
     if keep_intermediate:
         if not os.path.exists(intermediate_dir):
@@ -96,14 +96,29 @@ def clean():
             shutil.rmtree(f)
 
 
-if __name__ == "__main__":
-    # args = argparse.ArgumentParser()
-    # args.add_argument("-cuda-home", default=os.getenv("CUDA_HOME", "/usr/local/cuda"))
-    #
-    # args = args.parse_args()
-    # print(args.cuda_home)
+def detect_compute_capabilities():
+    import torch
+    ccs = []
+    for i in range(torch.cuda.device_count()):
+        compute_capability = torch.cuda.get_device_capability(i)
+        ccs.append(compute_capability[0]*10 + compute_capability[1])
 
-    if len(sys.argv) < 2 or sys.argv[1] == "build":
-        build(cuda_home=os.getenv("CUDA_HOME", "/usr/local/cuda"))
-    elif sys.argv[1] == "clean":
+    return ccs
+
+
+if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] == "clean":
         clean()
+    else:
+        cuda_home = os.getenv("CUDA_HOME", "/usr/local/cuda")
+        compute_capabilities = (60, 70, 75, 80, 86)
+        debug = "--debug" in sys.argv
+        cxx = os.getenv("CXX", "g++")
+        keep_intermediate = "--keep-intermediate" in sys.argv
+
+        if "--local" in sys.argv:
+            print("Detecting compute capabilities of local GPUs")
+            compute_capabilities = detect_compute_capabilities()
+            print("Compiling for compute capability", " and ".join([str(x) for x in compute_capabilities]))
+
+        build(compute_capabilities, debug, cuda_home, cxx, keep_intermediate)

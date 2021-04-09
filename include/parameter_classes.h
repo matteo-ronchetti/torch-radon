@@ -1,13 +1,13 @@
 #include <string>
-#include <cuda.h>
 #include "defines.h"
-#include "utils.h"
-
 
 #ifndef TORCH_RADON_PARAMETER_CLASSES_H
 #define TORCH_RADON_PARAMETER_CLASSES_H
 
-class VolumeCfg {
+struct dim3;
+
+class VolumeCfg
+{
 public:
     // dimensions of the measured volume
     int depth;
@@ -34,7 +34,8 @@ public:
     VolumeCfg(int d, int h, int w, float _dz, float _dy, float _dx, float _sz, float _sy, float _sx, bool ddd);
 };
 
-class ProjectionCfg {
+class ProjectionCfg
+{
 public:
     // number of pixels of the detector and spacing
     int det_count_u;
@@ -54,31 +55,27 @@ public:
 
     int projection_type;
 
-    ProjectionCfg(int dc_u, float ds_u, int dc_v=0, float ds_v=1.0f, float sd=0.0f, float dd=0.0f,
-                  float pi=0.0f, float iz=0.0f, int pt=0);
+    ProjectionCfg(int dc_u, float ds_u, int dc_v = 0, float ds_v = 1.0f, float sd = 0.0f, float dd = 0.0f,
+                  float pi = 0.0f, float iz = 0.0f, int pt = 0);
 
-    ProjectionCfg(const ProjectionCfg& src);
+    ProjectionCfg(const ProjectionCfg &src);
 
     bool is_2d() const;
 
     ProjectionCfg copy() const;
-
-//    __device__ __inline__ float det_pixel_pos_u(int p) const {
-//        //get the position of the detector pixel p on the u axis
-//        return (p - det_count_u * 0.5f + 0.5f) * det_spacing_u;
-//    }
+    
 };
 
-class ExecCfg {
+class ExecCfg
+{
 public:
-    dim3 block_dim;
+    int bx, by, bz;
 
     int channels;
 
-    float sampling_rate;
+    ExecCfg(int x, int y, int z, int ch);
 
-    ExecCfg(int x, int y, int z, int ch, float sr);
-
+    dim3 get_block_dim() const;
     dim3 get_grid_size(int x, int y = 1, int z = 1) const;
 
     int get_channels(int batch_size) const;

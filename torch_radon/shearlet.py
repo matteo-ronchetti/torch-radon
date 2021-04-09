@@ -22,6 +22,7 @@ class ShearletTransform:
     .. note::
         Support both float and double precision.
     """
+
     def __init__(self, width, height, alphas, cache=None):
         cache_name = f"{width}_{height}_{alphas}.npy"
         if cache is not None:
@@ -37,11 +38,8 @@ class ShearletTransform:
                 np.save(cache_file, shifted_spectrograms)
         else:
             alpha_shearlet = AlphaShearletTransform(width, height, alphas, real=True, parseval=True)
-            scales = [0] + [x[0] for x in alpha_shearlet.indices[1:]]
-            self.scales = np.asarray(scales)
             shifted_spectrograms = np.asarray([my_ifft_shift(spec) for spec in alpha_shearlet.spectrograms])
 
-        self.scales = torch.FloatTensor(self.scales)
         self.shifted_spectrograms = torch.FloatTensor(shifted_spectrograms)
 
         self.shifted_spectrograms_d = torch.DoubleTensor(shifted_spectrograms)
@@ -64,7 +62,6 @@ class ShearletTransform:
 
         c = torch.fft.rfft(x, 2, norm="forward")
         print(self.shifted_spectrograms.size(), c.size())
-
 
         if x.dtype == torch.float64:
             cs = torch.einsum("fij,bijc->bfijc", self.shifted_spectrograms_d, c)

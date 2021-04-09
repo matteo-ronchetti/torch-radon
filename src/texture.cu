@@ -29,7 +29,7 @@ std::ostream &operator<<(std::ostream &os, TextureConfig const &m) {
     std::string precision = m.precision == PRECISION_FLOAT ? "float" : "half";
 
     return os << "(device: " << m.device << ", depth: " << m.depth << ", height: " << m.height << ", width: " << m.width
-              << ", channels: " << m.channels << ", precision: " << precision << ", is layered: " << m.is_layered  << ")";
+              << ", channels: " << m.channels << ", precision: " << precision << ", " << (m.is_layered ? "layered" : "not layered" ) << ")";
 }
 
 template<int texture_type>
@@ -106,17 +106,15 @@ cudaChannelFormatDesc get_channel_desc(int channels, int precision) {
     if (precision == PRECISION_HALF && channels == 4) {
         return cudaCreateChannelDesc(16, 16, 16, 16, cudaChannelFormatKindFloat);
     }
-    std::cerr << "[TORCH RADON] ERROR unsupported number of channels and precision (channels:" << channels
-              << ", precision: " << precision << ")" << std::endl;
+    
+    LOG_WARNING("Unsupported number of channels and precision (channels:" << channels << ", precision: " << precision << ")");
     return cudaCreateChannelDesc(16, 16, 16, 16, cudaChannelFormatKindFloat);
 }
 
 Texture::Texture(TextureConfig c) :cfg(c) {
     checkCudaErrors(cudaSetDevice(this->cfg.device));
 
-#ifdef VERBOSE
-    std::cout << "[TORCH RADON] Allocating Texture " << this->cfg << std::endl;
-#endif
+    LOG_INFO("Allocating Texture " << this->cfg);
 
     // Allocate CUDA array
     cudaChannelFormatDesc channelDesc = get_channel_desc(cfg.channels, cfg.precision);
@@ -150,7 +148,7 @@ Texture::Texture(TextureConfig c) :cfg(c) {
 
 void Texture::put(const float *data) {
     if (this->cfg.precision == PRECISION_HALF) {
-        std::cerr << "[TORCH RADON] ERROR putting half precision data into a float texture" << std::endl;
+        LOG_WARNING("Putting half precision data into a float texture");
     }
 
     checkCudaErrors(cudaSetDevice(this->cfg.device));
@@ -192,7 +190,7 @@ void Texture::put(const float *data) {
 
 void Texture::put(const unsigned short *data) {
     if (this->cfg.precision == PRECISION_FLOAT) {
-        std::cerr << "[TORCH RADON] ERROR putting single precision data into a half precision texture" << std::endl;
+        LOG_WARNING("Putting single precision data into a half precision texture");
     }
 
     checkCudaErrors(cudaSetDevice(this->cfg.device));
@@ -219,9 +217,8 @@ bool Texture::matches(TextureConfig &c) {
 }
 
 Texture::~Texture() {
-#ifdef VERBOSE
-    std::cout << "[TORCH RADON] Freeing Texture " << this->cfg << std::endl;
-#endif
+    LOG_DEBUG("[TORCH RADON] Freeing Texture " << this->cfg);
+
     if (this->array != nullptr) {
         checkCudaErrors(cudaSetDevice(this->cfg.device));
         checkCudaErrors(cudaDestroyTextureObject(this->texture));

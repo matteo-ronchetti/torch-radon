@@ -6,13 +6,13 @@
 #include "utils.h"
 #include "texture.h"
 #include "parameter_classes.h"
+#include "log.h"
 
 
 template<bool parallel_beam, int channels, typename T>
 __global__ void
 radon_forward_kernel(T *__restrict__ output, cudaTextureObject_t texture, const float *__restrict__ angles,
-                     const VolumeCfg vol_cfg, const ProjectionCfg proj_cfg, const float sampling_rate=1.0) {
-    // TODO sampling rate is not beneficial at all... remove it
+                     const VolumeCfg vol_cfg, const ProjectionCfg proj_cfg) {
 
     // Calculate texture coordinates
     const int ray_id = blockIdx.x * blockDim.x + threadIdx.x;
@@ -48,10 +48,10 @@ radon_forward_kernel(T *__restrict__ output, cudaTextureObject_t texture, const 
         const float sn = __sinf(angle);
 
         // start position rs and direction rd (in detector coordinate system)
-        float rsx = sx * cs - sy * sn;
-        float rsy = sx * sn + sy * cs;
-        float rdx = ex * cs - ey * sn - rsx;
-        float rdy = ex * sn + ey * cs - rsy;
+        float rsx = sx * cs + sy * sn;
+        float rsy = -sx * sn + sy * cs;
+        float rdx = ex * cs + ey * sn - rsx;
+        float rdy = -ex * sn + ey * cs - rsy;
 
         // convert coordinates to volume coordinate system
         const float vol_orig_x = vol_cfg.dx - 0.5f * vol_cfg.width * vol_cfg.sx;
@@ -61,27 +61,19 @@ radon_forward_kernel(T *__restrict__ output, cudaTextureObject_t texture, const 
         rdx = rdx * vol_cfg.inv_scale_x; 
         rdy = rdy * vol_cfg.inv_scale_y; 
 
-//        if(angle_id == 0 && ray_id < 3){
-//            printf("%d %d\n", pitch, blockDim.z);
-////            printf("O %f %f -> %f %f\n", rsx, rsy, rdx, rdy);
-//        }
 
         // clip to volume (to reduce memory reads)
-        // TODO pad is not used... remove it
-        constexpr float pad = 0.0f;
-
         float dx = rdx >= 0 ? max(rdx, 1e-6) : min(rdx, -1e-6);
         float dy = rdy >= 0 ? max(rdy, 1e-6) : min(rdy, -1e-6);
 
-        const float alpha_x_m = (- pad - rsx) / dx;
-        const float alpha_x_p = (vol_cfg.width + pad - rsx) / dx;
-        const float alpha_y_m = (- pad - rsy) / dy;
-        const float alpha_y_p = (vol_cfg.height + pad - rsy) / dy;
+        const float alpha_x_m = (- rsx) / dx;
+        const float alpha_x_p = (vol_cfg.width - rsx) / dx;
+        const float alpha_y_m = (- rsy) / dy;
+        const float alpha_y_p = (vol_cfg.height - rsy) / dy;
         const float alpha_s = max(min(alpha_x_p, alpha_x_m), min(alpha_y_p, alpha_y_m));
         const float alpha_e = min(max(alpha_x_p, alpha_x_m), max(alpha_y_p, alpha_y_m));
 
         // if ray volume intersection is empty exit
-        // TODO use goto?
         if (alpha_s > alpha_e) {
 #pragma unroll
             for (int b = 0; b < channels; b++) output[base + b * pitch] = 0.0f;
@@ -93,14 +85,11 @@ radon_forward_kernel(T *__restrict__ output, cudaTextureObject_t texture, const 
         rdx *= (alpha_e - alpha_s);
         rdy *= (alpha_e - alpha_s);
 
-//        const uint n_steps = __float2uint_ru(hypot(rdx, rdy));
-        // const int n_steps = __float2int_ru(sampling_rate*max(abs(rdx), abs(rdy)));
         const int n_steps = __float2int_rn(max(abs(rdx), abs(rdy)));
         const float vx = rdx / max(abs(rdx), abs(rdy));
         const float vy = rdy / max(abs(rdx), abs(rdy));
         const float n = hypot(vx * vol_cfg.sx, vy * vol_cfg.sy);
         
-        // TODO optimize this "if" mess
         float step;
         if(abs(rdy) >= abs(rdx)){
             float y_increment = 0.5f - rsy + __float2int_rn(rsy);
@@ -129,7 +118,7 @@ radon_forward_kernel(T *__restrict__ output, cudaTextureObject_t texture, const 
             rsx += vx;
             rsy += vy;
         }
-
+        
         #pragma unroll
         for (int b = 0; b < channels; b++) output[base + b * pitch] = accumulator[b] * n;
     }
@@ -151,37 +140,36 @@ void radon_forward_cuda(
     tex->put(x);
 
     // Invoke kernel
-    dim3 grid_dim = exec_cfg.get_grid_size(proj_cfg.det_count_u, proj_cfg.n_angles, batch_size / channels);
+    const dim3 grid_dim = exec_cfg.get_grid_size(proj_cfg.det_count_u, proj_cfg.n_angles, batch_size / channels);
+    const dim3 block_dim = exec_cfg.get_block_dim();
 
-#ifdef VERBOSE
-    std::cout << "Block Size x:" << exec_cfg.block_dim.x << " y:" << exec_cfg.block_dim.y << " z:" << exec_cfg.block_dim.z << std::endl;
-    std::cout << "Grid Size x:" << grid_dim.x << " y:" << grid_dim.y << " z:" << grid_dim.z << std::endl;
-#endif
+    LOG_DEBUG("Block Size x:" << block_dim.x << " y:" << block_dim.y << " z:" << block_dim.z);
+    LOG_DEBUG("Grid Size x:" << grid_dim.x << " y:" << grid_dim.y << " z:" << grid_dim.z);
 
     if (proj_cfg.projection_type == FANBEAM) {
         if (channels == 1) {
-            radon_forward_kernel<false, 1> << < grid_dim, exec_cfg.block_dim >> >
-                                                                     ((float*)y, tex->texture, angles, vol_cfg, proj_cfg, exec_cfg.sampling_rate);
+            radon_forward_kernel<false, 1> << < grid_dim, block_dim >> >
+                                                                     ((float*)y, tex->texture, angles, vol_cfg, proj_cfg);
         } else {
             if (is_float) {
-                radon_forward_kernel<false, 4> << < grid_dim, exec_cfg.block_dim >> >
-                                                                         ((float*)y, tex->texture, angles, vol_cfg, proj_cfg, exec_cfg.sampling_rate);
+                radon_forward_kernel<false, 4> << < grid_dim, block_dim >> >
+                                                                         ((float*)y, tex->texture, angles, vol_cfg, proj_cfg);
             } else {
-                radon_forward_kernel<false, 4> << < grid_dim, exec_cfg.block_dim >> >
-                                                                         ((__half *) y, tex->texture, angles, vol_cfg, proj_cfg, exec_cfg.sampling_rate);
+                radon_forward_kernel<false, 4> << < grid_dim, block_dim >> >
+                                                                         ((__half *) y, tex->texture, angles, vol_cfg, proj_cfg);
             }
         }
     } else {
         if (channels == 1) {
-            radon_forward_kernel<true, 1> << < grid_dim, exec_cfg.block_dim >> >
-                                                                    ((float*)y, tex->texture, angles, vol_cfg, proj_cfg, exec_cfg.sampling_rate);
+            radon_forward_kernel<true, 1> << < grid_dim, block_dim >> >
+                                                                    ((float*)y, tex->texture, angles, vol_cfg, proj_cfg);
         } else {
             if (is_float) {
-                radon_forward_kernel<true, 4> << < grid_dim, exec_cfg.block_dim >> >
-                                                                        ((float*)y, tex->texture, angles, vol_cfg, proj_cfg, exec_cfg.sampling_rate);
+                radon_forward_kernel<true, 4> << < grid_dim, block_dim >> >
+                                                                        ((float*)y, tex->texture, angles, vol_cfg, proj_cfg);
             } else {
-                radon_forward_kernel<true, 4> << < grid_dim, exec_cfg.block_dim >> >
-                                                                        ((__half *) y, tex->texture, angles, vol_cfg, proj_cfg, exec_cfg.sampling_rate);
+                radon_forward_kernel<true, 4> << < grid_dim, block_dim >> >
+                                                                        ((__half *) y, tex->texture, angles, vol_cfg, proj_cfg);
             }
         }
     }
@@ -313,7 +301,9 @@ void radon_forward_cuda_3d(
     Texture *tex = tex_cache.get(
             {device, vol_cfg.depth, vol_cfg.height, vol_cfg.width, false, channels, precision});
 
-    dim3 grid_dim = exec_cfg.get_grid_size(proj_cfg.det_count_u, proj_cfg.n_angles, proj_cfg.det_count_v);
+    const dim3 grid_dim = exec_cfg.get_grid_size(proj_cfg.det_count_u, proj_cfg.n_angles, proj_cfg.det_count_v);
+    const dim3 block_dim = exec_cfg.get_block_dim();
+
 
     for (int i = 0; i < batch_size; i += channels) {
         T *local_y = &y[i * proj_cfg.det_count_u * proj_cfg.det_count_v * proj_cfg.n_angles];
@@ -321,14 +311,14 @@ void radon_forward_cuda_3d(
 
         // Invoke kernel
         if (channels == 1) {
-            radon_forward_kernel_3d<1> << < grid_dim, exec_cfg.block_dim >> >
+            radon_forward_kernel_3d<1> << < grid_dim, block_dim >> >
                                                       (local_y, tex->texture, angles, vol_cfg, proj_cfg);
         } else {
             if (is_float) {
-                radon_forward_kernel_3d<4> << < grid_dim, exec_cfg.block_dim >> >
+                radon_forward_kernel_3d<4> << < grid_dim, block_dim >> >
                                                           (local_y, tex->texture, angles, vol_cfg, proj_cfg);
             } else {
-                radon_forward_kernel_3d<4> << < grid_dim, exec_cfg.block_dim >> >
+                radon_forward_kernel_3d<4> << < grid_dim, block_dim >> >
                                                           ((__half *) local_y, tex->texture, angles, vol_cfg, proj_cfg);
             }
         }

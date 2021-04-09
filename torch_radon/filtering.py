@@ -20,7 +20,7 @@ class FourierFilters:
         key = (size, filter_name)
 
         if key not in self.cache:
-            ff = torch.FloatTensor(self.construct_fourier_filter(size, filter_name)).view(1, 1, -1).to(device)
+            ff = torch.FloatTensor(self.construct_fourier_filter(size, filter_name)).view(1, 1, -1, 1).to(device)
             self.cache[key] = ff
 
         return self.cache[key].to(device)

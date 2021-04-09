@@ -27,7 +27,6 @@ radon_backward_kernel(T *__restrict__ output, cudaTextureObject_t texture, const
     const float sdx = dx * ids;
     const float sdy = dy * ids;
 
-//    const uint batch_id = blockIdx.z * channels;
     const int base = x + vol_cfg.width * (y + vol_cfg.height * blockIdx.z);
     const int pitch = vol_cfg.width * vol_cfg.height * blockDim.z * gridDim.z;
 
@@ -35,7 +34,7 @@ radon_backward_kernel(T *__restrict__ output, cudaTextureObject_t texture, const
 
     for (int i = tid; i < proj_cfg.n_angles; i += 256) {
         float2 tmp;
-        tmp.x = __sinf(angles[i]);
+        tmp.x = -__sinf(angles[i]);
         tmp.y = __cosf(angles[i]);
         sincos[i] = tmp;
     }
@@ -123,7 +122,7 @@ void radon_backward_cuda(
     tex->put(x);
 
     // dim3 block_dim(16, 16);
-    dim3 block_dim = exec_cfg.block_dim;
+    dim3 block_dim = exec_cfg.get_block_dim();
     dim3 grid_dim = exec_cfg.get_grid_size(vol_cfg.width, vol_cfg.height, batch_size / channels);
 
     // Invoke kernel
@@ -258,6 +257,7 @@ void radon_backward_cuda_3d(
             {device, proj_cfg.n_angles, proj_cfg.det_count_v, proj_cfg.det_count_u, true, channels, precision});
 
     dim3 grid_dim = exec_cfg.get_grid_size(vol_cfg.width, vol_cfg.height, vol_cfg.depth);
+    const dim3 block_dim = exec_cfg.get_block_dim();
 
     for (int i = 0; i < batch_size; i += channels) {
         T *local_y = &y[i * vol_cfg.depth * vol_cfg.height * vol_cfg.width];
@@ -265,14 +265,14 @@ void radon_backward_cuda_3d(
 
         // Invoke kernel
         if (channels == 1) {
-            radon_backward_kernel_3d<1> << < grid_dim, exec_cfg.block_dim >> >
+            radon_backward_kernel_3d<1> << < grid_dim, block_dim >> >
                                                        (local_y, tex->texture, angles, vol_cfg, proj_cfg);
         } else {
             if (is_float) {
-                radon_backward_kernel_3d<4> << < grid_dim, exec_cfg.block_dim >> >
+                radon_backward_kernel_3d<4> << < grid_dim, block_dim >> >
                                                            (local_y, tex->texture, angles, vol_cfg, proj_cfg);
             } else {
-                radon_backward_kernel_3d<4> << < grid_dim, exec_cfg.block_dim >> >
+                radon_backward_kernel_3d<4> << < grid_dim, block_dim >> >
                                                            ((__half *) local_y, tex->texture, angles, vol_cfg, proj_cfg);
             }
         }
