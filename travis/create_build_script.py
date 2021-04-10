@@ -43,11 +43,13 @@ for cuda, python in python_and_cuda:
 for cuda, python, torch in configs:
     cuda_full = f"{cuda // 10}.{cuda % 10}"
     python_full = f"{python // 10}.{python % 10}"
+    torch_full = f"{torch // 10}.{torch % 10}"
+
     script += [
         "",
-        f"# Python {python}, PyTorch {torch}, CUDA {cuda_full}",
-        f"mkdir -p output/cuda-{cuda_full}/torch-{torch}",
-        f"conda install -n py{python}cu{cuda} pytorch={torch} cudatoolkit={cuda_full} -c pytorch",
+        f"# Python {python}, PyTorch {torch_full}, CUDA {cuda_full}",
+        f"mkdir -p output/cuda-{cuda_full}/torch-{torch_full}",
+        f"conda install -n py{python}cu{cuda} pytorch={torch_full} cudatoolkit={cuda_full} -c pytorch",
         f"source /root/miniconda3/bin/activate py{python}cu{cuda}",
         "python --version",
         'python -c "import torch; print(torch.version.cuda)"',
@@ -56,7 +58,7 @@ for cuda, python, torch in configs:
         # force recompilation otherwise will reuse builds even if CUDA version changes
         "python setup.py build_ext --force",
         "python setup.py bdist_wheel",
-        f"mv dist/*.whl output/cuda-{cuda_full}/torch-{torch}/"
+        f"mv dist/*.whl output/cuda-{cuda_full}/torch-{torch_full}/"
     ]
 
 with open("/code/travis/do_build.sh", "w") as f:
