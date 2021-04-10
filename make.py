@@ -2,7 +2,8 @@ import sys
 from glob import glob
 import os
 import shutil
-import json
+import subprocess
+import re
 
 from ptx_annotation import annotate_ptx
 
@@ -34,17 +35,26 @@ def run_compilation(files, f):
         else:
             print(f"\u001b[32mAlready compiled {src}\u001b[0m")
 
+def get_cuda_version(cuda_home):
+    print("")
+    print(cuda_home)
+    
+    nvcc_out = subprocess.run([f"{cuda_home}/bin/nvcc", "--version"], stdout=subprocess.PIPE).stdout.decode('utf-8')
+    m = re.search(r"V[0-9]+.[0-9]+", nvcc_out)
+    str_version = m.group(0)[1:]
+
+    return int(str_version.replace(".", ""))
 
 def build(compute_capabilities=(60, 70, 75, 80, 86), debug=False, cuda_home="/usr/local/cuda", cxx="g++",
           keep_intermediate=False):
 
-    cuda_major_version = int(json.load(open(os.path.join(cuda_home, "version.json")))["cuda"]["version"].split(".")[0])
+    cuda_version = get_cuda_version(cuda_home)
     nvcc = f"{cuda_home}/bin/nvcc"
     include_dirs = ["./include"]
     intermediate_dir = "intermediates"
 
     # compute capabilities >= 80 are only for cuda >= 11
-    if cuda_major_version < 11:
+    if cuda_version < 110:
         compute_capabilities = [x for x in compute_capabilities if x < 80]
 
     cu_files = mapper("src/*.cu", "objs/cuda/*.o")
