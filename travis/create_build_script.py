@@ -21,7 +21,7 @@ for cu, pt, py in re.findall(regex, txt):
 configs = list(set(configs))
 python_and_cuda = list(set([(cuda, python) for cuda, python, _ in configs]))
 
-print(f"Need to create {len(python_and_cuda)} environments")
+# print(f"Need to create {len(python_and_cuda)} environments")
 print(f"Need to compile {len(configs)} packages")
 
 script = [
@@ -31,26 +31,29 @@ script = [
     "export CXX=g++"
 ]
 
-for cuda, python in python_and_cuda:
-    cuda_full = f"{cuda // 10}.{cuda % 10}"
-    python_full = f"{python // 10}.{python % 10}"
-    script += [
-        "",
-        f"# Virtualenv Python {python}, CUDA {cuda_full}",
-        f"conda create -n py{python}cu{cuda} python={python_full}"
-    ]
+# for cuda, python in python_and_cuda:
+#     cuda_full = f"{cuda // 10}.{cuda % 10}"
+#     python_full = f"{python // 10}.{python % 10}"
+#     script += [
+#         "",
+#         f"# Virtualenv Python {python}, CUDA {cuda_full}",
+#         f"conda create -n py{python}cu{cuda} python={python_full}"
+#     ]
 
 for cuda, python, torch in configs:
     cuda_full = f"{cuda // 10}.{cuda % 10}"
     python_full = f"{python // 10}.{python % 10}"
     torch_full = f"{torch // 10}.{torch % 10}"
+    env = f"py{python}cu{cuda}pt{torch}"
 
     script += [
         "",
         f"# Python {python}, PyTorch {torch_full}, CUDA {cuda_full}",
         f"mkdir -p output/cuda-{cuda_full}/torch-{torch_full}",
-        f"conda install -n py{python}cu{cuda} pytorch={torch_full} cudatoolkit={cuda_full} -c pytorch",
-        f"source /root/miniconda3/bin/activate py{python}cu{cuda}",
+        f"conda create -n {env} python={python_full}",
+        f"conda install -n {env} py{python}cu{cuda} pytorch={torch_full} cudatoolkit={cuda_full} -c pytorch",
+        f"source /root/miniconda3/bin/activate {env}",
+        "pip install Demangler",
         "python --version",
         'python -c "import torch; print(torch.version.cuda)"',
         "python make.py clean",
