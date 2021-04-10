@@ -51,7 +51,7 @@ for cuda, python, torch in configs:
         f"# Python {python}, PyTorch {torch_full}, CUDA {cuda_full}",
         f"mkdir -p output/cuda-{cuda_full}/torch-{torch_full}",
         f"conda create -n {env} python={python_full}",
-        f"conda install -n {env} py{python}cu{cuda} pytorch={torch_full} cudatoolkit={cuda_full} -c pytorch",
+        f"conda install -n {env} pytorch={torch_full} cudatoolkit={cuda_full} -c pytorch -c conda-forge",
         f"source /root/miniconda3/bin/activate {env}",
         "pip install Demangler",
         "python --version",
