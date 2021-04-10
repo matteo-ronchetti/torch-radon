@@ -48,8 +48,8 @@ for i, (cuda, python, torch) in enumerate(configs):
 
     script += [
         f"# Python {python}, PyTorch {torch_full}, CUDA {cuda_full}",
-        f"echo 'Python {python}, PyTorch {torch_full}, CUDA {cuda_full}'"
-        f"echo 'Progress {int(100*(i+1) / len(configs))}% ({i+1}/{len(configs)})'"
+        f"printf 'Python {python}, PyTorch {torch_full}, CUDA {cuda_full}\n'",
+        f"printf 'Progress {int(100*(i+1) / len(configs))}%% ({i+1}/{len(configs)})\n'",
         f"mkdir -p output/cuda-{cuda_full}/torch-{torch_full}",
         f"conda create -n {env} python={python_full}",
         f"conda install -n {env} pytorch={torch_full} cudatoolkit={cuda_full} -c pytorch -c conda-forge",
@@ -66,7 +66,7 @@ for i, (cuda, python, torch) in enumerate(configs):
         "conda deactivate",
         f"conda env remove -n {env}",
         "conda clean -ayf",
-        "echo 'Disk free'",
+        "printf 'Disk free\n'",
         "df -h"
     ]
 
