@@ -28,9 +28,9 @@ class ExecCfgGeneratorBase:
     def __call__(self, vol_cfg, proj_cfg, is_half):
         if proj_cfg.projection_type == 2:
             ch = 4 if is_half else 1
-            return ExecCfg(8, 16, 8, ch, 1.0)
+            return ExecCfg(8, 16, 8, ch)
 
-        return ExecCfg(16, 16, 1, 4, 1.0)
+        return ExecCfg(16, 16, 1, 4)
 
 
 class Radon:

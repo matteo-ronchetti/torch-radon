@@ -398,7 +398,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         .def_readwrite("n_angles", &ProjectionCfg::n_angles);
 
     py::class_<ExecCfg>(m, "ExecCfg")
-        .def(py::init<int, int, int, int, float>());
+        .def(py::init<int, int, int, int>());
 
     py::class_<SymbolicFunction>(m, "SymbolicFunction")
         .def(py::init<>())

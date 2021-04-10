@@ -35,15 +35,17 @@ def run_compilation(files, f):
         else:
             print(f"\u001b[32mAlready compiled {src}\u001b[0m")
 
+
 def get_cuda_version(cuda_home):
     print("")
     print(cuda_home)
-    
+
     nvcc_out = subprocess.run([f"{cuda_home}/bin/nvcc", "--version"], stdout=subprocess.PIPE).stdout.decode('utf-8')
     m = re.search(r"V[0-9]+.[0-9]+", nvcc_out)
     str_version = m.group(0)[1:]
 
     return int(str_version.replace(".", ""))
+
 
 def build(compute_capabilities=(60, 70, 75, 80, 86), debug=False, cuda_home="/usr/local/cuda", cxx="g++",
           keep_intermediate=False):

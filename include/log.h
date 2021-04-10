@@ -50,11 +50,4 @@ namespace Log
         Log::log(Log::Level::Error, oss.str(), __FILE__, __LINE__); \
     }
 
-#define LOG(_level_, _message_)                           \
-    {                                                     \
-        std::ostringstream oss;                           \
-        oss << _message_;                                 \
-        Log::log(_level_, oss.str(), __FILE__, __LINE__); \
-    }
-
 #endif
