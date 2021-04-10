@@ -14,10 +14,10 @@ for cu, pt, py in re.findall(regex, txt):
     cuda = int(cu)
     python = int(py)
     pytorch = int(pt[:3].replace(".", ""))
-    
+
     if cuda >= 100 and python >= 36 and pytorch >= 15:
         configs.append((cuda, python, pytorch))
-        
+
 configs = list(set(configs))
 python_and_cuda = list(set([(cuda, python) for cuda, python, _ in configs]))
 
@@ -40,15 +40,16 @@ script = [
 #         f"conda create -n py{python}cu{cuda} python={python_full}"
 #     ]
 
-for cuda, python, torch in configs:
+for i, (cuda, python, torch) in enumerate(configs):
     cuda_full = f"{cuda // 10}.{cuda % 10}"
     python_full = f"{python // 10}.{python % 10}"
     torch_full = f"{torch // 10}.{torch % 10}"
     env = f"py{python}cu{cuda}pt{torch}"
 
     script += [
-        "",
         f"# Python {python}, PyTorch {torch_full}, CUDA {cuda_full}",
+        f"echo 'Python {python}, PyTorch {torch_full}, CUDA {cuda_full}'"
+        f"echo 'Progress {int(100*(i+1) / len(configs))}% ({i+1}/{len(configs)})'"
         f"mkdir -p output/cuda-{cuda_full}/torch-{torch_full}",
         f"conda create -n {env} python={python_full}",
         f"conda install -n {env} pytorch={torch_full} cudatoolkit={cuda_full} -c pytorch -c conda-forge",
@@ -61,7 +62,12 @@ for cuda, python, torch in configs:
         # force recompilation otherwise will reuse builds even if CUDA version changes
         "python setup.py build_ext --force",
         "python setup.py bdist_wheel",
-        f"mv dist/*.whl output/cuda-{cuda_full}/torch-{torch_full}/"
+        f"mv dist/*.whl output/cuda-{cuda_full}/torch-{torch_full}/",
+        "conda deactivate",
+        f"conda env remove -n {env}",
+        "conda clean -ayf",
+        "echo 'Disk free'",
+        "df -h"
     ]
 
 with open("/code/travis/do_build.sh", "w") as f:

@@ -56,7 +56,7 @@ def build(compute_capabilities=(60, 70, 75, 80, 86), debug=False, cuda_home="/us
     intermediate_dir = "intermediates"
 
     # compute capabilities >= 80 are only for cuda >= 11
-    if cuda_version < 110:
+    if cuda_version <= 110:
         compute_capabilities = [x for x in compute_capabilities if x < 80]
 
     cu_files = mapper("src/*.cu", "objs/cuda/*.o")
