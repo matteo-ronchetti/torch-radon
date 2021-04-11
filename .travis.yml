@@ -1,9 +1,10 @@
 language: cpp
 
-jobs:
-  - PYTHON_VERSION=36
-  - PYTHON_VERSION=37
-  - PYTHON_VERSION=38
+env:
+  jobs:
+    - PYTHON_VERSION=36
+    - PYTHON_VERSION=37
+    - PYTHON_VERSION=38
 
 services:
   - docker
