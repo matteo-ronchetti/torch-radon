@@ -11,7 +11,7 @@ services:
 before_install:
   - docker pull matteoronchetti/cuda-builder
 script:
-  - docker run -v $(pwd):/code matteoronchetti/cuda-builder bash /code/travis/build.sh
+  - docker run -v $(pwd):/code --env PYTHON_VERSION matteoronchetti/cuda-builder bash /code/travis/build.sh
 
 deploy:
   - provider: s3
