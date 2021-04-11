@@ -1,4 +1,5 @@
 import re
+import os
 import urllib.request
 import urllib.parse
 
@@ -15,13 +16,11 @@ for cu, pt, py in re.findall(regex, txt):
     python = int(py)
     pytorch = int(pt[:3].replace(".", ""))
 
-    if cuda >= 100 and python >= 36 and pytorch >= 15:
+    if cuda >= 100 and 38 >= python >= 36 and pytorch >= 16 and python == int(os.env("PYTHON_VERSION")):
         configs.append((cuda, python, pytorch))
 
 configs = list(set(configs))
-python_and_cuda = list(set([(cuda, python) for cuda, python, _ in configs]))
 
-# print(f"Need to create {len(python_and_cuda)} environments")
 print(f"Need to compile {len(configs)} packages")
 
 script = [
@@ -30,15 +29,6 @@ script = [
     "mkdir output",
     "export CXX=g++"
 ]
-
-# for cuda, python in python_and_cuda:
-#     cuda_full = f"{cuda // 10}.{cuda % 10}"
-#     python_full = f"{python // 10}.{python % 10}"
-#     script += [
-#         "",
-#         f"# Virtualenv Python {python}, CUDA {cuda_full}",
-#         f"conda create -n py{python}cu{cuda} python={python_full}"
-#     ]
 
 for i, (cuda, python, torch) in enumerate(configs):
     cuda_full = f"{cuda // 10}.{cuda % 10}"
@@ -65,7 +55,12 @@ for i, (cuda, python, torch) in enumerate(configs):
         f"mv dist/*.whl output/cuda-{cuda_full}/torch-{torch_full}/",
         "conda deactivate",
         f"conda env remove -n {env}",
-        "conda clean -ayf",
+    ]
+
+    if (i+1) % 5 == 0:
+        script.append("conda clean -ayf")
+
+    script += [
         "printf 'Disk free\n'",
         "df -h"
     ]
