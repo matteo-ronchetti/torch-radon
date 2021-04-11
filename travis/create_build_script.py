@@ -16,7 +16,7 @@ for cu, pt, py in re.findall(regex, txt):
     python = int(py)
     pytorch = int(pt[:3].replace(".", ""))
 
-    if cuda >= 100 and 38 >= python >= 36 and pytorch >= 16 and python == int(os.env("PYTHON_VERSION")):
+    if cuda >= 100 and 38 >= python >= 36 and pytorch >= 16 and python == int(os.getenv("PYTHON_VERSION")):
         configs.append((cuda, python, pytorch))
 
 configs = list(set(configs))
