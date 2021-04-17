@@ -1,4 +1,4 @@
-from torch_radon_cuda import VolumeCfg
+from .cuda_backend import VolumeCfg
 
 
 class Volume2D:
@@ -27,7 +27,7 @@ class Volume2D:
 
 
 class Volume3D:
-    def __init__(self, depth, height, width, center=(0.0, 0.0, 0.0), voxel_size=(1.0, 1.0, 1.0)):
+    def __init__(self, depth, height=-1, width=-1, center=(0.0, 0.0, 0.0), voxel_size=(1.0, 1.0, 1.0)):
         if height <= 0:
             height = depth
 

@@ -3,7 +3,7 @@ import torch
 from nose.tools import assert_less
 from parameterized import parameterized
 
-from torch_radon import Radon, Projection
+import torch_radon as tr
 from .astra_wrapper import AstraWrapper
 from .utils import generate_random_images, relative_error, circle_mask
 import matplotlib.pyplot as plt
@@ -39,8 +39,7 @@ def test_error(device, batch_size, image_size, angles, spacing, det_count):
     astra_bp = astra.backproject(astra_fp_id, image_size, batch_size)
 
     # our implementation
-    projection = Projection.parallel_beam(det_count=det_count, det_spacing=spacing)
-    radon = Radon(angles, image_size, projection)
+    radon = tr.ParallelBeam(det_count=det_count, angles=angles, volume=image_size, det_spacing=spacing)
     x = torch.FloatTensor(x).to(device)
 
     our_fp = radon.forward(x)
@@ -77,8 +76,7 @@ def test_half(device, batch_size, image_size, angles, spacing, det_count):
     bp_scale = np.pi / len(angles)
 
     # our implementation
-    projection = Projection.parallel_beam(det_count=det_count, det_spacing=spacing)
-    radon = Radon(angles, image_size, projection)
+    radon = tr.ParallelBeam(det_count=det_count, angles=angles, volume=image_size, det_spacing=spacing)
     x = torch.FloatTensor(x).to(device)
 
     sinogram = radon.forward(x)

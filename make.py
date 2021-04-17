@@ -68,10 +68,11 @@ def build(compute_capabilities=(60, 70, 75, 80, 86), debug=False, cuda_home="/us
     opt_flags = ["-g"] if debug else ["-DNDEBUG", "-O3"]
 
     include_flags = [f"-I{x}" for x in include_dirs]
-    cxx_flags = ["-std=c++11 -fPIC -static -D_GLIBCXX_USE_CXX11_ABI=0"] + include_flags + opt_flags
-    nvcc_base_flags = ["-std=c++11", f"-ccbin={cxx}", "-Xcompiler", "-fPIC", "-Xcompiler -static",
+    # -Wl,-Bstatic -lm
+    cxx_flags = ["-std=gnu++11 -fPIC -D_GLIBCXX_USE_CXX11_ABI=0 -Wall"] + include_flags + opt_flags
+    nvcc_base_flags = ["-std=c++11", f"-ccbin={cxx}", "-Xcompiler", "-fPIC",
                        "-Xcompiler -D_GLIBCXX_USE_CXX11_ABI=0"] + include_flags + opt_flags + [
-                           "--generate-line-info --compiler-options -Wall --use_fast_math"]
+                           "--generate-line-info --compiler-options -Wall", '-Xcudafe "--diag_suppress=unrecognized_gcc_pragma"']
     nvcc_flags = nvcc_base_flags + [f"-gencode arch=compute_{x},code=sm_{x}" for x in compute_capabilities]
 
     if keep_intermediate:

@@ -3,7 +3,7 @@ import astra
 from nose.tools import assert_less, assert_equal
 import torch
 import numpy as np
-from torch_radon import Radon, Projection, Volume
+import torch_radon as tr
 from parameterized import parameterized
 import matplotlib.pyplot as plt
 
@@ -54,9 +54,7 @@ def test_fanflat_error(device, batch_size, volume_size, angles, det_spacing, dis
     # TODO clean astra structures
 
     # our implementation
-    projection = Projection.coneflat(s_dist, d_dist, det_count, det_spacing)
-    volume = Volume.create_3d(volume_size)
-    radon = Radon(angles, volume, projection)
+    radon = tr.ConeBeam(det_count, angles, s_dist, d_dist, det_spacing_u=det_spacing, volume=volume_size)
     x = torch.FloatTensor(x).view(1, x.shape[0], x.shape[1], x.shape[2]).repeat(batch_size, 1, 1, 1).to(device)
 
     our_fp = radon.forward(x)
@@ -103,9 +101,7 @@ def test_half(device, batch_size, volume_size, angles, det_spacing, distances, d
     s_dist *= volume_size
     d_dist *= volume_size
 
-    projection = Projection.coneflat(s_dist, d_dist, det_count, det_spacing)
-    volume = Volume.create_3d(volume_size)
-    radon = Radon(angles, volume, projection)
+    radon = tr.ConeBeam(det_count, angles, s_dist, d_dist, det_spacing_u=det_spacing, volume=volume_size)
     x = torch.FloatTensor(x).to(device)
 
     single_fp = radon.forward(x) / len(angles)

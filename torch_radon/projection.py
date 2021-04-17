@@ -1,4 +1,4 @@
-from torch_radon_cuda import ProjectionCfg
+from .cuda_backend import ProjectionCfg
 
 class Projection:
     PARALLEL = 0

@@ -1,21 +1,15 @@
+from .volumes import Volume2D, Volume3D
+from .projection import Projection
+from .filtering import FourierFilters
+from .utils import normalize_shape, ShapeNormalizer
+from .differentiable_functions import RadonForward, RadonBackprojection
+from . import cuda_backend
 import numpy as np
 import torch
 import torch.nn.functional as F
 from typing import Union
 import warnings
 warnings.simplefilter('default')
-
-try:
-    import torch_radon_cuda
-except Exception as e:
-    print("Error importing torch_radon_cuda:", e)
-
-from torch_radon_cuda import ExecCfg
-from .differentiable_functions import RadonForward, RadonBackprojection
-from .utils import normalize_shape, ShapeNormalizer
-from .filtering import FourierFilters
-from .projection import Projection
-from .volumes import Volume2D, Volume3D
 
 
 class ExecCfgGeneratorBase:
@@ -25,9 +19,9 @@ class ExecCfgGeneratorBase:
     def __call__(self, vol_cfg, proj_cfg, is_half):
         if proj_cfg.projection_type == 2:
             ch = 4 if is_half else 1
-            return ExecCfg(8, 16, 8, ch)
+            return cuda_backend.ExecCfg(8, 16, 8, ch)
 
-        return ExecCfg(16, 16, 1, 4)
+        return cuda_backend.ExecCfg(16, 16, 1, 4)
 
 
 class BaseRadon:
@@ -47,8 +41,8 @@ class BaseRadon:
         self.exec_cfg_generator = ExecCfgGeneratorBase()
 
         # caches used to avoid reallocation of resources
-        self.tex_cache = torch_radon_cuda.TextureCache(8)
-        self.fft_cache = torch_radon_cuda.FFTCache(8)
+        self.tex_cache = cuda_backend.TextureCache(8)
+        self.fft_cache = cuda_backend.FFTCache(8)
         self.fourier_filters = FourierFilters()
 
     def _move_parameters_to_device(self, device):
@@ -65,12 +59,11 @@ class BaseRadon:
 
         return x
 
-    def forward(self, x: torch.Tensor, angles: torch.Tensor = None, exec_cfg: ExecCfg = None):
+    def forward(self, x: torch.Tensor, angles: torch.Tensor = None, exec_cfg: cuda_backend.ExecCfg = None):
         r"""Radon forward projection.
 
         :param x: PyTorch GPU tensor.
-        :param angles: PyTorch GPU tensor indicating the measuring angles, if None the angles given to the constructor
-        are used
+        :param angles: PyTorch GPU tensor indicating the measuring angles, if None the angles given to the constructor are used
         :returns: PyTorch GPU tensor containing sinograms.
         """
         x = self._check_input(x)
@@ -88,12 +81,12 @@ class BaseRadon:
 
         return shape_normalizer.unnormalize(y)
 
-    def backprojection(self, sinogram, angles: torch.Tensor = None, exec_cfg: ExecCfg = None):
+    def backprojection(self, sinogram, angles: torch.Tensor = None, exec_cfg: cuda_backend.ExecCfg = None):
         r"""Radon backward projection.
 
         :param sinogram: PyTorch GPU tensor containing sinograms.
         :param angles: PyTorch GPU tensor indicating the measuring angles, if None the angles given to the constructor
-        are used
+            are used
         :returns: PyTorch GPU tensor containing backprojected volume.
         """
         sinogram = self._check_input(sinogram)
@@ -111,12 +104,12 @@ class BaseRadon:
 
         return shape_normalizer.unnormalize(y)
 
-    def backward(self, sinogram, angles: torch.Tensor = None, exec_cfg: ExecCfg = None):
+    def backward(self, sinogram, angles: torch.Tensor = None, exec_cfg: cuda_backend.ExecCfg = None):
         r"""Radon backward projection.
 
         :param sinogram: PyTorch GPU tensor containing sinograms.
         :param angles: PyTorch GPU tensor indicating the measuring angles, if None the angles given to the constructor
-        are used
+            are used
         :returns: PyTorch GPU tensor containing backprojected volume.
         """
         return self.backprojection(sinogram, angles, exec_cfg)
@@ -131,20 +124,39 @@ class BaseRadon:
         pad = padded_size - size
         padded_sinogram = F.pad(sinogram.float(), (0, pad, 0, 0))
 
-        sino_fft = torch_radon_cuda.rfft(padded_sinogram, self.fft_cache)
+        sino_fft = cuda_backend.rfft(padded_sinogram, self.fft_cache) / np.sqrt(padded_size)
 
         # get filter and apply
         f = self.fourier_filters.get(padded_size, filter_name, sinogram.device)
         filtered_sino_fft = sino_fft * f
 
         # Inverse fft
-        filtered_sinogram = torch_radon_cuda.irfft(filtered_sino_fft, self.fft_cache)
-        filtered_sinogram = filtered_sinogram[:, :, :-pad] * (np.pi / (2 * n_angles * padded_size))
+        filtered_sinogram = cuda_backend.irfft(filtered_sino_fft, self.fft_cache) / np.sqrt(padded_size)
+        filtered_sinogram = filtered_sinogram[:, :, :-pad] * (np.pi / (2 * n_angles))
 
         return filtered_sinogram.to(dtype=sinogram.dtype)
 
 
 class ParallelBeam(BaseRadon):
+    r"""
+    |
+    .. image:: https://raw.githubusercontent.com/matteo-ronchetti/torch-radon/
+            master/pictures/parallelbeam.svg?sanitize=true
+        :align: center
+        :width: 400px
+    |
+
+    Class that implements Radon projection for the Parallel Beam geometry.
+
+    :param det_count: *Required*. Number of rays that will be projected.
+    :param angles: *Required*. Array containing the list of measuring angles. Can be a Numpy array, a PyTorch tensor or a tuple
+        `(start, end, num_angles)` defining a range.
+    :param det_spacing: Distance between two contiguous rays. By default is `1.0`.
+    :param volume: Specifies the volume position and scale. By default a square uniform volume 
+        of size :attr:`det_count` is used. To create a non-uniform volume specify an instance of :class:`torch_radon.Volume2D`.
+
+    """
+
     def __init__(self, det_count: int, angles: Union[list, np.array, torch.Tensor, tuple],
                  det_spacing: float = 1.0, volume: Union[Volume2D, None, int, tuple] = None):
 
@@ -161,6 +173,26 @@ class ParallelBeam(BaseRadon):
 
 
 class FanBeam(BaseRadon):
+    r"""
+    |
+    .. image:: https://raw.githubusercontent.com/matteo-ronchetti/torch-radon/
+            master/pictures/fanbeam.svg?sanitize=true
+        :align: center
+        :width: 400px
+    |
+
+    Class that implements Radon projection for the Fanbeam geometry.
+    
+    :param det_count: *Required*. Number of rays that will be projected.
+    :param angles: *Required*. Array containing the list of measuring angles. Can be a Numpy array, a PyTorch tensor or a tuple
+        `(start, end, num_angles)` defining a range.
+    :param src_dist: Distance between the source of rays and the origin. If not specified is set equals to :attr:`det_count`. 
+    :param det_dist: Distance between the detector plane and the origin. If not specified is set equals to :attr:`det_dist`.
+    :param det_spacing: Distance between two contiguous rays. By default is `(src_dist + det_dist) / src_dist`.
+    :param volume: Specifies the volume position and scale. By default a square uniform volume 
+        of size :attr:`det_count` is used. To create a non-uniform volume specify an instance of :class:`torch_radon.Volume2D`.
+
+    """
     def __init__(self, det_count: int, angles: Union[list, np.array, torch.Tensor, tuple],
                  src_dist: float = None, det_dist: float = None, det_spacing: float = None,
                  volume: Union[Volume2D, None, int, tuple] = None):
@@ -222,7 +254,7 @@ class Radon(BaseRadon):
             "Radon() class is deprecated, use ParallelBeam instead",
             DeprecationWarning
         )
-        
+
         if det_count <= 0:
             det_count = resolution
 
@@ -242,7 +274,6 @@ class RadonFanbeam(BaseRadon):
             "RadonFanbeam() class is deprecated, use FanBeam instead",
             DeprecationWarning
         )
-
 
         if det_count <= 0:
             det_count = resolution

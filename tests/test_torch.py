@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 from torch.autograd import gradcheck
-from torch_radon import Radon
+import torch_radon as tr
 from unittest import TestCase
 from .utils import generate_random_images
 
@@ -13,7 +13,7 @@ class TestTorch(TestCase):
         x.requires_grad = True
         angles = torch.FloatTensor(np.linspace(0, 2 * np.pi, 10).astype(np.float32)).to(device)
 
-        radon = Radon(angles, 64)
+        radon = tr.ParallelBeam(64, angles)
 
         # check that backward is implemented for fp and bp
         y = radon.forward(x)
@@ -27,7 +27,7 @@ class TestTorch(TestCase):
         """
         device = torch.device('cuda')
         angles = torch.FloatTensor(np.linspace(0, 2 * np.pi, 10).astype(np.float32)).to(device)
-        radon = Radon(angles, 64)
+        radon = tr.ParallelBeam(64, angles)
 
         # test with 2 batch dimensions
         x = torch.FloatTensor(2, 3, 64, 64).to(device)

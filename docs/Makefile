@@ -6,4 +6,4 @@ BUILDDIR := build
 .PHONY: help Makefile
 
 %: Makefile
-	@$(SPHINXBUILD) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)"
+	TORCH_RADON_DOC_BUILD=1 $(SPHINXBUILD) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)"

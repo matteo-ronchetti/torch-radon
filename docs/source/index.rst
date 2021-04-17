@@ -15,6 +15,7 @@ Main features:
 Projection types:
  - Parallel Beam
  - Fan Beam
+ - Cone Bean
 
 
 .. toctree::

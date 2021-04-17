@@ -20,8 +20,8 @@ radon_backward_kernel(T *__restrict__ output, cudaTextureObject_t texture, const
     const float cy = vol_cfg.height / 2.0f;
     const float cr = proj_cfg.det_count_u / 2.0f;
 
-    const float dx = float(x) - cx + vol_cfg.dx + 0.5f;
-    const float dy = float(y) - cy + vol_cfg.dy + 0.5f;
+    const float dx = (float(x) - cx) * vol_cfg.sx + vol_cfg.dx + 0.5f;
+    const float dy = (float(y) - cy) * vol_cfg.sy + vol_cfg.dy + 0.5f;
 
     const float ids = __fdividef(1.0f, proj_cfg.det_spacing_u);
     const float sdx = dx * ids;

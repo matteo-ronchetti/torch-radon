@@ -1,25 +1,43 @@
 #include "symbolic.h"
+#include "log.h"
+#include "rmath.h"
+
+using namespace rosh;
 
 Gaussian::Gaussian(float _k, float _cx, float _cy, float _a, float _b) : k(_k), cx(_cx), cy(_cy), a(_a), b(_b) {}
 
 float Gaussian::line_integral(float s_x, float s_y, float e_x, float e_y) const
 {
-    float x0 = a * pow(s_x, 2);
-    float x1 = b * pow(s_y, 2);
+    float x0 = a * sq(s_x);
+    float x1 = b * sq(s_y);
     float x2 = 2 * a * e_x;
     float x3 = 2 * b * e_y;
     float x4 = s_x * x2;
     float x5 = s_y * x3;
     float x6 = 2 * a * cx * s_x + 2 * b * cy * s_y;
     float x7 = -cx * x2 - cy * x3 - 2 * x0 - 2 * x1 + x4 + x5 + x6;
-    float x8 = a * pow(e_x, 2) + b * pow(e_y, 2) + x0 + x1 - x4 - x5;
+    float x8 = max(a * sq(e_x) + b * sq(e_y) + x0 + x1 - x4 - x5, 1e-6);
     float x9 = sqrt(x8);
     float x10 = (1.0 / 2.0) / x9;
     float x11 = x10 * x7;
-    float x12 = sqrt(M_PI) * x10 * exp(-a * pow(cx, 2) - b * pow(cy, 2) - x0 - x1 + x6 + (1.0 / 4.0) * pow(x7, 2) / x8);
-    float len = std::hypot(e_x - s_x, e_y - s_y);
+    float lg_x12 = log(sqrt(rosh::pi) * x10) - a * sq(cx) - b * sq(cy) - x0 - x1 + x6 + (1.0 / 4.0) * sq(x7) / x8;
 
-    return k * len * x12 * (-erf(x11) + erf(x11 + x9));
+    // this is not precise
+    if (lg_x12 >= 5)
+    {
+        return 0.0f;
+    }
+
+    float len = hypot(e_x - s_x, e_y - s_y);
+
+    float y = k * len * exp(lg_x12) * (-erf(x11) + erf(x11 + x9));
+
+    // if(y != y){
+    //     LOG_ERROR("len: " << len << " x11: " << x11 << " erf(x11): " << erf(x11) << " x8: " << x8);
+    //     LOG_ERROR("x9: " << x9 << " erf(x11 + x9): " << erf(x11 + x9) << " log(x12): " << lg_x12);
+    // }
+
+    return y;
 }
 
 float Gaussian::evaluate(float x, float y) const
@@ -30,7 +48,21 @@ float Gaussian::evaluate(float x, float y) const
     return k * exp(-a * dx * dx - b * dy * dy);
 }
 
-Ellipse::Ellipse(float _k, float _cx, float _cy, float _r, float a) : k(_k), cx(_cx), cy(_cy), radius(_r), aspect(a) {}
+void Gaussian::move(float dx, float dy)
+{
+    cx += dx;
+    cy += dy;
+}
+
+void Gaussian::scale(float sx, float sy)
+{
+    cx *= sx;
+    cy *= sy;
+    a /= sx * sx;
+    b /= sy * sy;
+}
+
+Ellipse::Ellipse(float _k, float _cx, float _cy, float rx, float ry) : k(_k), cx(_cx), cy(_cy), radius_x(rx), radius_y(ry), aspect(rx / ry) {}
 
 float Ellipse::line_integral(float s_x, float s_y, float e_x, float e_y) const
 {
@@ -41,18 +73,18 @@ float Ellipse::line_integral(float s_x, float s_y, float e_x, float e_y) const
 
     const float a = dx * dx + dy * dy;
     const float b = cdx * dx + cdy * dy;
-    const float c = cdx * cdx + cdy * cdy - radius * radius;
+    const float c = cdx * cdx + cdy * cdy - radius_x * radius_x;
 
     const float delta = b * b - a * c;
     if (delta <= 0)
         return 0.0f;
 
     // min_clip to 1 to avoid getting empty rays
-    const float delta_sqrt = std::sqrt(delta);
-    const float alpha_s = std::min(std::max((-b - delta_sqrt) / a, 0.0f), 1.0f);
-    const float alpha_e = std::min(std::max((-b + delta_sqrt) / a, 0.0f), 1.0f);
+    const float delta_sqrt = sqrt(delta);
+    const float alpha_s = min(max((-b - delta_sqrt) / a, 0.0f), 1.0f);
+    const float alpha_e = min(max((-b + delta_sqrt) / a, 0.0f), 1.0f);
 
-    return std::hypot(dx, e_y - s_y) * (alpha_e - alpha_s);
+    return hypot(dx, e_y - s_y) * (alpha_e - alpha_s);
 }
 
 float Ellipse::evaluate(float x, float y) const
@@ -62,20 +94,35 @@ float Ellipse::evaluate(float x, float y) const
     float dy = aspect * (cy - y);
     constexpr float r = 1.0f / 3;
 
-    tmp += std::hypot(dx - r, dy - r) <= radius;
-    tmp += std::hypot(dx - r, dy) <= radius;
-    tmp += std::hypot(dx - r, dy + r) <= radius;
-    tmp += std::hypot(dx, dy - r) <= radius;
-    tmp += std::hypot(dx, dy) <= radius;
-    tmp += std::hypot(dx, dy + r) <= radius;
-    tmp += std::hypot(dx + r, dy - r) <= radius;
-    tmp += std::hypot(dx + r, dy) <= radius;
-    tmp += std::hypot(dx + r, dy + r) <= radius;
+    tmp += hypot(dx - r, dy - r) <= radius_x;
+    tmp += hypot(dx - r, dy) <= radius_x;
+    tmp += hypot(dx - r, dy + r) <= radius_x;
+    tmp += hypot(dx, dy - r) <= radius_x;
+    tmp += hypot(dx, dy) <= radius_x;
+    tmp += hypot(dx, dy + r) <= radius_x;
+    tmp += hypot(dx + r, dy - r) <= radius_x;
+    tmp += hypot(dx + r, dy) <= radius_x;
+    tmp += hypot(dx + r, dy + r) <= radius_x;
 
     return tmp / 9.0f;
 }
 
-SymbolicFunction::SymbolicFunction() {}
+void Ellipse::move(float dx, float dy)
+{
+    cx += dx;
+    cy += dy;
+}
+
+void Ellipse::scale(float sx, float sy)
+{
+    cx *= sx;
+    cy *= sy;
+    radius_x *= sx;
+    radius_y *= sy;
+    aspect = radius_x / radius_y;
+}
+
+SymbolicFunction::SymbolicFunction(float h, float w) : min_x(-w / 2), min_y(-h / 2), max_x(w / 2), max_y(h / 2) {}
 
 void SymbolicFunction::add_gaussian(float k, float cx, float cy, float a, float b)
 {
@@ -89,40 +136,98 @@ void SymbolicFunction::add_ellipse(float k, float cx, float cy, float r, float a
 
 void SymbolicFunction::move(float dx, float dy)
 {
+    min_x += dx;
+    min_y += dy;
+    max_x += dx;
+    max_y += dy;
+
     for (auto &gaussian : gaussians)
     {
-        gaussian.cx += dx;
-        gaussian.cy += dy;
+        gaussian.move(dx, dy);
     }
     for (auto &ellipse : ellipses)
     {
-        ellipse.cx += dx;
-        ellipse.cy += dy;
+        ellipse.move(dx, dy);
     }
 }
 
-void SymbolicFunction::discretize(float *data, int w, int h) const
+void SymbolicFunction::scale(float sx, float sy)
+{
+    min_x *= sx;
+    min_y *= sy;
+    max_x *= sx;
+    max_y *= sy;
+
+    for (auto &gaussian : gaussians)
+    {
+        gaussian.scale(sx, sy);
+    }
+    for (auto &ellipse : ellipses)
+    {
+        ellipse.scale(sx, sy);
+    }
+}
+
+float SymbolicFunction::max_distance_from_origin() const
+{
+    float x = max(abs(min_x), abs(max_x));
+    float y = max(abs(min_y), abs(max_y));
+
+    return hypot(x, y);
+}
+
+void SymbolicFunction::discretize(float *data, int h, int w) const
 {
     for (int i = 0; i < h; i++)
     {
-        float y = i + 0.5f;
+        float y = i + 0.5f - float(h) / 2;
         for (int j = 0; j < w; j++)
         {
-            float x = j + 0.5f;
+            float x = j + 0.5f - float(w) / 2;
 
-            float tmp = 0.0f;
-            for (auto &gaussian : gaussians)
-                tmp += gaussian.evaluate(x, y);
-            for (auto &ellipse : ellipses)
-                tmp += ellipse.evaluate(x, y);
+            if (min_x <= x && x <= max_x && min_y <= y && y <= max_y)
+            {
+                float tmp = 0.0f;
+                for (auto &gaussian : gaussians)
+                    tmp += gaussian.evaluate(x, y);
+                for (auto &ellipse : ellipses)
+                    tmp += ellipse.evaluate(x, y);
 
-            data[i * w + j] = tmp;
+                data[i * w + j] = tmp;
+            }
+            else
+            {
+                data[i * w + j] = 0.0f;
+            }
         }
     }
 }
 
 float SymbolicFunction::line_integral(float s_x, float s_y, float e_x, float e_y) const
 {
+    // clip segment to function domain
+    float dx = e_x - s_x;
+    float dy = e_y - s_y;
+    dx = dx >= 0 ? max(dx, 1e-6f) : min(dx, -1e-6f);
+    dy = dy >= 0 ? max(dy, 1e-6f) : min(dy, -1e-6f);
+
+    const float alpha_x_m = (min_x - s_x) / dx;
+    const float alpha_x_p = (max_x - s_x) / dx;
+    const float alpha_y_m = (min_y - s_y) / dy;
+    const float alpha_y_p = (max_y - s_y) / dy;
+    const float alpha_s = max(min(alpha_x_p, alpha_x_m), min(alpha_y_p, alpha_y_m));
+    const float alpha_e = min(max(alpha_x_p, alpha_x_m), max(alpha_y_p, alpha_y_m));
+
+    if (alpha_s >= alpha_e)
+    {
+        return 0.0f;
+    }
+
+    s_x += dx * alpha_s;
+    s_y += dy * alpha_s;
+    e_x = s_x + dx * (alpha_e - alpha_s);
+    e_y = s_y + dy * (alpha_e - alpha_s);
+
     float tmp = 0.0f;
     for (auto &gaussian : gaussians)
         tmp += gaussian.line_integral(s_x, s_y, e_x, e_y);
@@ -132,7 +237,7 @@ float SymbolicFunction::line_integral(float s_x, float s_y, float e_x, float e_y
     return tmp;
 }
 
-void symbolic_forward(const SymbolicFunction &f, const ProjectionCfg &proj, const float *angles, const int n_angles, const int width, const int height, float *sinogram)
+void symbolic_forward(const SymbolicFunction &f, const ProjectionCfg &proj, const float *angles, const int n_angles, float *sinogram)
 {
     for (int angle_id = 0; angle_id < n_angles; angle_id++)
     {
@@ -143,7 +248,7 @@ void symbolic_forward(const SymbolicFunction &f, const ProjectionCfg &proj, cons
             if (proj.projection_type == PARALLEL)
             {
                 sx = (ray_id - proj.det_count_u * 0.5f + 0.5f) * proj.det_spacing_u;
-                sy = hypot(width * 0.5f, height * 0.5f);
+                sy = f.max_distance_from_origin();
                 ex = sx;
                 ey = -sy;
             }
@@ -160,40 +265,12 @@ void symbolic_forward(const SymbolicFunction &f, const ProjectionCfg &proj, cons
             const float cs = cos(angle);
             const float sn = sin(angle);
 
-            // start position rs and direction rd (in detector coordinate system)
-            float rsx = sx * cs - sy * sn;
-            float rsy = sx * sn + sy * cs;
-            float rdx = ex * cs - ey * sn - rsx;
-            float rdy = ex * sn + ey * cs - rsy;
+            float rsx = sx * cs + sy * sn;
+            float rsy = -sx * sn + sy * cs;
+            float rex = ex * cs + ey * sn;
+            float rey = -ex * sn + ey * cs;
 
-            rsx += 0.5f * width;
-            rsy += 0.5f * height;
-
-            // clip to volume (to reduce memory reads)
-            float dx = rdx >= 0 ? std::max(rdx, 1e-6f) : std::min(rdx, -1e-6f);
-            float dy = rdy >= 0 ? std::max(rdy, 1e-6f) : std::min(rdy, -1e-6f);
-
-            const float alpha_x_m = (-rsx) / dx;
-            const float alpha_x_p = (width - rsx) / dx;
-            const float alpha_y_m = (-rsy) / dy;
-            const float alpha_y_p = (height - rsy) / dy;
-            const float alpha_s = std::max(std::min(alpha_x_p, alpha_x_m), std::min(alpha_y_p, alpha_y_m));
-            const float alpha_e = std::min(std::max(alpha_x_p, alpha_x_m), std::max(alpha_y_p, alpha_y_m));
-
-            // if ray volume intersection is empty exit
-            if (alpha_s < alpha_e)
-            {
-                rsx += rdx * alpha_s;
-                rsy += rdy * alpha_s;
-                float rex = rsx + rdx * (alpha_e - alpha_s);
-                float rey = rsy + rdy * (alpha_e - alpha_s);
-
-                sinogram[angle_id * proj.det_count_u + ray_id] = f.line_integral(rsx, rsy, rex, rey);
-            }
-            else
-            {
-                sinogram[angle_id * proj.det_count_u + ray_id] = 0.0f;
-            }
+            sinogram[angle_id * proj.det_count_u + ray_id] = f.line_integral(rsx, rsy, rex, rey);
         }
     }
 }

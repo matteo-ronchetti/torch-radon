@@ -19,7 +19,7 @@
     CHECK_CUDA(x);     \
     CHECK_CONTIGUOUS(x)
 
-torch::Tensor torch_symbolic_forward(const SymbolicFunction &f, torch::Tensor angles, const ProjectionCfg &proj, const int width, const int height)
+torch::Tensor torch_symbolic_forward(const SymbolicFunction &f, torch::Tensor angles, const ProjectionCfg &proj)
 {
     TORCH_CHECK(!angles.device().is_cuda(), "angles must be on CPU");
     CHECK_CONTIGUOUS(angles);
@@ -27,16 +27,16 @@ torch::Tensor torch_symbolic_forward(const SymbolicFunction &f, torch::Tensor an
     const int n_angles = angles.size(0);
     auto y = torch::empty({n_angles, proj.det_count_u});
 
-    symbolic_forward(f, proj, angles.data_ptr<float>(), n_angles, width, height, y.data_ptr<float>());
+    symbolic_forward(f, proj, angles.data_ptr<float>(), n_angles, y.data_ptr<float>());
 
     return y;
 }
 
-torch::Tensor torch_symbolic_discretize(const SymbolicFunction &f, const int width, const int height)
+torch::Tensor torch_symbolic_discretize(const SymbolicFunction &f, const int height, const int width)
 {
     auto y = torch::empty({height, width});
 
-    f.discretize(y.data_ptr<float>(), width, height);
+    f.discretize(y.data_ptr<float>(), height, width);
 
     return y;
 }
@@ -401,8 +401,9 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         .def(py::init<int, int, int, int>());
 
     py::class_<SymbolicFunction>(m, "SymbolicFunction")
-        .def(py::init<>())
+        .def(py::init<float, float>())
         .def("add_gaussian", &SymbolicFunction::add_gaussian)
         .def("add_ellipse", &SymbolicFunction::add_ellipse)
-        .def("move", &SymbolicFunction::move);
+        .def("move", &SymbolicFunction::move)
+        .def("scale", &SymbolicFunction::scale);
 }

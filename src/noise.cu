@@ -1,4 +1,5 @@
 #include "noise.h"
+#include "rmath.h"
 #include <iostream>
 
 __global__ void initialize_random_states(curandState *state, const uint seed) {
@@ -315,7 +316,7 @@ std::pair<float, float> compute_ab(const float *x, const int size, const float s
     float *ab;
     checkCudaErrors(cudaMalloc(&ab, 2 * sizeof(float)));
 
-    float nlog = k * (signal - eps) - exp(signal - eps);
+    float nlog = k * (signal - eps) - rosh::exp(signal - eps);
 
     ab_kernel << < 1, 512 >> > (x, size, ab, signal, eps, k, nlog);
 

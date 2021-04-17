@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from torch_radon import Radon, Volume, Projection
+import torch_radon as tr
 from unittest import TestCase
 from .utils import generate_random_images
 

@@ -4,9 +4,8 @@ import doctest
 import sys
 import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../..")))
-print(sys.path)
 
-#import torch_radon
+import torch_radon
 
 extensions = [
     'sphinx.ext.autodoc',
@@ -25,8 +24,8 @@ author = 'Matteo Ronchetti'
 project = 'torch_radon'
 copyright = '{}, {}'.format(datetime.datetime.now().year, author)
 
-version = "0.0.1"  # torch_radon.__version__
-release = "0.0.1"  # torch_radon.__version__
+version = torch_radon.__version__
+release = torch_radon.__version__
 
 html_theme = 'sphinx_rtd_theme'
 html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]

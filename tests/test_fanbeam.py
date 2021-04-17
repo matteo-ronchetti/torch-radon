@@ -3,7 +3,7 @@ import astra
 from nose.tools import assert_less, assert_equal
 import torch
 import numpy as np
-from torch_radon import Radon, Projection
+import torch_radon as tr
 from parameterized import parameterized
 
 device = torch.device('cuda')
@@ -47,8 +47,8 @@ def test_fanbeam_error(device, batch_size, image_size, angles, spacing, distance
     # TODO clean astra structures
 
     # our implementation
-    projection = Projection.fanbeam(s_dist, d_dist, det_count=det_count, det_spacing=spacing)
-    radon = Radon(angles, image_size, projection)
+    radon = tr.FanBeam(det_count=det_count, det_spacing=spacing, angles=angles,
+                       src_dist=s_dist, det_dist=d_dist, volume=image_size)
     x = torch.FloatTensor(x).to(device).view(1, x.shape[0], x.shape[1])
     # repeat data to fill batch size
     x = torch.cat([x] * batch_size, dim=0)
@@ -84,8 +84,8 @@ def test_half(device, batch_size, image_size, angles, spacing, distances, det_co
     d_dist *= image_size
 
     # our implementation
-    projection = Projection.fanbeam(s_dist, d_dist, det_count=det_count, det_spacing=spacing)
-    radon = Radon(angles, image_size, projection)
+    radon = tr.FanBeam(det_count=det_count, det_spacing=spacing, angles=angles,
+                       src_dist=s_dist, det_dist=d_dist, volume=image_size)
     x = torch.FloatTensor(x).to(device)
 
     # divide by len(angles) to avoid half-precision overflow
