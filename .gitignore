@@ -11,6 +11,7 @@ radon.egg-info/
 torch_radon.egg-info/
 objs/
 examples/*.ipynb
+tests/output/
 
 benchmarks/**/*.npy
 benchmarks/**/*.ipynb

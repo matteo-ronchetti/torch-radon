@@ -17,10 +17,9 @@ radon_forward_kernel(T *__restrict__ output, cudaTextureObject_t texture, const 
     // Calculate texture coordinates
     const int ray_id = blockIdx.x * blockDim.x + threadIdx.x;
     const int angle_id = blockIdx.y * blockDim.y + threadIdx.y;
-//    const int batch_id = blockIdx.z * channels;
 
     const int base = ray_id + proj_cfg.det_count_u * (angle_id + proj_cfg.n_angles * blockIdx.z);
-    const int pitch = proj_cfg.det_count_u * proj_cfg.n_angles * blockDim.z * gridDim.z;
+    const int mem_pitch = proj_cfg.det_count_u * proj_cfg.n_angles * blockDim.z * gridDim.z;
 
     if (angle_id < proj_cfg.n_angles && ray_id < proj_cfg.det_count_u) {
         float accumulator[channels];
@@ -76,7 +75,7 @@ radon_forward_kernel(T *__restrict__ output, cudaTextureObject_t texture, const 
         // if ray volume intersection is empty exit
         if (alpha_s > alpha_e) {
 #pragma unroll
-            for (int b = 0; b < channels; b++) output[base + b * pitch] = 0.0f;
+            for (int b = 0; b < channels; b++) output[base + b * mem_pitch] = 0.0f;
             return;
         }
 
@@ -120,7 +119,7 @@ radon_forward_kernel(T *__restrict__ output, cudaTextureObject_t texture, const 
         }
         
         #pragma unroll
-        for (int b = 0; b < channels; b++) output[base + b * pitch] = accumulator[b] * n;
+        for (int b = 0; b < channels; b++) output[base + b * mem_pitch] = accumulator[b] * n;
     }
 }
 
@@ -199,7 +198,7 @@ radon_forward_kernel_3d(T *__restrict__ output, cudaTextureObject_t texture, con
     const int pv = blockIdx.z * blockDim.z + threadIdx.z;
 
     const uint index = (angle_id * proj_cfg.det_count_v + pv) * proj_cfg.det_count_u + pu;
-    const uint pitch = proj_cfg.n_angles * proj_cfg.det_count_v * proj_cfg.det_count_u;
+    const uint mem_pitch = proj_cfg.n_angles * proj_cfg.det_count_v * proj_cfg.det_count_u;
 
     if (angle_id < proj_cfg.n_angles && pu < proj_cfg.det_count_u && pv < proj_cfg.det_count_v) {
         // define accumulator
@@ -228,43 +227,69 @@ radon_forward_kernel_3d(T *__restrict__ output, cudaTextureObject_t texture, con
         float rdx = ex * cs - ey * sn - rsx;
         float rdy = ex * sn + ey * cs - rsy;
 
-        // Clip ray to cube (with a little bit of padding) to reduce the number of memory reads
-        // TODO fix dx,dy,dz 
-        constexpr float pad = 0.5f;
-        const float alpha_x_m = (vol_cfg.dx - 0.5f * vol_cfg.width - pad - rsx) / rdx;
-        const float alpha_x_p = (vol_cfg.dx + 0.5f * vol_cfg.width + pad - rsx) / rdx;
-        const float alpha_y_m = (vol_cfg.dy - 0.5f * vol_cfg.height - pad - rsy) / rdy;
-        const float alpha_y_p = (vol_cfg.dy + 0.5f * vol_cfg.height + pad - rsy) / rdy;
-        const float alpha_z_m = (vol_cfg.dz - 0.5f * vol_cfg.depth - pad - rsz) / rdz;
-        const float alpha_z_p = (vol_cfg.dz + 0.5f * vol_cfg.depth + pad - rsz) / rdz;
+        // convert coordinates to volume coordinate system
+        const float vol_orig_x = vol_cfg.dx - 0.5f * vol_cfg.width * vol_cfg.sx;
+        const float vol_orig_y = vol_cfg.dy - 0.5f * vol_cfg.height * vol_cfg.sy;
+        const float vol_orig_z = vol_cfg.dz - 0.5f * vol_cfg.depth * vol_cfg.sz;
+        rsx = (rsx - vol_orig_x) * vol_cfg.inv_scale_x; 
+        rsy = (rsy - vol_orig_y) * vol_cfg.inv_scale_y; 
+        rsz = (rsz - vol_orig_z) * vol_cfg.inv_scale_z; 
+        rdx = rdx * vol_cfg.inv_scale_x; 
+        rdy = rdy * vol_cfg.inv_scale_y;
+        rdz = rdz * vol_cfg.inv_scale_z;
+
+        // Clip ray to cube to reduce the number of memory reads
+        float dx = rdx >= 0 ? max(rdx, 1e-6) : min(rdx, -1e-6);
+        float dy = rdy >= 0 ? max(rdy, 1e-6) : min(rdy, -1e-6);
+        float dz = rdz >= 0 ? max(rdz, 1e-6) : min(rdz, -1e-6);
+
+        const float alpha_x_m = (- rsx) / dx;
+        const float alpha_x_p = (vol_cfg.width - rsx) / dx;
+        const float alpha_y_m = (- rsy) / dy;
+        const float alpha_y_p = (vol_cfg.height - rsy) / dy;
+        const float alpha_z_m = (- rsz) / dz;
+        const float alpha_z_p = (vol_cfg.depth - rsz) / dz;
 
         const float alpha_s = max(min(alpha_x_p, alpha_x_m), max(min(alpha_y_p, alpha_y_m), min(alpha_z_p, alpha_z_m)));
         const float alpha_e = min(max(alpha_x_p, alpha_x_m), min(max(alpha_y_p, alpha_y_m), max(alpha_z_p, alpha_z_m)));
 
         if (alpha_s > alpha_e) {
 #pragma unroll
-            for (int b = 0; b < channels; b++) output[b * pitch + index] = 0.0f;
+            for (int b = 0; b < channels; b++) output[b * mem_pitch + index] = 0.0f;
             return;
         }
 
-        // TODO as above
-        rsx += rdx * alpha_s + vol_cfg.width * 0.5f;
-        rsy += rdy * alpha_s + vol_cfg.height * 0.5f;
-        rsz += rdz * alpha_s + vol_cfg.depth * 0.5f;
+        rsx += rdx * alpha_s;
+        rsy += rdy * alpha_s;
+        rsz += rdz * alpha_s;
         rdx *= (alpha_e - alpha_s);
         rdy *= (alpha_e - alpha_s);
         rdz *= (alpha_e - alpha_s);
 
         // accumulate loop
-        const uint n_steps = __float2uint_ru(max(abs(rdx), max(abs(rdy), abs(rdz))));
-        // const uint n_steps = __float2uint_ru( norm3df(rdx, rdy, rdz));
-        const float vx = rdx / n_steps;
-        const float vy = rdy / n_steps;
-        const float vz = rdz / n_steps;
-        const float n = norm3df(vx, vy, vz);
+        const float f_n_steps = max(abs(rdx), max(abs(rdy), abs(rdz)));
+        const int n_steps = __float2uint_ru(f_n_steps);
+        const float vx = rdx / f_n_steps;
+        const float vy = rdy / f_n_steps;
+        const float vz = rdz / f_n_steps;
+        const float n = norm3df(vx * vol_cfg.sx, vy * vol_cfg.sy, vz * vol_cfg.sz);
         
-        // TODO unroll
-        for (uint j = 0; j <= n_steps; j++) { //changing j and n_steps to int makes everything way slower (WHY???)
+        float step;
+        if(abs(rdy) >= abs(rdx)){
+            float y_increment = 0.5f - rsy + __float2int_rn(rsy);
+            step = y_increment / vy;
+            step += vy < 0;
+        }else{
+            float x_increment = 0.5f - rsx + __float2int_rn(rsx);
+            step = x_increment / vx;
+            step += vx < 0;
+        }
+        rsx += step*vx;
+        rsy += step*vy;
+        rsz += step*vz;
+
+        #pragma unroll(4)
+        for (int j = 0; j <= n_steps; j++) {
             if (channels == 1) {
                 accumulator[0] += tex3D<float>(texture, rsx, rsy, rsz);
             } else {
@@ -283,7 +308,7 @@ radon_forward_kernel_3d(T *__restrict__ output, cudaTextureObject_t texture, con
         // output
 #pragma unroll
         for (int b = 0; b < channels; b++) {
-            output[b * pitch + index] = accumulator[b] * n;
+            output[b * mem_pitch + index] = accumulator[b] * n;
         }
     }
 }

@@ -25,6 +25,9 @@ class Volume2D:
     def num_dimensions(self):
         return 2
 
+    def __str__(self) -> str:
+        return f"Volume2D(height={self.height}, width={self.width}, center={self.center}, voxel_size={self.voxel_size})"
+
 
 class Volume3D:
     def __init__(self, depth, height=-1, width=-1, center=(0.0, 0.0, 0.0), voxel_size=(1.0, 1.0, 1.0)):
