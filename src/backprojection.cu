@@ -30,6 +30,7 @@ radon_backward_kernel(T *__restrict__ output, cudaTextureObject_t texture, const
     const int base = x + vol_cfg.width * (y + vol_cfg.height * blockIdx.z);
     const int pitch = vol_cfg.width * vol_cfg.height * blockDim.z * gridDim.z;
 
+    // keep sin and cos packed toghether to save one memory load in the main loop
     __shared__ float2 sincos[4096];
 
     for (int i = tid; i < proj_cfg.n_angles; i += 256) {
@@ -114,10 +115,8 @@ void radon_backward_cuda(
     const int channels = exec_cfg.get_channels(batch_size);
 
     // copy x into CUDA Array (allocating it if needed) and bind to texture
-    // const int tex_layers = proj_cfg.n_angles * batch_size / channels; 
     Texture *tex = tex_cache.get(
         {device, batch_size / channels, proj_cfg.n_angles, proj_cfg.det_count_u, true, channels, precision}
-        // create_1Dlayered_texture_config(device, proj_cfg.det_count_u, tex_layers, channels, precision)
     );
     tex->put(x);
 
@@ -171,7 +170,7 @@ template<int channels, typename T>
 __global__ void
 radon_backward_kernel_3d(T *__restrict__ output, cudaTextureObject_t texture, const float *__restrict__ angles,
                          const VolumeCfg vol_cfg, const ProjectionCfg proj_cfg) {
-    // TODO consider det spacing both on U and V
+    // TODO consider pitch and initial_z
     // Calculate volume coordinates
     const uint x = blockIdx.x * blockDim.x + threadIdx.x;
     const uint y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -187,47 +186,58 @@ radon_backward_kernel_3d(T *__restrict__ output, cudaTextureObject_t texture, co
     const float cu = proj_cfg.det_count_u / 2.0f;
     const float cv = proj_cfg.det_count_v / 2.0f;
     
-    // TODO consider volume scale
-    const float dx = float(x) - cx + 0.5f;
-    const float dy = float(y) - cy + 0.5f;
-    const float dz = float(z) - cz + 0.5f;
+    const float dx = (float(x) - cx) * vol_cfg.sx + vol_cfg.dx + 0.5f;
+    const float dy = (float(y) - cy) * vol_cfg.sy + vol_cfg.dy + 0.5f;
+    const float dz = (float(z) - cz) * vol_cfg.sz + vol_cfg.dz + 0.5f - proj_cfg.initial_z;
 
-    const float inv_det_spacing = __fdividef(1.0f, proj_cfg.det_spacing_u);
+    const float inv_det_spacing_u = __fdividef(1.0f, proj_cfg.det_spacing_u);
+    const float inv_det_spacing_v = __fdividef(1.0f, proj_cfg.det_spacing_v);
+    const float ids = inv_det_spacing_u * inv_det_spacing_v;
 
-    // TODO merge into a float2 array to save one memory load
-    __shared__ float s_sin[4096];
-    __shared__ float s_cos[4096];
+    const float sdx = dx * inv_det_spacing_u;
+    const float sdy = dy * inv_det_spacing_u;
+    const float sdz = dz * inv_det_spacing_v;
+    const float pitch_speed = -proj_cfg.pitch * 0.1591549f * inv_det_spacing_v;
+
+    // using a single float3 array creates 3 memory loads, while float2+float ==> 2 loads
+    __shared__ float2 sincos[4096];
+    __shared__ float pitch_dz[4096];
 
     for (int i = tid; i < proj_cfg.n_angles; i += 256) {
-        s_sin[i] = __sinf(angles[i]);
-        s_cos[i] = __cosf(angles[i]);
+        float2 tmp;
+        tmp.x = __sinf(angles[i]);
+        tmp.y = __cosf(angles[i]);
+        pitch_dz[i] = angles[i] * pitch_speed;
+        sincos[i] = tmp;
     }
     __syncthreads();
 
     if (x < vol_cfg.width && y < vol_cfg.height && z < vol_cfg.depth) {
         float accumulator[channels];
-#pragma unroll
+        
+        #pragma unroll
         for (int i = 0; i < channels; i++) accumulator[i] = 0.0f;
 
         const float k = proj_cfg.s_dist + proj_cfg.d_dist;
 
-        // TODO unroll
+        #pragma unroll(4)
         for (int i = 0; i < proj_cfg.n_angles; i++) {
-            // TODO consider det_spacing_v
-            // TODO explicitly use FMA
-            // TODO check PTX and optimize
-            float k_over_alpha = __fdividef(k,
-                                         (proj_cfg.s_dist + s_cos[i] * dy - s_sin[i] * dx) * proj_cfg.det_spacing_u);
-            float beta = s_cos[i] * dx + s_sin[i] * dy;
-            float u = k_over_alpha * beta;
-            float v = k_over_alpha * dz;
+            float alpha = fmaf(-dx, sincos[i].x, proj_cfg.s_dist) + sincos[i].y * dy;
+            float beta = sincos[i].y * sdx + sincos[i].x * sdy;
+
+            // float k_over_alpha = __fdividef(k, alpha);
+            float k_over_alpha;
+            asm("div.approx.ftz.f32 %0, %1, %2;" : "=f"(k_over_alpha) : "f"(k), "f"(alpha));
+
+            float u = k_over_alpha * beta + cu;
+            float v = k_over_alpha * (sdz + pitch_dz[i]) + cv;
             float scale = k_over_alpha * k_over_alpha;
 
             if (channels == 1) {
-                accumulator[0] += tex2DLayered<float>(texture, u + cu, v + cv, i) * scale;
+                accumulator[0] += tex2DLayered<float>(texture, u, v, i) * scale;
             } else {
                 // read 4 values at the given position and accumulate
-                float4 read = tex2DLayered<float4>(texture, u + cu, v + cv, i);
+                float4 read = tex2DLayered<float4>(texture, u, v, i);
                 accumulator[0] += read.x * scale;
                 accumulator[1] += read.y * scale;
                 accumulator[2] += read.z * scale;
@@ -237,7 +247,7 @@ radon_backward_kernel_3d(T *__restrict__ output, cudaTextureObject_t texture, co
 
 #pragma unroll
         for (int b = 0; b < channels; b++) {
-            output[b * pitch + index] = accumulator[b];
+            output[b * pitch + index] = accumulator[b] * ids;
         }
     }
 }

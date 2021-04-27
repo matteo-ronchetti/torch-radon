@@ -46,6 +46,19 @@ class Volume3D:
 
         self.cfg = self.to_cfg()
 
+    def shape(self):
+        return (self.depth, self.height, self.width)
+
+    def min(self):
+        dx, dy, dz = self.center
+        sx, sy, sz = self.voxel_size
+        return [-self.width*sx / 2 + dx, -self.height*sy/2 + dy, -self.depth*sz/2 + dz]
+
+    def max(self):
+        dx, dy, dz = self.center
+        sx, sy, sz = self.voxel_size
+        return [self.width*sx / 2 + dx, self.height*sy/2 + dy, self.depth*sz/2 + dz]
+
     def to_cfg(self) -> VolumeCfg:
         return VolumeCfg(
             self.depth, self.height, self.width,

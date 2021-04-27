@@ -1,7 +1,7 @@
 from .volumes import Volume2D, Volume3D
 from .projection import Projection
 from .filtering import FourierFilters
-from .utils import normalize_shape, ShapeNormalizer
+from .utils import normalize_shape, ShapeNormalizer, expose_projection_attributes
 from .differentiable_functions import RadonForward, RadonBackprojection
 from . import cuda_backend
 import numpy as np
@@ -172,6 +172,12 @@ class ParallelBeam(BaseRadon):
         super().__init__(angles, volume, projection)
 
 
+expose_projection_attributes(ParallelBeam, [
+    ("det_count", "det_count_u"),
+    ("det_spacing", "det_spacing_u")
+])
+
+
 class FanBeam(BaseRadon):
     r"""
     |
@@ -182,7 +188,7 @@ class FanBeam(BaseRadon):
     |
 
     Class that implements Radon projection for the Fanbeam geometry.
-    
+
     :param det_count: *Required*. Number of rays that will be projected.
     :param angles: *Required*. Array containing the list of measuring angles. Can be a Numpy array, a PyTorch tensor or a tuple
         `(start, end, num_angles)` defining a range.
@@ -193,6 +199,7 @@ class FanBeam(BaseRadon):
         of size :attr:`det_count` is used. To create a non-uniform volume specify an instance of :class:`torch_radon.Volume2D`.
 
     """
+
     def __init__(self, det_count: int, angles: Union[list, np.array, torch.Tensor, tuple],
                  src_dist: float = None, det_dist: float = None, det_spacing: float = None,
                  volume: Union[Volume2D, None, int, tuple] = None):
@@ -244,6 +251,14 @@ class ConeBeam(BaseRadon):
                                          det_count_v, det_spacing_v, pitch, base_z)
 
         super().__init__(angles, volume, projection)
+
+
+expose_projection_attributes(ConeBeam, [
+    "det_count_u", "det_count_v",
+    "det_spacing_u", "det_spacing_v",
+    ("src_dist", "s_dist"), ("det_dist", "d_dist"),
+    "pitch", ("base_z", "initial_z")
+])
 
 
 # Deprecated classes kept for retrocompatibility
