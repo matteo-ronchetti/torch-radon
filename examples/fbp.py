@@ -3,7 +3,7 @@ import numpy as np
 import torch
 from utils import show_images
 
-from torch_radon import Radon
+from torch_radon import ParallelBeam
 
 device = torch.device('cuda')
 
@@ -11,9 +11,9 @@ img = np.load("phantom.npy")
 image_size = img.shape[0]
 n_angles = image_size
 
-# Instantiate Radon transform. clip_to_circle should be True when using filtered backprojection.
+# Instantiate Radon transform.
 angles = np.linspace(0, np.pi, n_angles, endpoint=False)
-radon = Radon(image_size, angles, clip_to_circle=True)
+radon = ParallelBeam(image_size, angles)
 
 with torch.no_grad():
     x = torch.FloatTensor(img).to(device)

@@ -1,4 +1,3 @@
-#include <iostream>
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <cuda_fp16.h>
@@ -7,6 +6,31 @@
 #include "texture.h"
 #include "parameter_classes.h"
 #include "log.h"
+
+
+namespace
+{
+template<typename T>
+__device__ T toType(float);
+
+template<>
+__device__ float toType(float f)
+{
+    return f;
+};
+
+template<>
+__device__ __half toType(float f)
+{
+    return __float2half(f);
+};
+
+template<>
+__device__ unsigned short toType(float f)
+{
+    return static_cast<unsigned short>(f);
+};
+}
 
 
 template<bool parallel_beam, int channels, typename T>
@@ -75,7 +99,7 @@ radon_forward_kernel(T *__restrict__ output, cudaTextureObject_t texture, const 
         // if ray volume intersection is empty exit
         if (alpha_s > alpha_e) {
 #pragma unroll
-            for (int b = 0; b < channels; b++) output[base + b * mem_pitch] = 0.0f;
+            for (int b = 0; b < channels; b++) output[base + b * mem_pitch] = toType<T>(0.0f);
             return;
         }
 
@@ -119,7 +143,7 @@ radon_forward_kernel(T *__restrict__ output, cudaTextureObject_t texture, const 
         }
         
         #pragma unroll
-        for (int b = 0; b < channels; b++) output[base + b * mem_pitch] = accumulator[b] * n;
+        for (int b = 0; b < channels; b++) output[base + b * mem_pitch] = toType<T>(accumulator[b] * n);
     }
 }
 
@@ -255,7 +279,7 @@ radon_forward_kernel_3d(T *__restrict__ output, cudaTextureObject_t texture, con
 
         if (alpha_s > alpha_e) {
 #pragma unroll
-            for (int b = 0; b < channels; b++) output[b * mem_pitch + index] = 0.0f;
+            for (int b = 0; b < channels; b++) output[b * mem_pitch + index] = toType<T>(0.0f);
             return;
         }
 
@@ -308,7 +332,7 @@ radon_forward_kernel_3d(T *__restrict__ output, cudaTextureObject_t texture, con
         // output
 #pragma unroll
         for (int b = 0; b < channels; b++) {
-            output[b * mem_pitch + index] = accumulator[b] * n;
+            output[b * mem_pitch + index] = toType<T>(accumulator[b] * n);
         }
     }
 }

@@ -7,6 +7,30 @@
 #include "texture.h"
 #include "backprojection.h"
 
+namespace
+{
+template<typename T>
+__device__ T toType(float);
+
+template<>
+__device__ float toType(float f)
+{
+    return f;
+};
+
+template<>
+__device__ __half toType(float f)
+{
+    return __float2half(f);
+};
+
+template<>
+__device__ unsigned short toType(float f)
+{
+    return static_cast<unsigned short>(f);
+};
+}
+
 template<bool parallel_beam, int channels, typename T>
 __global__ void
 radon_backward_kernel(T *__restrict__ output, cudaTextureObject_t texture, const float *__restrict__ angles,
@@ -98,7 +122,7 @@ radon_backward_kernel(T *__restrict__ output, cudaTextureObject_t texture, const
 
 #pragma unroll
         for (int b = 0; b < channels; b++) {
-            output[base + b * pitch] = accumulator[b] * ids;
+            output[base + b * pitch] = toType<T>(accumulator[b] * ids);
         }
     }
 }
@@ -247,7 +271,7 @@ radon_backward_kernel_3d(T *__restrict__ output, cudaTextureObject_t texture, co
 
 #pragma unroll
         for (int b = 0; b < channels; b++) {
-            output[b * pitch + index] = accumulator[b] * ids;
+            output[b * pitch + index] = toType<T>(accumulator[b] * ids);
         }
     }
 }

@@ -1,14 +1,14 @@
 from setuptools import setup
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 import os
-from make import build
+# from make import build
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
-cuda_home = os.getenv("CUDA_HOME", "/usr/local/cuda")
-print(f"Using CUDA_HOME={cuda_home}")
-build(cuda_home=cuda_home)
+# cuda_home = os.getenv("CUDA_HOME", "/usr/local/cuda")
+# print(f"Using CUDA_HOME={cuda_home}")
+# build(cuda_home=cuda_home)
 
 setup(name='torch_radon',
       version="2.0.0",
@@ -24,13 +24,19 @@ setup(name='torch_radon',
           'torch_radon': './torch_radon',
       },
       ext_modules=[
-          CUDAExtension('torch_radon_cuda', [os.path.abspath('src/pytorch.cpp')],
+          CUDAExtension('torch_radon_cuda',
+                        [
+                            os.path.abspath(os.path.join('src', f))
+                            for f in os.listdir('src')
+                            if f.endswith('.cpp') or f.endswith('.cu')
+                        ],
                         include_dirs=[os.path.abspath('include')],
                         library_dirs=[os.path.abspath("objs")],
-                        libraries=["m", "c", "gcc", "stdc++", "cufft", "radon"],
+                        libraries=["cufft"],
+                        # libraries=["m", "c", "gcc", "stdc++", "cufft", "radon"],
                         # extra_compile_args=["-static", "-static-libgcc", "-static-libstdc++"],
                         # strip debug symbols
-                        extra_link_args=["-Wl,--strip-all"] #, "-static-libgcc", "-static-libstdc++"]
+                        # extra_link_args=["-Wl,--strip-all"] #, "-static-libgcc", "-static-libstdc++"]
                         )
       ],
       cmdclass={'build_ext': BuildExtension},
@@ -42,7 +48,7 @@ setup(name='torch_radon',
       ],
       install_requires=[
           "scipy",
-          "alpha-transform"
+        #   "alpha-transform"  # not available on Windows
       ],
       )
 
