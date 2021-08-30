@@ -33,6 +33,9 @@ setup(name='torch_radon',
                         include_dirs=[os.path.abspath('include')],
                         library_dirs=[os.path.abspath("objs")],
                         libraries=["cufft"],
+                        extra_compile_args={
+                            "cxx": ["-std=c++17" if os.name=='posix' else "/std:c++17"]
+                        },
                         # libraries=["m", "c", "gcc", "stdc++", "cufft", "radon"],
                         # extra_compile_args=["-static", "-static-libgcc", "-static-libstdc++"],
                         # strip debug symbols
