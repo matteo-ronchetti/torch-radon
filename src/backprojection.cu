@@ -3,9 +3,11 @@
 #include <cuda_runtime.h>
 #include <cuda_fp16.h>
 
+#include "floatcast.h"
 #include "utils.h"
 #include "texture.h"
 #include "backprojection.h"
+
 
 template<bool parallel_beam, int channels, typename T>
 __global__ void
@@ -98,7 +100,7 @@ radon_backward_kernel(T *__restrict__ output, cudaTextureObject_t texture, const
 
 #pragma unroll
         for (int b = 0; b < channels; b++) {
-            output[base + b * pitch] = accumulator[b] * ids;
+            output[base + b * pitch] = toType<T>(accumulator[b] * ids);
         }
     }
 }
@@ -247,7 +249,7 @@ radon_backward_kernel_3d(T *__restrict__ output, cudaTextureObject_t texture, co
 
 #pragma unroll
         for (int b = 0; b < channels; b++) {
-            output[b * pitch + index] = accumulator[b] * ids;
+            output[b * pitch + index] = toType<T>(accumulator[b] * ids);
         }
     }
 }

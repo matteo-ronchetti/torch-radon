@@ -1,6 +1,5 @@
 import numpy as np
 import torch
-import torch.fft
 
 try:
     import scipy.fft

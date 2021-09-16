@@ -3,12 +3,18 @@
 
 #include <stdint.h>
 #include <limits>
+#include <cstdlib>
 
+#ifdef __GNUC__
 #define EXPECT_FALSE(x) __builtin_expect(x, false)
 #define EXPECT_TRUE(x) __builtin_expect(x, true)
 
 #pragma GCC push_options
 #pragma GCC optimize ("03", "no-fast-math")
+#else
+#define EXPECT_FALSE(x) x
+#define EXPECT_TRUE(x) x
+#endif  // __GNUC__
 
 namespace rosh
 {
@@ -200,10 +206,14 @@ namespace rosh
 
     inline float sqrt(float x)
     {
+#ifdef __GNUC__
         __asm__("sqrtss %1, %0"
-                : "=x"(x)
-                : "x"(x));
+              : "=x"(x)
+              : "x"(x));
         return x;
+#else
+        return std::sqrtf(x);
+#endif  // __GNUC__
     }
 
     inline float hypot(float x, float y)
@@ -388,5 +398,7 @@ namespace rosh
     }
 }
 
+#ifdef __GNUC__
 #pragma GCC pop_options
+#endif  // __GNUC__
 #endif
