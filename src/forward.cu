@@ -2,35 +2,11 @@
 #include <cuda_runtime.h>
 #include <cuda_fp16.h>
 
+#include "floatcast.h"
 #include "utils.h"
 #include "texture.h"
 #include "parameter_classes.h"
 #include "log.h"
-
-
-namespace
-{
-template<typename T>
-__device__ T toType(float);
-
-template<>
-__device__ float toType(float f)
-{
-    return f;
-};
-
-template<>
-__device__ __half toType(float f)
-{
-    return __float2half(f);
-};
-
-template<>
-__device__ unsigned short toType(float f)
-{
-    return static_cast<unsigned short>(f);
-};
-}
 
 
 template<bool parallel_beam, int channels, typename T>
