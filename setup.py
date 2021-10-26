@@ -25,7 +25,10 @@ setup(name='torch_radon',
       },
       ext_modules=[
           CUDAExtension('torch_radon_cuda', [os.path.abspath('src/pytorch.cpp')],
-                        include_dirs=[os.path.abspath('include')],
+                        include_dirs=[
+                            os.path.abspath('include'),
+                            os.path.join(cuda_home, 'include'),
+                        ],
                         library_dirs=[os.path.abspath("objs")],
                         libraries=["radon"],
                         extra_compile_args=["-static", "-static-libgcc", "-static-libstdc++"],
