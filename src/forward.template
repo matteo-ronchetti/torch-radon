@@ -24,7 +24,7 @@ radon_forward_kernel(T *__restrict__ output, cudaTextureObject_t texture, const 
         if (parallel_beam) {
             v = cfg.height / 2.0;
             sx = (ray_id - cfg.det_count / 2.0f + 0.5f) * cfg.det_spacing;
-            sy = 0.71f * cfg.height;
+            sy = cfg.height;
             ex = sx;
             ey = -sy;
         } else {
@@ -139,4 +139,5 @@ radon_forward_cuda<float>(const float *x, const float *angles, float *y, Texture
 
 template void radon_forward_cuda<unsigned short>(const unsigned short *x, const float *angles, unsigned short *y,
                                                  TextureCache &tex_cache, const RaysCfg &cfg,
-                                                 const int batch_size, const int device);
+                                                 const int batch_size, const
+                                                 int device);

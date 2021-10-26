@@ -12,7 +12,7 @@ DEFINE_ACCUMULATOR = """
 PARALLEL_BEAM_RAY = """
         v = cfg.height / 2.0;
         sx = (ray_id - cfg.det_count / 2.0f + 0.5f) * cfg.det_spacing;
-        sy = 0.71f * cfg.height;
+        sy = cfg.height;
         ex = sx;
         ey = -sy;
 """
@@ -72,7 +72,7 @@ CLIP_TO_CIRCLE = """
         const float delta_sqrt = sqrtf(max(b * b - a * c, 1.0f));
         const float alpha_s = (-b - delta_sqrt) / a;
         const float alpha_e = (-b + delta_sqrt) / a;
-        
+
         rsx += rdx*alpha_s + v;
         rsy += rdy*alpha_s + v;
         rdx *= (alpha_e - alpha_s);
@@ -122,11 +122,11 @@ COMPUTE_IMAGE_COORDINATES = """
     const uint x = blockIdx.x * blockDim.x + threadIdx.x;
     const uint y = blockIdx.y * blockDim.y + threadIdx.y;
     const uint tid = threadIdx.y * blockDim.x + threadIdx.x;
-    
+
     const float cx = cfg.width / 2.0f;
     const float cy = cfg.height / 2.0f;
     const float cr = cfg.det_count / 2.0f;
-    
+
     const float dx = float(x) - cx + 0.5f;
     const float dy = float(y) - cy + 0.5f;
 """

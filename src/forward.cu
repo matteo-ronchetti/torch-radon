@@ -31,7 +31,7 @@ radon_forward_kernel(T *__restrict__ output, cudaTextureObject_t texture, const 
         if (parallel_beam) {
             v = cfg.height / 2.0;
             sx = (ray_id - cfg.det_count / 2.0f + 0.5f) * cfg.det_spacing;
-            sy = 0.71f * cfg.height;
+            sy = cfg.height;
             ex = sx;
             ey = -sy;
         } else {
