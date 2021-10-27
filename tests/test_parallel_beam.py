@@ -68,3 +68,71 @@ def test_error(batch_size, angles, volume, spacing, det_count):
 
         description = f"Angles: {angles}\nVolume: {volume}\nSpacing: {spacing}, Count: {det_count}, Precision: half"
         test_helper.compare_images(y, ty, max_error, description)
+
+
+def test_simple_integrals(image_size=17):
+    """Check that the forward radon operator works correctly at 0 and PI/2.
+
+    When we project at angles 0 and PI/2, the foward operator should be the
+    same as taking the sum over the object array along each axis.
+    """
+    angles = torch.tensor(
+        [0.0, -np.pi / 2, np.pi, np.pi / 2],
+        dtype=torch.float32,
+        device='cuda',
+    )
+    radon = tr.ParallelBeam(
+        volume=image_size,
+        angles=angles,
+        det_spacing=1.0,
+        det_count=image_size,
+    )
+
+    original = torch.zeros(
+        image_size,
+        image_size,
+        dtype=torch.float32,
+        device='cuda',
+    )
+    original[image_size // 4, :] += 1
+    # original[:, image_size // 2] += 1
+
+    data = radon.forward(original)
+    data0 = torch.sum(original, axis=0)
+    data1 = torch.sum(original, axis=1)
+
+    print('\n', data[0].cpu().numpy())
+    print(data0.cpu().numpy())
+    print('\n', data[1].cpu().numpy())
+    print(data1.cpu().numpy())
+    print('\n', data[2].cpu().numpy())
+    print(data0.cpu().numpy()[::-1])
+    print('\n', data[3].cpu().numpy())
+    print(data1.cpu().numpy()[::-1])
+
+    # torch.testing.assert_allclose(data[0], data0)
+    # torch.testing.assert_allclose(data[1], data1)
+    # torch.testing.assert_allclose(data[2], data0)
+    # torch.testing.assert_allclose(data[3], data1)
+
+
+def test_simple_back(image_size=17):
+
+    data = torch.zeros(4, image_size, device='cuda')
+    data[:, image_size // 4] = torch.tensor([1, 2, 3, 4], device='cuda')
+
+    angles = torch.tensor(
+        [0.0, np.pi / 2, np.pi, -np.pi / 2],
+        dtype=torch.float32,
+        device='cuda',
+    )
+    radon = tr.ParallelBeam(
+        volume=image_size,
+        angles=angles,
+        det_spacing=1.0,
+        det_count=image_size,
+    )
+
+    original = radon.backward(data)
+    print()
+    print(original)

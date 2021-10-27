@@ -1,4 +1,4 @@
-from .utils import generate_random_images, relative_error
+from .utils import relative_error
 import astra
 from nose.tools import assert_less, assert_equal
 import torch
@@ -83,7 +83,7 @@ def test_fanflat_error(device, batch_size, volume_size, angles, det_spacing, dis
     #     plt.show()
 
     print(f"batch: {batch_size}, size: {volume_size}, angles: {len(angles)}, spacing: {det_spacing}, distances: {distances}, det_count:{det_count}, forward: {forward_error}, back: {back_error}")
-    
+
     # TODO better checks
     assert_less(batch_error, 1e-6)
     assert_less(forward_error, 2e-2)
@@ -114,7 +114,7 @@ def test_half(device, batch_size, volume_size, angles, det_spacing, distances, d
     back_error = relative_error(single_bp.cpu().numpy(), half_bp.float().cpu().numpy())
 
     print(f"batch: {batch_size}, size: {volume_size}, angles: {len(angles)}, spacing: {det_spacing}, distances: {distances}, det_count:{det_count}, forward: {forward_error}, back: {back_error}")
-    
+
     # TODO better checks
     assert_less(forward_error, 3e-3)
     assert_less(back_error, 3e-3)

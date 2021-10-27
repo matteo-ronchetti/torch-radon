@@ -55,10 +55,10 @@ radon_forward_kernel(T *__restrict__ output, cudaTextureObject_t texture, const 
         // convert coordinates to volume coordinate system
         const float vol_orig_x = vol_cfg.dx - 0.5f * vol_cfg.width * vol_cfg.sx;
         const float vol_orig_y = vol_cfg.dy - 0.5f * vol_cfg.height * vol_cfg.sy;
-        rsx = (rsx - vol_orig_x) * vol_cfg.inv_scale_x; 
-        rsy = (rsy - vol_orig_y) * vol_cfg.inv_scale_y; 
-        rdx = rdx * vol_cfg.inv_scale_x; 
-        rdy = rdy * vol_cfg.inv_scale_y; 
+        rsx = (rsx - vol_orig_x) * vol_cfg.inv_scale_x;
+        rsy = (rsy - vol_orig_y) * vol_cfg.inv_scale_y;
+        rdx = rdx * vol_cfg.inv_scale_x;
+        rdy = rdy * vol_cfg.inv_scale_y;
 
 
         // clip to volume (to reduce memory reads)
@@ -88,7 +88,7 @@ radon_forward_kernel(T *__restrict__ output, cudaTextureObject_t texture, const 
         const float vx = rdx / max(abs(rdx), abs(rdy));
         const float vy = rdy / max(abs(rdx), abs(rdy));
         const float n = hypot(vx * vol_cfg.sx, vy * vol_cfg.sy);
-        
+
         float step;
         if(abs(rdy) >= abs(rdx)){
             float y_increment = 0.5f - rsy + __float2int_rn(rsy);
@@ -117,7 +117,7 @@ radon_forward_kernel(T *__restrict__ output, cudaTextureObject_t texture, const 
             rsx += vx;
             rsy += vy;
         }
-        
+
         #pragma unroll
         for (int b = 0; b < channels; b++) output[base + b * mem_pitch] = accumulator[b] * n;
     }
@@ -231,10 +231,10 @@ radon_forward_kernel_3d(T *__restrict__ output, cudaTextureObject_t texture, con
         const float vol_orig_x = vol_cfg.dx - 0.5f * vol_cfg.width * vol_cfg.sx;
         const float vol_orig_y = vol_cfg.dy - 0.5f * vol_cfg.height * vol_cfg.sy;
         const float vol_orig_z = vol_cfg.dz - 0.5f * vol_cfg.depth * vol_cfg.sz;
-        rsx = (rsx - vol_orig_x) * vol_cfg.inv_scale_x; 
-        rsy = (rsy - vol_orig_y) * vol_cfg.inv_scale_y; 
-        rsz = (rsz - vol_orig_z) * vol_cfg.inv_scale_z; 
-        rdx = rdx * vol_cfg.inv_scale_x; 
+        rsx = (rsx - vol_orig_x) * vol_cfg.inv_scale_x;
+        rsy = (rsy - vol_orig_y) * vol_cfg.inv_scale_y;
+        rsz = (rsz - vol_orig_z) * vol_cfg.inv_scale_z;
+        rdx = rdx * vol_cfg.inv_scale_x;
         rdy = rdy * vol_cfg.inv_scale_y;
         rdz = rdz * vol_cfg.inv_scale_z;
 
@@ -273,7 +273,7 @@ radon_forward_kernel_3d(T *__restrict__ output, cudaTextureObject_t texture, con
         const float vy = rdy / f_n_steps;
         const float vz = rdz / f_n_steps;
         const float n = norm3df(vx * vol_cfg.sx, vy * vol_cfg.sy, vz * vol_cfg.sz);
-        
+
         float step;
         if(abs(rdy) >= abs(rdx)){
             float y_increment = 0.5f - rsy + __float2int_rn(rsy);

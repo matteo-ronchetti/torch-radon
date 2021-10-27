@@ -2,7 +2,6 @@ import torch
 import numpy as np
 import torch_radon as tr
 from unittest import TestCase
-from .utils import generate_random_images
 
 
 class TestVolume(TestCase):
@@ -45,7 +44,7 @@ class TestVolume(TestCase):
         dy = 16
         dx = 32
         device = torch.device("cuda")
-        
+
         img = np.zeros((256, 256), dtype=np.float32)
         img[128-16+dy:128+16+dy, 128-16+dx:128+16+dx] = 1.0
         vol = Volume.create_2d(*img.shape)
@@ -57,7 +56,7 @@ class TestVolume(TestCase):
         # compute croppings that align the images
         cropped_h = img.shape[0] - abs(dy)
         cropped_w = img.shape[1] - abs(dx)
-        cropped_img = img[max(dy, 0):max(dy, 0) + cropped_h, max(dx, 0):max(dx, 0) + cropped_w] 
+        cropped_img = img[max(dy, 0):max(dy, 0) + cropped_h, max(dx, 0):max(dx, 0) + cropped_w]
         cropped_img_d = img_d[max(-dy, 0):max(-dy, 0) + cropped_h, max(-dx, 0):max(-dx, 0) + cropped_w]
         # if this fails then there is an error in cropping
         self.assertLess(np.linalg.norm(cropped_img-cropped_img_d), 1e-6)
@@ -80,7 +79,7 @@ class TestVolume(TestCase):
 
         self.assertLess(torch.norm(sinogram_d - sinogram) / torch.norm(sinogram), 2e-3)
 
-        cropped_bp = bp[max(dy, 0):max(dy, 0) + cropped_h, max(dx, 0):max(dx, 0) + cropped_w] 
+        cropped_bp = bp[max(dy, 0):max(dy, 0) + cropped_h, max(dx, 0):max(dx, 0) + cropped_w]
         cropped_bp_d = bp_d[max(-dy, 0):max(-dy, 0) + cropped_h, max(-dx, 0):max(-dx, 0) + cropped_w]
         self.assertLess(torch.norm(cropped_bp - cropped_bp_d) / torch.norm(cropped_bp), 2e-4)
 
@@ -88,7 +87,7 @@ class TestVolume(TestCase):
         sy = 1
         sx = 2
         device = torch.device("cuda")
-        
+
         img = np.zeros((256, 256), dtype=np.float32)
         img[128-16:128+16, 128-16:128+16] = 1.0
         vol = Volume.create_2d(*img.shape)
@@ -114,6 +113,7 @@ class TestVolume(TestCase):
 
         self.assertLess(torch.norm(sinogram_d - sinogram) / torch.norm(sinogram), 2e-3)
 
-        # cropped_bp = bp[max(dy, 0):max(dy, 0) + cropped_h, max(dx, 0):max(dx, 0) + cropped_w] 
+        # cropped_bp = bp[max(dy, 0):max(dy, 0) + cropped_h, max(dx, 0):max(dx, 0) + cropped_w]
         # cropped_bp_d = bp_d[max(-dy, 0):max(-dy, 0) + cropped_h, max(-dx, 0):max(-dx, 0) + cropped_w]
-        # self.assertLess(torch.norm(cropped_bp - cropped_bp_d) / torch.norm(cropped_bp), 2e-4)
+        # self.assertLess(torch.norm(cropped_bp - cropped_bp_d) /
+        # torch.norm(cropped_bp), 2e-4)

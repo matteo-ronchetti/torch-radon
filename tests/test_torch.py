@@ -3,7 +3,6 @@ import numpy as np
 from torch.autograd import gradcheck
 import torch_radon as tr
 from unittest import TestCase
-from .utils import generate_random_images
 
 
 class TestTorch(TestCase):
@@ -52,5 +51,5 @@ class TestTorch(TestCase):
 
 #         def f(xx):
 #             return radon.backprojection(radon.forward(xx, angles), angles)
-        
+
 #         self.assertEqual(gradcheck(f, x, 1e-1, 1e-3, 1e-2), True)
