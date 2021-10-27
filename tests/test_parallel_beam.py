@@ -53,9 +53,14 @@ def test_error(device, batch_size, image_size, angles, spacing, det_count, clip_
     back_error = relative_error(astra_bp, our_bp.cpu().numpy())
 
     if back_error > 1e-2:
-        plt.imshow(astra_bp[0])
         plt.figure()
-        plt.imshow((our_bp[0].cpu().numpy() - astra_bp[0]))
+        plt.title('ASTRA backprojection')
+        plt.imshow(astra_bp[0])
+        plt.colorbar()
+        plt.figure()
+        plt.title('torch-radon difference')
+        plt.imshow(np.abs(our_bp[0].cpu().numpy() - astra_bp[0])/astra_bp[0])
+        plt.colorbar()
         plt.show()
 
     print(
@@ -93,3 +98,73 @@ def test_half(device, batch_size, image_size, angles, spacing, det_count, clip_t
 
     assert_less(forward_error, 1e-3)
     assert_less(back_error, 1e-3)
+
+
+def test_simple_integrals(image_size=17):
+    """Check that the forward radon operator works correctly at 0 and PI/2.
+
+    When we project at angles 0 and PI/2, the foward operator should be the
+    same as taking the sum over the object array along each axis.
+    """
+    angles = torch.tensor(
+        [0.0, -np.pi / 2, np.pi, np.pi / 2],
+        dtype=torch.float32,
+        device='cuda',
+    )
+    radon = Radon(
+        resolution=image_size,
+        angles=angles,
+        det_spacing=1.0,
+        det_count=image_size,
+        clip_to_circle=False,
+    )
+
+    original = torch.zeros(
+        image_size,
+        image_size,
+        dtype=torch.float32,
+        device='cuda',
+    )
+    original[image_size // 4, :] += 1
+    # original[:, image_size // 2] += 1
+
+    data = radon.forward(original)
+    data0 = torch.sum(original, axis=0)
+    data1 = torch.sum(original, axis=1)
+
+    print('\n', data[0].cpu().numpy())
+    print(data0.cpu().numpy())
+    print('\n', data[1].cpu().numpy())
+    print(data1.cpu().numpy())
+    print('\n', data[2].cpu().numpy())
+    print(data0.cpu().numpy()[::-1])
+    print('\n', data[3].cpu().numpy())
+    print(data1.cpu().numpy()[::-1])
+
+    # torch.testing.assert_allclose(data[0], data0)
+    # torch.testing.assert_allclose(data[1], data1)
+    # torch.testing.assert_allclose(data[2], data0)
+    # torch.testing.assert_allclose(data[3], data1)
+
+
+def test_simple_back(image_size=17):
+
+    data = torch.zeros(4, image_size, device='cuda')
+    data[:, image_size // 4] = torch.tensor([1, 2, 3, 4], device='cuda')
+
+    angles = torch.tensor(
+        [0.0, np.pi / 2, np.pi, -np.pi / 2],
+        dtype=torch.float32,
+        device='cuda',
+    )
+    radon = Radon(
+        resolution=image_size,
+        angles=angles,
+        det_spacing=1.0,
+        det_count=image_size,
+        clip_to_circle=False,
+    )
+
+    original = radon.backward(data)
+    print()
+    print(original)
