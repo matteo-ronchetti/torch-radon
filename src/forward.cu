@@ -73,7 +73,7 @@ radon_forward_kernel(T *__restrict__ output, cudaTextureObject_t texture, const 
         const float alpha_e = min(max(alpha_x_p, alpha_x_m), max(alpha_y_p, alpha_y_m));
 
         // if ray volume intersection is empty exit
-        if (alpha_s > alpha_e) {
+        if (alpha_s > alpha_e - 1e-6) {
 #pragma unroll
             for (int b = 0; b < channels; b++) output[base + b * mem_pitch] = 0.0f;
             return;
@@ -132,6 +132,9 @@ void radon_forward_cuda(
     constexpr bool is_float = std::is_same<T, float>::value;
     constexpr int precision = is_float ? PRECISION_FLOAT : PRECISION_HALF;
     const int channels = exec_cfg.get_channels(batch_size);
+
+    LOG_DEBUG("Radon forward 2D. Height: " << vol_cfg.height << " width: " << vol_cfg.width << " channels: " << channels);
+    LOG_DEBUG("Radon forward 2D. Det count: " << proj_cfg.det_count_u << " angles: " << proj_cfg.n_angles << " batch_size: " << batch_size);
 
     // copy x into CUDA Array (allocating it if needed) and bind to texture
     Texture *tex = tex_cache.get(
@@ -253,7 +256,7 @@ radon_forward_kernel_3d(T *__restrict__ output, cudaTextureObject_t texture, con
         const float alpha_s = max(min(alpha_x_p, alpha_x_m), max(min(alpha_y_p, alpha_y_m), min(alpha_z_p, alpha_z_m)));
         const float alpha_e = min(max(alpha_x_p, alpha_x_m), min(max(alpha_y_p, alpha_y_m), max(alpha_z_p, alpha_z_m)));
 
-        if (alpha_s > alpha_e) {
+        if (alpha_s > alpha_e - 1e-6) {
 #pragma unroll
             for (int b = 0; b < channels; b++) output[b * mem_pitch + index] = 0.0f;
             return;

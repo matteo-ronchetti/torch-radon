@@ -1,4 +1,5 @@
-from .utils import generate_random_images, relative_error
+from torch_radon.volumes import Volume3D
+from .utils import relative_error
 import astra
 from nose.tools import assert_less, assert_equal
 import torch
@@ -54,11 +55,13 @@ def test_fanflat_error(device, batch_size, volume_size, angles, det_spacing, dis
     # TODO clean astra structures
 
     # our implementation
-    radon = tr.ConeBeam(det_count, angles, s_dist, d_dist, det_spacing_u=det_spacing, volume=volume_size)
+    volume = Volume3D()
+    volume.set_size(volume_size, volume_size, volume_size)
+    radon = tr.ConeBeam(det_count, angles, s_dist, d_dist, det_spacing_u=det_spacing, volume=volume)
     x = torch.FloatTensor(x).view(1, x.shape[0], x.shape[1], x.shape[2]).repeat(batch_size, 1, 1, 1).to(device)
 
     our_fp = radon.forward(x)
-    our_bp = radon.backprojection(our_fp)
+    our_bp = radon.backward(our_fp)
 
     our_fp = our_fp.cpu().numpy()
     batch_error = max([relative_error(our_fp[0], our_fp[i]) for i in range(1, batch_size)] + [0])
@@ -68,22 +71,22 @@ def test_fanflat_error(device, batch_size, volume_size, angles, det_spacing, dis
     batch_error_back = max([relative_error(our_bp[0], our_bp[i]) for i in range(1, batch_size)] + [0])
     back_error = relative_error(astra_bp, our_bp[0])
 
-    # if forward_error > 2e-2:
-    #     fig, ax = plt.subplots(3, 3)
-    #     ax = ax.ravel()
-    #     ax[0].imshow(astra_y[0])
-    #     ax[1].imshow(our_fp[0, 0])
-    #     ax[2].imshow(np.abs(our_fp[0, 0] - astra_y[0]))
-    #     ax[3].imshow(astra_y[len(angles)//2])
-    #     ax[4].imshow(our_fp[0, len(angles)//2])
-    #     ax[5].imshow(np.abs(our_fp[0, len(angles)//2] - astra_y[len(angles)//2]))
-    #     ax[6].imshow(astra_y[-1])
-    #     ax[7].imshow(our_fp[0, -1])
-    #     ax[8].imshow(np.abs(our_fp[0, -1] - astra_y[-1]))
-    #     plt.show()
+    if not forward_error < 2e-2:
+        fig, ax = plt.subplots(3, 3)
+        ax = ax.ravel()
+        ax[0].imshow(astra_y[0])
+        ax[1].imshow(our_fp[0, 0])
+        ax[2].imshow(np.abs(our_fp[0, 0] - astra_y[0]))
+        ax[3].imshow(astra_y[len(angles)//2])
+        ax[4].imshow(our_fp[0, len(angles)//2])
+        ax[5].imshow(np.abs(our_fp[0, len(angles)//2] - astra_y[len(angles)//2]))
+        ax[6].imshow(astra_y[-1])
+        ax[7].imshow(our_fp[0, -1])
+        ax[8].imshow(np.abs(our_fp[0, -1] - astra_y[-1]))
+        plt.show()
 
     print(f"batch: {batch_size}, size: {volume_size}, angles: {len(angles)}, spacing: {det_spacing}, distances: {distances}, det_count:{det_count}, forward: {forward_error}, back: {back_error}")
-    
+
     # TODO better checks
     assert_less(batch_error, 1e-6)
     assert_less(forward_error, 2e-2)
@@ -101,20 +104,22 @@ def test_half(device, batch_size, volume_size, angles, det_spacing, distances, d
     s_dist *= volume_size
     d_dist *= volume_size
 
-    radon = tr.ConeBeam(det_count, angles, s_dist, d_dist, det_spacing_u=det_spacing, volume=volume_size)
+    volume = Volume3D()
+    volume.set_size(volume_size, volume_size, volume_size)
+    radon = tr.ConeBeam(det_count, angles, s_dist, d_dist, det_spacing_u=det_spacing, volume=volume)
     x = torch.FloatTensor(x).to(device)
 
     single_fp = radon.forward(x) / len(angles)
-    single_bp = radon.backprojection(single_fp)
+    single_bp = radon.backward(single_fp)
 
     half_fp = radon.forward(x.half()) / len(angles)
-    half_bp = radon.backprojection(half_fp)
+    half_bp = radon.backward(half_fp)
 
     forward_error = relative_error(single_fp.cpu().numpy(), half_fp.float().cpu().numpy())
     back_error = relative_error(single_bp.cpu().numpy(), half_bp.float().cpu().numpy())
 
     print(f"batch: {batch_size}, size: {volume_size}, angles: {len(angles)}, spacing: {det_spacing}, distances: {distances}, det_count:{det_count}, forward: {forward_error}, back: {back_error}")
-    
+
     # TODO better checks
     assert_less(forward_error, 3e-3)
     assert_less(back_error, 3e-3)

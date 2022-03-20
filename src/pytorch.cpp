@@ -342,21 +342,22 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
     m.def("forward", &radon_forward, "Radon forward projection");
     m.def("backward", &radon_backward, "Radon back projection");
 
-    m.def("add_noise", &radon_add_noise, "Add noise to sinogram");
-    m.def("emulate_sensor_readings", &emulate_sensor_readings, "Emulate sensor readings");
-    m.def("readings_lookup", &readings_lookup, "Lookup sensors readings in a table");
-    m.def("compute_ab", &torch_compute_ab, "TODO");
-    m.def("compute_lookup_table", &torch_compute_lookup_table, "TODO");
-    m.def("emulate_readings_new", &torch_emulate_readings_new, "TODO");
-    m.def("emulate_readings_multilevel", &emulate_readings_multilevel, "TODO");
-    m.def("readings_lookup_multilevel", &readings_lookup_multilevel, "TODO");
+    // m.def("add_noise", &radon_add_noise, "Add noise to sinogram");
+    // m.def("emulate_sensor_readings", &emulate_sensor_readings, "Emulate sensor readings");
+    // m.def("readings_lookup", &readings_lookup, "Lookup sensors readings in a table");
+    // m.def("compute_ab", &torch_compute_ab, "TODO");
+    // m.def("compute_lookup_table", &torch_compute_lookup_table, "TODO");
+    // m.def("emulate_readings_new", &torch_emulate_readings_new, "TODO");
+    // m.def("emulate_readings_multilevel", &emulate_readings_multilevel, "TODO");
+    // m.def("readings_lookup_multilevel", &readings_lookup_multilevel, "TODO");
     m.def("symbolic_forward", &torch_symbolic_forward, "TODO");
     m.def("symbolic_discretize", &torch_symbolic_discretize, "TODO");
 
     m.def("rfft", &torch_rfft, "TODO");
     m.def("irfft", &torch_irfft, "TODO");
 
-    m.def("set_log_level", [](const int level) { Log::log_level = static_cast<Log::Level>(level); });
+    m.def("set_log_level", [](const int level)
+          { Log::log_level = static_cast<Log::Level>(level); });
 
     py::class_<TextureCache>(m, "TextureCache")
         .def(py::init<size_t>())
@@ -368,7 +369,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
 
     py::class_<RadonNoiseGenerator>(m, "RadonNoiseGenerator")
         .def(py::init<const uint>())
-        .def("set_seed", (void (RadonNoiseGenerator::*)(const uint)) & RadonNoiseGenerator::set_seed)
+        .def("set_seed", (void(RadonNoiseGenerator::*)(const uint)) & RadonNoiseGenerator::set_seed)
         .def("free", &RadonNoiseGenerator::free);
 
     py::class_<VolumeCfg>(m, "VolumeCfg")
