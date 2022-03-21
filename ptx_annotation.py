@@ -1,6 +1,10 @@
 import re
-from demangler import demangle
 import struct
+try:
+    from demangler import demangle
+except Exception as e:
+    demangle = None
+
 
 def hex_to_float(h):
     return struct.unpack('!f', bytes.fromhex(h))[0]
@@ -33,12 +37,13 @@ def annotate_ptx(path):
     for line in lines:
         line = line.strip(" \t\n")
 
-        # add comments with demangled kernel names
-        m = re.match(r'\.visible\s*\.entry\s*([^(]+)', line)
-        if m:
-            kernel = demangle(m.group(1))
-            line = f"// {kernel}\n{line}"
-            kernels.append(kernel)
+        if demangle is not None:
+            # add comments with demangled kernel names
+            m = re.match(r'\.visible\s*\.entry\s*([^(]+)', line)
+            if m:
+                kernel = demangle(m.group(1))
+                line = f"// {kernel}\n{line}"
+                kernels.append(kernel)
         
         # make .loc annotations explicit adding the corresponding source file line 
         m = re.match(r'\.loc\s*([0-9]+)\s*([0-9]+)\s*([0-9]+)', line)
