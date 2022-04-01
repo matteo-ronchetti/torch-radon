@@ -207,14 +207,14 @@ float SymbolicFunction::line_integral(float s_x, float s_y, float e_x, float e_y
     return tmp;
 }
 
-void symbolic_forward(const SymbolicFunction &f, const ProjectionCfg &proj, const float *angles, const int n_angles,
+void symbolic_forward(const SymbolicFunction &f, const Projection2D &proj, const float *angles, const int n_angles,
                       float *sinogram) {
     for (int angle_id = 0; angle_id < n_angles; angle_id++) {
-        for (int ray_id = 0; ray_id < proj.det_count_u; ray_id++) {
+        for (int ray_id = 0; ray_id < proj.det_count; ray_id++) {
             // compute ray
             float sx, sy, ex, ey;
-            if (proj.projection_type == PARALLEL) {
-                sx = (ray_id - proj.det_count_u * 0.5f + 0.5f) * proj.det_spacing_u;
+            if (proj.type == ProjectionType::ParallelBeam) {
+                sx = (ray_id - proj.det_count * 0.5f + 0.5f) * proj.det_spacing;
                 sy = f.max_distance_from_origin();
                 ex = sx;
                 ey = -sy;
@@ -222,7 +222,7 @@ void symbolic_forward(const SymbolicFunction &f, const ProjectionCfg &proj, cons
                 sy = proj.s_dist;
                 sx = 0.0f;
                 ey = -proj.d_dist;
-                ex = (ray_id - proj.det_count_u * 0.5f + 0.5f) * proj.det_spacing_u;
+                ex = (ray_id - proj.det_count * 0.5f + 0.5f) * proj.det_spacing;
             }
 
             // rotate ray
@@ -235,7 +235,7 @@ void symbolic_forward(const SymbolicFunction &f, const ProjectionCfg &proj, cons
             float rex = ex * cs + ey * sn;
             float rey = -ex * sn + ey * cs;
 
-            sinogram[angle_id * proj.det_count_u + ray_id] = f.line_integral(rsx, rsy, rex, rey);
+            sinogram[angle_id * proj.det_count + ray_id] = f.line_integral(rsx, rsy, rex, rey);
         }
     }
 }

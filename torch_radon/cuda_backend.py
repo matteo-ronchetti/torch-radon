@@ -4,7 +4,7 @@ import os
 if os.getenv("TORCH_RADON_DOC_BUILD"):
     print("Not importing cuda backend because this is just the doc build")
     VolumeCfg = None
-    ProjectionCfg = None
+    Projection = None
 
     class ExecCfg:
         pass

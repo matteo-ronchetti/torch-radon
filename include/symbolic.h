@@ -1,3 +1,5 @@
+#pragma once
+
 #include <vector>
 
 #include "parameter_classes.h"
@@ -63,4 +65,4 @@ public:
     float line_integral(float s_x, float s_y, float e_x, float e_y) const;
 };
 
-void symbolic_forward(const SymbolicFunction &f, const ProjectionCfg &proj, const float *angles, const int n_angles, float *sinogram);
+void symbolic_forward(const SymbolicFunction &f, const Projection2D &proj, const float *angles, const int n_angles, float *sinogram);

@@ -1,5 +1,4 @@
-#ifndef TORCH_RADON_TEXTURE_CACHE_H
-#define TORCH_RADON_TEXTURE_CACHE_H
+#pragma once
 
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -42,7 +41,7 @@ public:
 
     Texture(TextureConfig c);
     void put(const float *data);
-    void put(const unsigned short *data);
+    void put(const ushort *data);
 
     bool matches(TextureConfig& k);
 
@@ -51,5 +50,3 @@ public:
 
 
 typedef Cache<TextureConfig, Texture> TextureCache;
-
-#endif

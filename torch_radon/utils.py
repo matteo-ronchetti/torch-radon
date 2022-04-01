@@ -56,11 +56,11 @@ def normalize_shape(d):
 def projection_property_maker(name):
     @property
     def prop(self):
-        return getattr(self.projection.cfg, name)
+        return getattr(self.projection, name)
 
     @prop.setter
     def prop(self, value):
-        setattr(self.projection.cfg, name, value)
+        setattr(self.projection, name, value)
 
     return prop
 
@@ -68,7 +68,7 @@ def projection_property_maker(name):
 def expose_projection_attributes(pyclass, attributes: list):
     """Exposes the attributes of the projection directly from the class.
     For example, after exposing "det_spacing_u" (internal name) as "det_spacing" (exposed name), setting radon.det_spacing = 32
-    is equivalent to setting  radon.projection.cfg.det_spacing_u = 32
+    is equivalent to setting  radon.projection.det_spacing_u = 32
 
     Args:
         pyclass: A python class (not instance of a class but the actual class)

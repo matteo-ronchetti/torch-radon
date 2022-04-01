@@ -188,7 +188,7 @@ void Texture::put(const float *data) {
     // checkCudaErrors(cudaDeviceSynchronize());
 }
 
-void Texture::put(const unsigned short *data) {
+void Texture::put(const ushort *data) {
     if (this->cfg.precision == PRECISION_FLOAT) {
         LOG_WARNING("Putting single precision data into a half precision texture");
     }

@@ -1,5 +1,4 @@
-#ifndef TORCH_RADON_UTILS_H
-#define TORCH_RADON_UTILS_H
+#pragma once
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -98,5 +97,3 @@ inline void __cufftSafeCall(cufftResult err, const char *file, const int line) {
         cudaDeviceReset();
     }
 }
-
-#endif

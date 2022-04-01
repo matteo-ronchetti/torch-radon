@@ -1,5 +1,4 @@
-#ifndef TORCH_RADON_LOG_H
-#define TORCH_RADON_LOG_H
+#pragma once
 
 #include <sstream>
 #include <string>
@@ -49,5 +48,3 @@ namespace Log
         oss << _message_;                                           \
         Log::log(Log::Level::Error, oss.str(), __FILE__, __LINE__); \
     }
-
-#endif

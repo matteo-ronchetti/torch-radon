@@ -1,17 +1,16 @@
-#ifndef TORCH_RADON_DEFINES_H
-#define TORCH_RADON_DEFINES_H
-
+#pragma once
 typedef unsigned int uint;
+typedef unsigned short ushort;
 
 #define PRECISION_FLOAT 1
 #define PRECISION_HALF 0
 
-#define PARALLEL 0
-#define FANBEAM 1
-#define CONEFLAT 2 // Cone beam geometry with circular/helical source curve and flat detector
+enum class ProjectionType{
+    ParallelBeam = 0,
+    FanBeam = 1,
+    ConeBeam = 2
+};
 
 #define TEX_1D_LAYERED 0
 #define TEX_2D_LAYERED 1
 #define TEX_3D 2
-
-#endif //TORCH_RADON_DEFINES_H

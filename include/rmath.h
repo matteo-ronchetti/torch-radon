@@ -1,5 +1,4 @@
-#ifndef RMATH_SIMPLE_H
-#define RMATH_SIMPLE_H
+#pragma once
 
 #include <stdint.h>
 #include <limits>
@@ -392,4 +391,3 @@ namespace rosh
 }
 
 #pragma GCC pop_options
-#endif

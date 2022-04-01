@@ -63,7 +63,7 @@ def test_error(batch_size, angles, volume, spacing, det_count):
 
     tx = torch.FloatTensor(x).unsqueeze(0).repeat(batch_size, 1, 1).to(device)
 
-    y = symbolic_forward(f, radon.angles.cpu(), radon.projection.cfg).cpu().numpy()
+    y = symbolic_forward(f, radon.angles.cpu(), radon.projection).cpu().numpy()
     ty = radon.forward(tx)
     assert_equal(ty.size(0), batch_size)
 

@@ -1,47 +1,56 @@
 #include "parameter_classes.h"
 #include "utils.h"
+#include "rmath.h"
 #include <cuda.h>
 
 
-VolumeCfg::VolumeCfg(int d, int h, int w, float _dz, float _dy, float _dx, float _sz, float _sy, float _sx, bool ddd)
-        : depth(d), height(h), width(w),
-        dz(_dz), dy(_dy), dx(_dx), 
-        sz(_sz), sy(_sy), sx(_sx),
-        inv_scale_z(1.0f / sz), inv_scale_y(1.0f / sy), inv_scale_x(1.0f / sx), 
-        is_3d(ddd) {}
+VolumeCfg::VolumeCfg(int s, int h, int w, float sz, float sy, float sx)
+        : slices(s), height(h), width(w),
+          spacing({sx, sy, sz}),
+          inv_spacing({1 / sx, 1 / sy, 1 / sz}) {}
 
-ProjectionCfg::ProjectionCfg(int dc_u, float ds_u, int dc_v, float ds_v, float sd, float dd,
-                  float pi, float iz, int pt)
-            : det_count_u(dc_u), det_spacing_u(ds_u), det_count_v(dc_v),
-              det_spacing_v(ds_v), s_dist(sd), d_dist(dd), pitch(pi), initial_z(iz),
-              projection_type(pt) {}
-
-ProjectionCfg::ProjectionCfg(const ProjectionCfg& src)
-    :det_count_u(src.det_count_u), det_spacing_u(src.det_spacing_u),
-    det_count_v(src.det_count_v), det_spacing_v(src.det_spacing_v),
-    s_dist(src.s_dist), d_dist(src.d_dist), pitch(src.pitch), initial_z(src.initial_z),
-              projection_type(src.projection_type), n_angles(src.n_angles) {}
-
-bool ProjectionCfg::is_2d() const{
-    return projection_type == PARALLEL || projection_type == FANBEAM;
+bool VolumeCfg::is_3d() const {
+    return slices > 1;
 }
 
-ProjectionCfg ProjectionCfg::copy() const{
-    return ProjectionCfg(*this);
+
+Projection2D::Projection2D(ProjectionType t, int dc, float ds) : type(t), det_count(dc), det_spacing(ds) {}
+
+Projection2D Projection2D::ParallelBeam(int det_count, float det_spacing) {
+    return {ProjectionType::ParallelBeam, det_count, det_spacing};
+}
+
+Projection2D Projection2D::FanBeam(int det_count, float src_dist, float det_dist, float det_spacing) {
+    Projection2D res(ProjectionType::FanBeam, det_count, det_spacing);
+    res.s_dist = src_dist;
+    res.d_dist = det_dist;
+    return res;
+}
+
+Projection3D Projection3D::ConeBeam(int det_count_u, int det_count_v, float src_dist, float det_dist, float det_spacing_u, float det_spacing_v, float pitch) {
+    Projection3D res(ProjectionType::ConeBeam);
+    res.det_count_u = det_count_u;
+    res.det_count_v = det_count_v;
+    res.det_spacing_u = det_spacing_u;
+    res.det_spacing_v = det_spacing_v;
+    res.s_dist = src_dist;
+    res.d_dist = det_dist;
+    res.pitch = pitch;
+    return res;
 }
 
 
 ExecCfg::ExecCfg(int x, int y, int z, int ch)
-        :bx(x), by(y), bz(z), channels(ch) {}
+        : bx(x), by(y), bz(z), channels(ch) {}
 
-dim3 ExecCfg::get_block_dim() const{
+dim3 ExecCfg::get_block_dim() const {
     return dim3(bx, by, bz);
 }
 
-dim3 ExecCfg::get_grid_size(int x, int y, int z) const{
+dim3 ExecCfg::get_grid_size(int x, int y, int z) const {
     return dim3(roundup_div(x, bx), roundup_div(y, by), roundup_div(z, bz));
 }
 
-int ExecCfg::get_channels(int batch_size) const{
+int ExecCfg::get_channels(int batch_size) const {
     return (batch_size % 4 == 0) ? this->channels : 1;
 }
