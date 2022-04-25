@@ -16,7 +16,7 @@ class ExecCfgGeneratorBase:
         pass
 
     def __call__(self, vol_cfg, proj_cfg, is_half):
-        if not proj_cfg.is_2d():
+        if isinstance(proj_cfg, cuda_backend.Projection3D):
             ch = 4 if is_half else 1
             return cuda_backend.ExecCfg(8, 16, 8, ch)
 
@@ -233,7 +233,7 @@ class ConeBeam(BaseRadon):
         if volume is None:
             volume = Volume3D()
 
-        projection = cuda_backend.Projection.ConeBeam(det_count_u, det_count_v, src_dist, det_dist, det_spacing_u, det_spacing_v, pitch, base_z)
+        projection = cuda_backend.Projection3D.ConeBeam(det_count_u, det_count_v, src_dist, det_dist, det_spacing_u, det_spacing_v, pitch)
 
         super().__init__(angles, volume, projection)
 

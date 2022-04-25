@@ -11,7 +11,7 @@ class RadonForward(Function):
         sinogram = cuda_backend.forward(x, angles, tex_cache, vol_cfg, proj_cfg, exec_cfg)
         ctx.tex_cache = tex_cache
         ctx.vol_cfg = vol_cfg
-        ctx.proj_cfg = proj_cfg.copy()
+        ctx.proj_cfg = proj_cfg #.copy()
         ctx.exec_cfg_generator = exec_cfg_generator
         ctx.save_for_backward(angles)
 
@@ -32,7 +32,7 @@ class RadonBackprojection(Function):
         image = cuda_backend.backward(x, angles, tex_cache,  vol_cfg, proj_cfg, exec_cfg)
         ctx.tex_cache = tex_cache
         ctx.vol_cfg = vol_cfg
-        ctx.proj_cfg = proj_cfg.copy()
+        ctx.proj_cfg = proj_cfg #.copy()
         ctx.exec_cfg_generator = exec_cfg_generator
         ctx.save_for_backward(angles)
 

@@ -3,11 +3,10 @@ from .cuda_backend import VolumeCfg
 
 
 class Volume2D:
-    def __init__(self, center=(0.0, 0.0), voxel_size=(1.0, 1.0)):
+    def __init__(self, voxel_size=(1.0, 1.0)):
         self.height = -1
         self.width = -1
 
-        self.center = center
         self.voxel_size = voxel_size
 
     def to_cfg(self) -> VolumeCfg:
@@ -15,9 +14,7 @@ class Volume2D:
 
         return VolumeCfg(
             0, self.height, self.width,
-            0.0, self.center[1], self.center[0],
-            1.0, self.voxel_size[1], self.voxel_size[0],
-            False
+            1.0, self.voxel_size[1], self.voxel_size[0]
         )
 
     def num_dimensions(self):
@@ -35,12 +32,11 @@ class Volume2D:
 
 
 class Volume3D:
-    def __init__(self, center=(0.0, 0.0, 0.0), voxel_size=(1.0, 1.0, 1.0)):
+    def __init__(self, voxel_size=(1.0, 1.0, 1.0)):
         self.depth = -1
         self.height = -1
         self.width = -1
 
-        self.center = center
         self.voxel_size = voxel_size
 
     def has_size(self):
@@ -55,23 +51,19 @@ class Volume3D:
         return (self.depth, self.height, self.width)
 
     def min(self):
-        dx, dy, dz = self.center
         sx, sy, sz = self.voxel_size
-        return [-self.width*sx / 2 + dx, -self.height*sy/2 + dy, -self.depth*sz/2 + dz]
+        return [-self.width*sx / 2, -self.height*sy/2, -self.depth*sz/2]
 
     def max(self):
-        dx, dy, dz = self.center
         sx, sy, sz = self.voxel_size
-        return [self.width*sx / 2 + dx, self.height*sy/2 + dy, self.depth*sz/2 + dz]
+        return [self.width*sx / 2, self.height*sy/2, self.depth*sz/2]
 
     def to_cfg(self) -> VolumeCfg:
         assert self.has_size()
 
         return VolumeCfg(
             self.depth, self.height, self.width,
-            self.center[2], self.center[1], self.center[0],
-            self.voxel_size[2], self.voxel_size[1], self.voxel_size[0],
-            True
+            self.voxel_size[2], self.voxel_size[1], self.voxel_size[0]
         )
 
     def num_dimensions(self):

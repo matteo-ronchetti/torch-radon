@@ -72,11 +72,14 @@ public:
     ProjectionType type;
 
     // Volume Pose
-    mat voxelToImage;
-    mat imageToVoxel;
+    mat imageToWorld;
+    mat worldToImage;
 
     mat voxelToWorld;
     mat worldToVoxel;
+
+    void setPose(float rx, float ry, float rz, float dx, float dy, float dz);
+    void updateMatrices(const VolumeCfg& vol);
 };
 
 class ExecCfg {

@@ -27,6 +27,9 @@ Projection2D Projection2D::FanBeam(int det_count, float src_dist, float det_dist
     return res;
 }
 
+Projection3D::Projection3D(ProjectionType t) : type(t) {}
+
+
 Projection3D Projection3D::ConeBeam(int det_count_u, int det_count_v, float src_dist, float det_dist, float det_spacing_u, float det_spacing_v, float pitch) {
     Projection3D res(ProjectionType::ConeBeam);
     res.det_count_u = det_count_u;
@@ -37,6 +40,32 @@ Projection3D Projection3D::ConeBeam(int det_count_u, int det_count_v, float src_
     res.d_dist = det_dist;
     res.pitch = pitch;
     return res;
+}
+
+mat getPose(vec3 rot, vec3 d)
+{
+    float cx = cos(rot.x), sx = sin(rot.x), cy = cos(rot.y), sy = sin(rot.y), cz = cos(rot.z), sz = sin(rot.z);
+
+    mat P;
+    P.x = {cy*cz, cz*sx*sy - cx*sz, sx*sz + cx*cz*sy};
+    P.y = {cy*sz, sx*sy*sz + cx*cz, cx*sy*sz - cz*sx};
+    P.z = {-sy, cy*sx, cx*cy};
+    P.d = d;
+    return P;
+}
+
+void Projection3D::setPose(float rx, float ry, float rz, float dx, float dy, float dz){
+    imageToWorld = getPose({rx, ry, rz}, {dx, dy, dz});
+}
+
+void Projection3D::updateMatrices(const VolumeCfg& vol){
+    worldToImage = inverse(imageToWorld);
+
+    vec3 center = {vol.width / 2 + 0.5f, vol.height / 2 + 0.5f, vol.slices / 2 + 0.5f};
+    worldToVoxel.x = worldToImage.x / vol.spacing.x;
+    worldToVoxel.y = worldToImage.y / vol.spacing.y;
+    worldToVoxel.z = worldToImage.z / vol.spacing.z;
+    worldToVoxel.d = (worldToImage.d / vol.spacing) + center;
 }
 
 
