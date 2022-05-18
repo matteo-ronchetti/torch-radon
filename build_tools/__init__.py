@@ -3,6 +3,8 @@ from glob import glob
 import os
 import shutil
 import argparse
+import subprocess
+import re
 
 from .generate_source import generate_source
 
@@ -48,10 +50,22 @@ def render_template(src, dst):
 CXX_ADDITIONAL_FLAGS = []
 
 
-# 80, 86 are only for CUDA 11
-def build(compute_capabilites=(60, 70, 75), verbose=False, cuda_home="/usr/local/cuda", cxx="g++"):
+def get_cuda_version(cuda_home):
+    nvcc_out = subprocess.run([f"{cuda_home}/bin/nvcc", "--version"], stdout=subprocess.PIPE).stdout.decode('utf-8')
+    m = re.search(r"V[0-9]+.[0-9]+", nvcc_out)
+    str_version = m.group(0)[1:]
+
+    return int(str_version.replace(".", ""))
+
+
+def build(compute_capabilites=(60, 70, 75, 80, 86), verbose=False, cuda_home="/usr/local/cuda", cxx="g++"):
+    cuda_version = get_cuda_version(cuda_home)
     nvcc = f"{cuda_home}/bin/nvcc"
     include_dirs = ["./include"]
+
+    # compute capabilities >= 80 are only for cuda >= 11
+    if cuda_version <= 110:
+        compute_capabilities = [x for x in compute_capabilities if x < 80]
 
     cu_template_files = mapper("src/*.template", "objs/cuda/*.o")
     cu_files = mapper("src/*.cu", "objs/cuda/*.o")
@@ -64,8 +78,8 @@ def build(compute_capabilites=(60, 70, 75), verbose=False, cuda_home="/usr/local
     cxx_flags = ["-std=c++11 -fPIC -static -static-libgcc -static-libstdc++"] + include_flags + ["-O3"]
     nvcc_flags = ["-std=c++11", f"-ccbin={cxx}", "-Xcompiler", "-fPIC", "-Xcompiler -static",
                   "-Xcompiler -static-libgcc", "-Xcompiler -static-libstdc++"] + include_flags + \
-                 [f"-gencode arch=compute_{x},code=sm_{x}" for x in compute_capabilites] + [
-                     "-DNDEBUG -O3 --generate-line-info --compiler-options -Wall"]
+        [f"-gencode arch=compute_{x},code=sm_{x}" for x in compute_capabilites] + [
+        "-DNDEBUG -O3 --generate-line-info --compiler-options -Wall"]
 
     if verbose:
         cxx_flags.append("-DVERBOSE")
