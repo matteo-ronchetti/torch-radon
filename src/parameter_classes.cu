@@ -1,4 +1,5 @@
 #include "parameter_classes.h"
+#include "vectors.hpp"
 #include "utils.h"
 #include "rmath.h"
 #include <cuda.h>
@@ -7,7 +8,13 @@
 VolumeCfg::VolumeCfg(int s, int h, int w, float sz, float sy, float sx)
         : slices(s), height(h), width(w),
           spacing({sx, sy, sz}),
-          inv_spacing({1 / sx, 1 / sy, 1 / sz}) {}
+          inv_spacing({1 / sx, 1 / sy, 1 / sz}) {
+            voxelToImage.x = {sx, 0, 0};
+            voxelToImage.y = {0, -sy, 0};
+            voxelToImage.z = {0, 0, -sz};
+            voxelToImage.d = {-sx * (w / 2.0f + 0.5f), -sy * (h / 2.0f + 0.5f), -sz * (s / 2.0f + 0.5f)};
+            imageToVoxel = inverse(voxelToImage);
+          }
 
 bool VolumeCfg::is_3d() const {
     return slices > 1;
@@ -42,11 +49,11 @@ Projection3D Projection3D::ConeBeam(int det_count_u, int det_count_v, float src_
     return res;
 }
 
-mat getPose(vec3 rot, vec3 d)
+pose getPose(vec3 rot, vec3 d)
 {
     float cx = cos(rot.x), sx = sin(rot.x), cy = cos(rot.y), sy = sin(rot.y), cz = cos(rot.z), sz = sin(rot.z);
 
-    mat P;
+    pose P;
     P.x = {cy*cz, cz*sx*sy - cx*sz, sx*sz + cx*cz*sy};
     P.y = {cy*sz, sx*sy*sz + cx*cz, cx*sy*sz - cz*sx};
     P.z = {-sy, cy*sx, cx*cy};
@@ -61,11 +68,13 @@ void Projection3D::setPose(float rx, float ry, float rz, float dx, float dy, flo
 void Projection3D::updateMatrices(const VolumeCfg& vol){
     worldToImage = inverse(imageToWorld);
 
-    vec3 center = {vol.width / 2.0f + 0.5f, vol.height / 2.0f + 0.5f, vol.slices / 2.0f + 0.5f};
-    worldToVoxel.x = worldToImage.x / vol.spacing.x;
-    worldToVoxel.y = worldToImage.y / vol.spacing.y;
-    worldToVoxel.z = worldToImage.z / vol.spacing.z;
-    worldToVoxel.d = (worldToImage.d / vol.spacing) + center;
+    worldToVoxel = vol.imageToVoxel * worldToImage;
+
+    // vec3 center = {vol.width / 2.0f + 0.5f, vol.height / 2.0f + 0.5f, vol.slices / 2.0f + 0.5f};
+    // worldToVoxel.x = worldToImage.x / vol.spacing.x;
+    // worldToVoxel.y = worldToImage.y / vol.spacing.y;
+    // worldToVoxel.z = worldToImage.z / vol.spacing.z;
+    // worldToVoxel.d = (worldToImage.d / vol.spacing) + center;
 }
 
 

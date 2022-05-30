@@ -40,7 +40,6 @@ FFTStructures::~FFTStructures() {
     // }
 }
 
-
 void FFT(FFTCache& fft_cache, const float *x, int device, int rows, int cols, float* y){
     FFTStructures* fft = fft_cache.get({device, rows, cols});
     checkCudaErrors(cudaSetDevice(device));

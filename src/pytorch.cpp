@@ -25,7 +25,8 @@ namespace py = pybind11;
 
 typedef py::array_t<float, py::array::c_style> Array;
 
-torch::Tensor torch_symbolic_forward(const SymbolicFunction &f, torch::Tensor angles, const Projection2D &proj) {
+torch::Tensor torch_symbolic_forward(const SymbolicFunction &f, torch::Tensor angles, const Projection2D &proj)
+{
     TORCH_CHECK(!angles.device().is_cuda(), "angles must be on CPU");
     CHECK_CONTIGUOUS(angles);
 
@@ -37,7 +38,8 @@ torch::Tensor torch_symbolic_forward(const SymbolicFunction &f, torch::Tensor an
     return y;
 }
 
-torch::Tensor torch_symbolic_discretize(const SymbolicFunction &f, const int height, const int width) {
+torch::Tensor torch_symbolic_discretize(const SymbolicFunction &f, const int height, const int width)
+{
     auto y = torch::empty({height, width});
 
     f.discretize(y.data_ptr<float>(), height, width);
@@ -46,7 +48,8 @@ torch::Tensor torch_symbolic_discretize(const SymbolicFunction &f, const int hei
 }
 
 torch::Tensor radon_forward(const torch::Tensor &x, const torch::Tensor &angles, TextureCache &tex_cache,
-                            const VolumeCfg &vol_cfg, const Projection2D &proj_cfg, const ExecCfg &exec_cfg) {
+                            const VolumeCfg &vol_cfg, const Projection2D &proj_cfg, const ExecCfg &exec_cfg)
+{
     CHECK_INPUT(x);
     CHECK_INPUT(angles);
 
@@ -60,11 +63,14 @@ torch::Tensor radon_forward(const torch::Tensor &x, const torch::Tensor &angles,
     auto options = torch::TensorOptions().dtype(dtype).device(x.device());
     auto y = torch::empty({batch_size, n_angles, proj_cfg.det_count}, options);
 
-    if (dtype == torch::kFloat16) {
-        radon_forward_cuda((ushort *) x.data_ptr<at::Half>(), angles.data_ptr<float>(),
-                           (ushort *) y.data_ptr<at::Half>(),
+    if (dtype == torch::kFloat16)
+    {
+        radon_forward_cuda((ushort *)x.data_ptr<at::Half>(), angles.data_ptr<float>(),
+                           (ushort *)y.data_ptr<at::Half>(),
                            tex_cache, vol_cfg, proj_cfg, exec_cfg, batch_size, device);
-    } else {
+    }
+    else
+    {
         radon_forward_cuda(x.data_ptr<float>(), angles.data_ptr<float>(), y.data_ptr<float>(),
                            tex_cache, vol_cfg, proj_cfg, exec_cfg, batch_size, device);
     }
@@ -72,7 +78,8 @@ torch::Tensor radon_forward(const torch::Tensor &x, const torch::Tensor &angles,
 }
 
 torch::Tensor radon_forward(const torch::Tensor &x, const torch::Tensor &angles, TextureCache &tex_cache,
-                            const VolumeCfg &vol_cfg, Projection3D &proj_cfg, const ExecCfg &exec_cfg) {
+                            const VolumeCfg &vol_cfg, Projection3D &proj_cfg, const ExecCfg &exec_cfg)
+{
     CHECK_INPUT(x);
     CHECK_INPUT(angles);
 
@@ -86,11 +93,14 @@ torch::Tensor radon_forward(const torch::Tensor &x, const torch::Tensor &angles,
     auto options = torch::TensorOptions().dtype(dtype).device(x.device());
     auto y = torch::empty({batch_size, n_angles, proj_cfg.det_count_v, proj_cfg.det_count_u}, options);
 
-    if (dtype == torch::kFloat16) {
-        radon_forward_cuda_3d((ushort *) x.data_ptr<at::Half>(), angles.data_ptr<float>(),
-                              (ushort *) y.data_ptr<at::Half>(),
+    if (dtype == torch::kFloat16)
+    {
+        radon_forward_cuda_3d((ushort *)x.data_ptr<at::Half>(), angles.data_ptr<float>(),
+                              (ushort *)y.data_ptr<at::Half>(),
                               tex_cache, vol_cfg, proj_cfg, exec_cfg, batch_size, device);
-    } else {
+    }
+    else
+    {
         radon_forward_cuda_3d(x.data_ptr<float>(), angles.data_ptr<float>(), y.data_ptr<float>(),
                               tex_cache, vol_cfg, proj_cfg, exec_cfg, batch_size, device);
     }
@@ -99,7 +109,8 @@ torch::Tensor radon_forward(const torch::Tensor &x, const torch::Tensor &angles,
 }
 
 torch::Tensor radon_forward_batch(const torch::Tensor &x, const torch::Tensor &angles, TextureCache &tex_cache,
-                            const VolumeCfg &vol_cfg, std::vector<Projection3D> &proj_cfgs, const ExecCfg &exec_cfg) {
+                                  const VolumeCfg &vol_cfg, std::vector<Projection3D> &proj_cfgs, const ExecCfg &exec_cfg)
+{
     CHECK_INPUT(x);
     CHECK_INPUT(angles);
 
@@ -116,12 +127,13 @@ torch::Tensor radon_forward_batch(const torch::Tensor &x, const torch::Tensor &a
     auto y = torch::empty({batch_size, n_angles, proj_cfgs[0].det_count_v, proj_cfgs[0].det_count_u}, options);
 
     radon_forward_cuda_3d_batch(x.data_ptr<float>(), angles.data_ptr<float>(), y.data_ptr<float>(),
-                              tex_cache, vol_cfg, proj_cfgs, exec_cfg, batch_size, device);
+                                tex_cache, vol_cfg, proj_cfgs, exec_cfg, batch_size, device);
 
     return y;
 }
 
-Array compute_projection_matrices(const Array &angles, const VolumeCfg &vol_cfg, std::vector<Projection3D> &proj_cfgs){
+Array compute_projection_matrices(const Array &angles, const VolumeCfg &vol_cfg, std::vector<Projection3D> &proj_cfgs)
+{
     py::buffer_info buff = angles.request();
     int n_angles = buff.shape[0];
     TORCH_CHECK(n_angles == int(proj_cfgs.size()), "Number of angles must be the same as number of projections");
@@ -135,7 +147,7 @@ Array compute_projection_matrices(const Array &angles, const VolumeCfg &vol_cfg,
 }
 
 //
-//torch::Tensor radon_backward(torch::Tensor x, torch::Tensor angles, TextureCache &tex_cache, const VolumeCfg &vol_cfg,
+// torch::Tensor radon_backward(torch::Tensor x, torch::Tensor angles, TextureCache &tex_cache, const VolumeCfg &vol_cfg,
 //               const Projection &proj_cfg, const ExecCfg &exec_cfg) {
 //    CHECK_INPUT(x);
 //    CHECK_INPUT(angles);
@@ -179,7 +191,8 @@ Array compute_projection_matrices(const Array &angles, const VolumeCfg &vol_cfg,
 //}
 
 void radon_add_noise(torch::Tensor x, RadonNoiseGenerator &noise_generator, const float signal,
-                     const float density_normalization, const bool approximate) {
+                     const float density_normalization, const bool approximate)
+{
     CHECK_INPUT(x);
 
     const int height = x.size(0) * x.size(1);
@@ -189,7 +202,8 @@ void radon_add_noise(torch::Tensor x, RadonNoiseGenerator &noise_generator, cons
     noise_generator.add_noise(x.data_ptr<float>(), signal, density_normalization, approximate, width, height, device);
 }
 
-torch::Tensor torch_rfft(torch::Tensor x, FFTCache &fft_cache) {
+torch::Tensor torch_rfft(torch::Tensor x, FFTCache &fft_cache)
+{
     CHECK_INPUT(x);
 
     const int device = x.device().index();
@@ -206,7 +220,8 @@ torch::Tensor torch_rfft(torch::Tensor x, FFTCache &fft_cache) {
     return y;
 }
 
-torch::Tensor torch_irfft(torch::Tensor x, FFTCache &fft_cache) {
+torch::Tensor torch_irfft(torch::Tensor x, FFTCache &fft_cache)
+{
     CHECK_INPUT(x);
 
     const int device = x.device().index();
@@ -223,7 +238,8 @@ torch::Tensor torch_irfft(torch::Tensor x, FFTCache &fft_cache) {
     return y;
 }
 
-py::array_t<float> matToNumpy(const mat &m) {
+py::array_t<float> poseToNumpy(const pose &m)
+{
     py::array_t<float> arr({4, 4});
     arr.mutable_at(0, 0) = m.x.x;
     arr.mutable_at(0, 1) = m.x.y;
@@ -244,7 +260,8 @@ py::array_t<float> matToNumpy(const mat &m) {
     return arr;
 }
 
-void numpyToMat(mat &m, const py::array_t<float> &arr) {
+void numpyToPose(pose &m, const py::array_t<float> &arr)
+{
     m.x = {arr.at<float>(0, 0), arr.at<float>(0, 1), arr.at<float>(0, 2)};
     m.y = {arr.at<float>(1, 0), arr.at<float>(1, 1), arr.at<float>(1, 2)};
     m.z = {arr.at<float>(2, 0), arr.at<float>(2, 1), arr.at<float>(2, 2)};
@@ -268,7 +285,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
     m.def("rfft", &torch_rfft, "TODO");
     m.def("irfft", &torch_irfft, "TODO");
 
-    m.def("set_log_level", [](const int level) { Log::log_level = static_cast<Log::Level>(level); });
+    m.def("set_log_level", [](const int level)
+          { Log::log_level = static_cast<Log::Level>(level); });
 
     py::enum_<ProjectionType>(m, "ProjectionType")
         .value("ParallelBeam", ProjectionType::ParallelBeam)
@@ -315,12 +333,17 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         .def_readwrite("d_dist", &Projection3D::d_dist)
         .def_readwrite("pitch", &Projection3D::pitch)
         .def_readwrite("n_angles", &Projection3D::n_angles)
-        .def_property("imageToWorld",
-            [](const Projection3D& proj) { return matToNumpy(proj.imageToWorld); },
-            [](Projection3D& proj, py::array_t<float>& m) { return numpyToMat(proj.imageToWorld, m); })
-        .def_property_readonly("worldToImage", [](const Projection3D& proj) { return matToNumpy(proj.worldToImage); })
-        .def_property_readonly("voxelToWorld", [](const Projection3D& proj) { return matToNumpy(proj.voxelToWorld); })
-        .def_property_readonly("worldToVoxel", [](const Projection3D& proj) { return matToNumpy(proj.worldToVoxel); });
+        .def_property(
+            "imageToWorld",
+            [](const Projection3D &proj)
+            { return poseToNumpy(proj.imageToWorld); },
+            [](Projection3D &proj, py::array_t<float> &m)
+            { return numpyToPose(proj.imageToWorld, m); })
+        .def_property_readonly("worldToImage", [](const Projection3D &proj)
+                               { return poseToNumpy(proj.worldToImage); })
+        // .def_property_readonly("voxelToWorld", [](const Projection3D& proj) { return poseToNumpy(proj.voxelToWorld); })
+        .def_property_readonly("worldToVoxel", [](const Projection3D &proj)
+                               { return poseToNumpy(proj.worldToVoxel); });
 
     py::class_<ExecCfg>(m, "ExecCfg").def(py::init<int, int, int, int>());
 

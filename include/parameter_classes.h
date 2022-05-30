@@ -7,7 +7,8 @@
 
 struct dim3;
 
-struct VolumeCfg {
+struct VolumeCfg
+{
     // dimensions of the measured volume
     int slices;
     int height;
@@ -16,12 +17,15 @@ struct VolumeCfg {
     vec3 spacing;
     vec3 inv_spacing;
 
+    pose voxelToImage;
+    pose imageToVoxel;
+
     VolumeCfg(int s, int h, int w, float sz, float sy, float sx);
     bool is_3d() const;
 };
 
-
-struct Projection2D{
+struct Projection2D
+{
     Projection2D(ProjectionType t, int dc, float ds = 1.0);
 
     static Projection2D ParallelBeam(int det_count, float det_spacing = 1.0);
@@ -46,7 +50,8 @@ struct Projection2D{
     float dy = 0.0;
 };
 
-class Projection3D {
+class Projection3D
+{
 public:
     Projection3D(ProjectionType t);
 
@@ -72,17 +77,19 @@ public:
     ProjectionType type;
 
     // Volume Pose
-    mat imageToWorld;
-    mat worldToImage;
+    pose imageToWorld;
+    pose worldToImage;
 
-    mat voxelToWorld;
-    mat worldToVoxel;
+    // Computed with the volume
+    // mutable pose voxelToWorld;
+    mutable pose worldToVoxel;
 
     void setPose(float rx, float ry, float rz, float dx, float dy, float dz);
-    void updateMatrices(const VolumeCfg& vol);
+    void updateMatrices(const VolumeCfg &vol);
 };
 
-class ExecCfg {
+class ExecCfg
+{
 public:
     int bx, by, bz;
 
