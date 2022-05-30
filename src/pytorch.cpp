@@ -13,6 +13,7 @@
 #include "symbolic.h"
 #include "log.h"
 #include "fft.h"
+#include "torch_radon.h"
 
 #define CHECK_CUDA(x) TORCH_CHECK(x.device().is_cuda(), #x " must be a CUDA tensor")
 #define CHECK_CONTIGUOUS(x) TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")
@@ -22,6 +23,7 @@
 
 namespace py = pybind11;
 
+typedef py::array_t<float, py::array::c_style> Array;
 
 torch::Tensor torch_symbolic_forward(const SymbolicFunction &f, torch::Tensor angles, const Projection2D &proj) {
     TORCH_CHECK(!angles.device().is_cuda(), "angles must be on CPU");
@@ -117,6 +119,19 @@ torch::Tensor radon_forward_batch(const torch::Tensor &x, const torch::Tensor &a
                               tex_cache, vol_cfg, proj_cfgs, exec_cfg, batch_size, device);
 
     return y;
+}
+
+Array compute_projection_matrices(const Array &angles, const VolumeCfg &vol_cfg, std::vector<Projection3D> &proj_cfgs){
+    py::buffer_info buff = angles.request();
+    int n_angles = buff.shape[0];
+    TORCH_CHECK(n_angles == int(proj_cfgs.size()), "Number of angles must be the same as number of projections");
+    float *angles_data = static_cast<float *>(buff.ptr);
+    py::array_t<float> res({n_angles, 3, 4});
+    float *res_data = static_cast<float *>(res.request().ptr);
+
+    projection_matrices(res_data, angles_data, vol_cfg, proj_cfgs);
+
+    return res;
 }
 
 //
@@ -242,6 +257,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
     m.def("forward", py::overload_cast<const torch::Tensor &, const torch::Tensor &, TextureCache &, const VolumeCfg &, const Projection2D &, const ExecCfg &>(&radon_forward), "Radon forward projection");
     m.def("forward", py::overload_cast<const torch::Tensor &, const torch::Tensor &, TextureCache &, const VolumeCfg &, Projection3D &, const ExecCfg &>(&radon_forward), "Radon forward projection");
     m.def("forward_batch", &radon_forward_batch, "Radon forward batch projection");
+    m.def("projection_matrices", &compute_projection_matrices, "TODO");
     // m.def("backward", &radon_backward, "Radon back projection");
 
     m.def("add_noise", &radon_add_noise, "Add noise to sinogram");

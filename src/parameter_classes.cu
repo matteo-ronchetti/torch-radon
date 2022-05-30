@@ -61,7 +61,7 @@ void Projection3D::setPose(float rx, float ry, float rz, float dx, float dy, flo
 void Projection3D::updateMatrices(const VolumeCfg& vol){
     worldToImage = inverse(imageToWorld);
 
-    vec3 center = {vol.width / 2 + 0.5f, vol.height / 2 + 0.5f, vol.slices / 2 + 0.5f};
+    vec3 center = {vol.width / 2.0f + 0.5f, vol.height / 2.0f + 0.5f, vol.slices / 2.0f + 0.5f};
     worldToVoxel.x = worldToImage.x / vol.spacing.x;
     worldToVoxel.y = worldToImage.y / vol.spacing.y;
     worldToVoxel.z = worldToImage.z / vol.spacing.z;

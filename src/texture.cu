@@ -2,9 +2,12 @@
 #include <cuda_fp16.h>
 #include <string>
 
+#include <cuda.h>
+#include <cuda_runtime.h>
 #include "texture.h"
 #include "utils.h"
 #include "defines.h"
+#include "log.h"
 
 TextureConfig::TextureConfig(int dv, int z, int y, int x, bool layered, int c, int p)
         : device(dv), depth(z), height(y), width(x), is_layered(layered), channels(c), precision(p) {}

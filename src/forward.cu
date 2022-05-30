@@ -313,15 +313,18 @@ void radon_forward_cuda_3d(
     const dim3 block_dim = exec_cfg.get_block_dim();
 
     proj_cfg.updateMatrices(vol_cfg);
+    checkCudaErrors(cudaDeviceSynchronize());
 
     for (int i = 0; i < batch_size; i += channels) {
         T *local_y = &y[i * proj_cfg.det_count_u * proj_cfg.det_count_v * proj_cfg.n_angles];
         tex->put(&x[i * vol_cfg.slices * vol_cfg.height * vol_cfg.width]);
+        checkCudaErrors(cudaDeviceSynchronize());
 
         // Invoke kernel
         if (channels == 1) {
             radon_forward_kernel_3d<1> << < grid_dim, block_dim >> >
             (local_y, tex->texture, angles, vol_cfg, proj_cfg);
+            checkCudaErrors(cudaDeviceSynchronize());
         } else {
             if (is_float) {
                 radon_forward_kernel_3d<4> << < grid_dim, block_dim >> >

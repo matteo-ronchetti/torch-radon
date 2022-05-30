@@ -3,7 +3,6 @@
 
 #include <iostream>
 #include <string.h>
-#include "log.h"
 
 using namespace std;
 
@@ -46,13 +45,12 @@ public:
         // cache is full and didn't match
         if (i == this->cache_size)
         {
-            LOG_INFO("Cache is full, consider making it larger to avoid eviction.")
             i -= 1;
             delete this->cache[i];
             this->cache[i] = 0;
         }
 
-        // if needed allocate else move item closer to beginning of the cache
+        // allocate if needed else move item closer to beginning of the cache
         if (this->cache[i] == 0)
         {
             this->cache[i] = new Value(k);
@@ -71,7 +69,6 @@ public:
 
     void free()
     {
-        LOG_DEBUG("Freeing cache");
         for (uint i = 0; i < this->cache_size; i++)
         {
             if (this->cache[i] != 0)

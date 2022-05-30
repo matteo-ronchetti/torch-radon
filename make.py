@@ -69,8 +69,8 @@ def build(compute_capabilities=(60, 70, 75, 80, 86), debug=False, cuda_home="/us
 
     include_flags = [f"-I{x}" for x in include_dirs]
     # -Wl,-Bstatic -lm
-    cxx_flags = ["-std=gnu++11 -fPIC -D_GLIBCXX_USE_CXX11_ABI=0 -Wall"] + include_flags + opt_flags
-    nvcc_base_flags = ["-std=c++11", f"-ccbin={cxx}", "-Xcompiler", "-fPIC",
+    cxx_flags = ["-std=gnu++11 -fPIC -D_GLIBCXX_USE_CXX11_ABI=0 -Wall -lcuda -lcudart"] + include_flags + opt_flags
+    nvcc_base_flags = ["-std=c++11", f"-ccbin={cxx}", "--shared", "-Xcompiler", "-fPIC",
                        "-Xcompiler -D_GLIBCXX_USE_CXX11_ABI=0"] + include_flags + opt_flags + [
                            "--generate-line-info --compiler-options -Wall", '-Xcudafe "--diag_suppress=unrecognized_gcc_pragma"']
     nvcc_flags = nvcc_base_flags + [f"-gencode arch=compute_{x},code=sm_{x}" for x in compute_capabilities]
@@ -91,7 +91,10 @@ def build(compute_capabilities=(60, 70, 75, 80, 86), debug=False, cuda_home="/us
     run_compilation(cu_files, lambda src, dst: f"{nvcc} {nvcc_flags} -c {src} -o {dst}")
     run_compilation(cpp_files, lambda src, dst: f"{cxx} {cxx_flags} -c {src} -o {dst}")
 
-    run(f"ar rc objs/libradon.a {' '.join(all_objects)}")
+    #
+    print(all_objects)
+    run(f"{nvcc} --shared {' '.join(all_objects)} -o objs/libradon.so")
+    run(f"ar rc objs/libtorchradon.a {' '.join(all_objects)}")
 
     if keep_intermediate:
         for path in os.listdir(intermediate_dir):

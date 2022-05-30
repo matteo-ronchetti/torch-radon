@@ -1,11 +1,11 @@
 #pragma once
 
-#include <cuda.h>
-#include <cuda_runtime.h>
-#include "utils.h"
 #include "cache.h"
 #include "defines.h"
 
+class cudaArray;
+typedef unsigned long long cudaSurfaceObject_t;
+typedef unsigned long long cudaTextureObject_t;
 
 class TextureConfig {
 public:
