@@ -12,7 +12,7 @@ VolumeCfg::VolumeCfg(int s, int h, int w, float sz, float sy, float sx)
             voxelToImage.x = {sx, 0, 0};
             voxelToImage.y = {0, -sy, 0};
             voxelToImage.z = {0, 0, -sz};
-            voxelToImage.d = {-sx * (w / 2.0f + 0.5f), -sy * (h / 2.0f + 0.5f), -sz * (s / 2.0f + 0.5f)};
+            voxelToImage.d = {-sx * (w / 2.0f + 0.5f), sy * (h / 2.0f + 0.5f), sz * (s / 2.0f + 0.5f)};
             imageToVoxel = inverse(voxelToImage);
           }
 

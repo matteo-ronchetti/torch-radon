@@ -79,13 +79,17 @@ void projection_matrices(float* res_data, const float* angles_data, const Volume
         const float sn = rosh::sin(angle);
         const float k = proj_cfg.s_dist + proj_cfg.d_dist;
 
-        vec3 center = {vol_cfg.width / 2.0f + 0.5f, vol_cfg.height / 2.0f + 0.5f, vol_cfg.slices / 2.0f + 0.5f};
-        vec3 source = vec3{0.0, proj_cfg.s_dist, 0.0} + center;
+        vec3 source = vec3{0.0, -proj_cfg.s_dist, 0.0};
         // rotate start/end positions and add pitch * angle / (2*pi) to z
         source = rotxy_transz(source, sn, cs, proj_cfg.pitch * angle * 0.1591549f);
         vec3 u = rotxy(vec3{k, 0, 0}, sn, cs) / proj_cfg.det_spacing_u;
         vec3 v = rotxy(vec3{0, 0, k}, sn, cs) / proj_cfg.det_spacing_v;
         vec3 d = rotxy(vec3{0, 1, 0}, sn, cs);
+
+        source = proj_cfg.worldToVoxel * source;
+        u = rotate_scale(proj_cfg.worldToVoxel, u);
+        v = rotate_scale(proj_cfg.worldToVoxel, v);
+        d = rotate_scale(proj_cfg.worldToVoxel, d);
 
         res_data[i*12 + 0] = u.x;
         res_data[i*12 + 1] = u.y;
