@@ -7,6 +7,13 @@ struct vec3
     float z;
 };
 
+struct vec3i
+{
+    int x;
+    int y;
+    int z;
+};
+
 struct pose
 {
     vec3 x = {1, 0, 0};

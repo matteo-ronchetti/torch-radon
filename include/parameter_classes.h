@@ -5,8 +5,6 @@
 #include "defines.h"
 #include "vectors.h"
 
-struct dim3;
-
 struct VolumeCfg
 {
     // dimensions of the measured volume

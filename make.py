@@ -61,7 +61,7 @@ def build(compute_capabilities=(60, 70, 75, 80, 86), debug=False, cuda_home="/us
 
     cu_files = mapper("src/*.cu", "objs/cuda/*.o")
     cpp_files = mapper("src/*.cpp", "objs/*.o")
-    cpp_files = [x for x in cpp_files if x[0] != "src/pytorch.cpp"]
+    cpp_files = [x for x in cpp_files if x[0] not in ("src/pytorch.cpp", "src/python.cpp")]
 
     all_objects = [y for x, y in cu_files + cpp_files]
 

@@ -1,4 +1,5 @@
 from setuptools import setup
+from pybind11.setup_helpers import Pybind11Extension
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 import os
 from make import build
@@ -24,13 +25,18 @@ setup(name='torch_radon',
           'torch_radon': './torch_radon',
       },
       ext_modules=[
-          CUDAExtension('torch_radon_cuda', [os.path.abspath('src/pytorch.cpp')],
-                        include_dirs=[os.path.abspath('include')],
-                        library_dirs=[os.path.abspath("objs")],
-                        libraries=["m", "c", "gcc", "stdc++", "cufft", "torchradon"],
-                        # strip debug symbols
-                        extra_link_args=["-Wl,--strip-all"]
-                        )
+          #   CUDAExtension('torch_radon_cuda', [os.path.abspath('src/pytorch.cpp')],
+          #                 include_dirs=[os.path.abspath('include')],
+          #                 library_dirs=[os.path.abspath("objs")],
+          #                 libraries=["m", "c", "gcc", "stdc++", "cufft", "torchradon"],
+          #                 # strip debug symbols
+          #                 extra_link_args=["-Wl,--strip-all"]
+          #                 ),
+          Pybind11Extension("tr", [os.path.abspath("src/python.cpp")],   include_dirs=[os.path.abspath('include')],
+                            library_dirs=[os.path.abspath("objs")],
+                            libraries=["torchradon"],
+                            # strip debug symbols
+                            extra_link_args=["-Wl,--strip-all"], cxx_std=14)
       ],
       cmdclass={'build_ext': BuildExtension},
       zip_safe=False,

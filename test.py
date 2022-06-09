@@ -15,7 +15,7 @@ def xray_to_image(orig):
 
 
 # ct = np.load("/home/matteo/ImFusion/learnedposecost/data/ct_0.npy")
-ct_point = np.asarray([250, 50, 250])
+ct_point = np.asarray([250, 50, 150])
 ct = np.zeros((440, 227, 350), dtype=np.float32)
 ct[ct_point[2]-30:ct_point[2]+30, ct_point[1]-30:ct_point[1]+30, ct_point[0]-30:ct_point[0]+30] = 1
 
@@ -25,17 +25,18 @@ with torch.no_grad():
     tct = tct.cuda()
 
     tex_cache = torch_radon.cuda_backend.TextureCache(8)
-    spacing = 3.0
-    dist = 800.0
+    spacing = 5.0
+    dist = 200.0
 
     proj = torch_radon.cuda_backend.Projection3D.ConeBeam(256, 256, dist, dist, spacing, spacing, 0.0)
-    proj.setPose(-0.3, 0.2, 0.4, -15, 30, 45)
+    proj.setPose(0.3, -0.2, 0.0, 45, -20, 5)
 
-    angles = [np.pi/4, 0]
+    angles = [0, 0]
     tangles = torch.FloatTensor(angles).cuda()
     vol_cfg = torch_radon.cuda_backend.VolumeCfg(*tct.size()[1:], 0.5, 0.5, 2.0)
     exec_cfg = torch_radon.cuda_backend.ExecCfg(8, 16, 8, 1)
-    xray = torch_radon.cuda_backend.forward_batch(tct, tangles, tex_cache, vol_cfg, [proj, proj], exec_cfg)[0, 0].cpu().numpy()
+    xray = torch_radon.cuda_backend.forward_batch(tct, tangles, tex_cache, vol_cfg, [
+                                                  proj, proj], exec_cfg)[0, 0].cpu().numpy()
     print(xray.shape)
     M = torch_radon.cuda_backend.projection_matrices(angles, vol_cfg, [proj, proj])[0]
     print(M.shape)
