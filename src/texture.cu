@@ -77,7 +77,7 @@ write_half_to_surface(const __half *data, cudaSurfaceObject_t surface, const int
         const int offset = (z * height + y) * width + x;
 
         __half tmp[4];
-        for (int i = 0; i < 4; i++) tmp[i] = __float2half(data[i * pitch + offset]);
+        for (int i = 0; i < 4; i++) tmp[i] = data[i * pitch + offset];
 
         switch(texture_type){
             case TEX_1D_LAYERED:
