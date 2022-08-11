@@ -1,4 +1,7 @@
-from skbuild import setup
+import os.path
+
+from setuptools import setup
+from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
@@ -12,11 +15,37 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/matteo-ronchetti/torch-radon",
-    # NOTE: Empty package name picks up torch_radon_cuda.so
-    packages=['torch_radon', ''],
+    packages=['torch_radon'],
     package_dir={
         '': 'src/python',
     },
+    ext_modules=[
+        CUDAExtension(
+            name='torch_radon_cuda',
+            sources=[
+                "src/backprojection.cu",
+                "src/fft.cu",
+                "src/forward.cu",
+                "src/log.cpp",
+                "src/noise.cu",
+                "src/parameter_classes.cu",
+                "src/pytorch.cpp",
+                "src/symbolic.cpp",
+                "src/texture.cu",
+            ],
+            include_dirs=[os.path.abspath('include')],
+            extra_compile_args={
+                'cxx': [
+                    # GNU++14 required for hexfloat extension used in rmath.h
+                    '-std=gnu++14',
+                ],
+                'nvcc': [
+                    # __half conversions required in backprojection
+                    '-U__CUDA_NO_HALF_CONVERSIONS__',
+                ],
+            }),
+    ],
+    cmdclass={'build_ext': BuildExtension},
     zip_safe=False,
     classifiers=[
         "Programming Language :: Python :: 3",
