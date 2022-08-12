@@ -79,6 +79,7 @@ class TestHelper:
                     self.save_output_image("forward")
                 break
 
+            print(desc)
             assert_less(forward_error, max_error)
 
     # makes sure that <y, Ax> = < A^T y, x>
@@ -86,9 +87,9 @@ class TestHelper:
         batch_size = x.shape[0]
 
         test_sino = y / torch.max(y)
-        target = torch.sum(test_sino * y, dim=(1,2)) / (radon.volume.voxel_size[0] * radon.volume.voxel_size[1])
+        target = torch.sum(test_sino * y, dim=(1, 2)) / (radon.volume.voxel_size[0] * radon.volume.voxel_size[1])
         bp = radon.backward(test_sino)
-        value = torch.sum(bp * x, dim=(1,2))
+        value = torch.sum(bp * x, dim=(1, 2))
 
         for i in range(batch_size):
             backward_error = abs(target[i] - value[i]) / abs(target[i])
@@ -106,4 +107,4 @@ class TestHelper:
                 self.save_output_image("backward")
                 break
 
-        assert_less(backward_error, back_max_error)
+            assert_less(backward_error, back_max_error)

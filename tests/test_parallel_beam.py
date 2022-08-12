@@ -18,29 +18,41 @@ params = []
 
 # check different batch sizes
 for batch_size in [1, 3, 17, 32]:
-    params.append((batch_size, (0, np.pi, 128), 128, 1.0, 128))
+    params.append((batch_size, (0, np.pi, 128), None, 1.0, 128))
 
 # check few and many angles which are not multiples of 16
 for angles in [(0, np.pi, 19), (0, np.pi, 803)]:
-    params.append((4, angles, 128, 1.0, 128))
+    params.append((4, angles, None, 1.0, 128))
 
 # change volume size
 for height, width in [(128, 256), (256, 128), (75, 149), (81, 81)]:
-    params.append((4, (0, np.pi, 64), Volume2D(height, width), 1.0, max(height, width)))
+    s = max(height, width)
+    volume = Volume2D()
+    volume.set_size(height, width)
+    params.append((4, (0, np.pi, 64), volume, 2.0, s))
 
 # change volume scale and center
 for center in [(0, 0), (17, -25), (53, 49)]:
     for voxel_size in [(1, 1), (0.75, 0.75), (1.5, 1.5), (0.7, 1.3), (1.3, 0.7)]:
         det_count = int(179 * max(voxel_size[0], 1) * max(voxel_size[1], 1) * np.sqrt(2))
-        params.append((4, (0, np.pi, 128), Volume2D(179, 123, center, voxel_size), 1.0, det_count))
+        volume = Volume2D(center, voxel_size)
+        volume.set_size(179, 123)
+        params.append((4, (0, np.pi, 128), volume, 2.0, det_count))
 
 for spacing in [1.0, 0.5, 1.3, 2.0]:
     for det_count in [79, 128, 243]:
-        params.append((4, (0, np.pi, 128), 128, spacing, det_count))
+        for src_dist, det_dist in [(128, 128), (64, 128), (128, 64), (503, 503)]:
+            volume = Volume2D()
+            volume.set_size(128, 128)
+            params.append((4, (0, np.pi, 128), volume, spacing, det_count))
 
 
 @parameterized(params)
 def test_error(batch_size, angles, volume, spacing, det_count):
+    if volume is None:
+        volume = Volume2D()
+        volume.set_size(det_count, det_count)
+
     radon = tr.ParallelBeam(det_count, angles, spacing, volume)
 
     f = random_symbolic_function(radon.volume.height, radon.volume.width)

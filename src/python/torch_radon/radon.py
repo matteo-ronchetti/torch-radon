@@ -74,14 +74,19 @@ class BaseRadon:
         shape_normalizer = ShapeNormalizer(self.volume.num_dimensions())
         x = shape_normalizer.normalize(x)
 
+        self.volume.height = x.size(-2)
+        self.volume.width = x.size(-1)
+        if self.volume.num_dimensions() == 3:
+            self.volume.depth = x.size(-3)
+
         self.projection.cfg.n_angles = len(angles)
 
-        y = RadonForward.apply(x, self.angles, self.tex_cache, self.volume.cfg, self.projection.cfg,
+        y = RadonForward.apply(x, self.angles, self.tex_cache, self.volume.to_cfg(), self.projection.cfg,
                                self.exec_cfg_generator, exec_cfg)
 
         return shape_normalizer.unnormalize(y)
 
-    def backprojection(self, sinogram, angles: torch.Tensor = None, exec_cfg: cuda_backend.ExecCfg = None):
+    def backward(self, sinogram, angles: torch.Tensor = None, volume: Union[Volume2D, Volume3D] = None, exec_cfg: cuda_backend.ExecCfg = None):
         r"""Radon backward projection.
 
         :param sinogram: PyTorch GPU tensor containing sinograms.
@@ -90,6 +95,10 @@ class BaseRadon:
         :returns: PyTorch GPU tensor containing backprojected volume.
         """
         sinogram = self._check_input(sinogram)
+        volume = self.volume if volume is None else volume
+
+        assert volume.has_size(), "Must use forward before calling backward or specify a volume"
+
         self._move_parameters_to_device(sinogram.device)
 
         angles = angles if angles is not None else self.angles
@@ -99,20 +108,10 @@ class BaseRadon:
 
         self.projection.cfg.n_angles = len(angles)
 
-        y = RadonBackprojection.apply(sinogram, self.angles, self.tex_cache, self.volume.cfg, self.projection.cfg,
+        y = RadonBackprojection.apply(sinogram, self.angles, self.tex_cache, volume.to_cfg(), self.projection.cfg,
                                       self.exec_cfg_generator, exec_cfg)
 
         return shape_normalizer.unnormalize(y)
-
-    def backward(self, sinogram, angles: torch.Tensor = None, exec_cfg: cuda_backend.ExecCfg = None):
-        r"""Radon backward projection.
-
-        :param sinogram: PyTorch GPU tensor containing sinograms.
-        :param angles: PyTorch GPU tensor indicating the measuring angles, if None the angles given to the constructor
-            are used
-        :returns: PyTorch GPU tensor containing backprojected volume.
-        """
-        return self.backprojection(sinogram, angles, exec_cfg)
 
     @normalize_shape(2)
     def filter_sinogram(self, sinogram, filter_name="ramp"):
@@ -152,20 +151,16 @@ class ParallelBeam(BaseRadon):
     :param angles: *Required*. Array containing the list of measuring angles. Can be a Numpy array, a PyTorch tensor or a tuple
         `(start, end, num_angles)` defining a range.
     :param det_spacing: Distance between two contiguous rays. By default is `1.0`.
-    :param volume: Specifies the volume position and scale. By default a square uniform volume 
-        of size :attr:`det_count` is used. To create a non-uniform volume specify an instance of :class:`torch_radon.Volume2D`.
+    :param volume: Specifies the volume position and scale. By default a uniform volume is used.
+        To create a non-uniform volume specify an instance of :class:`torch_radon.Volume2D`.
 
     """
 
     def __init__(self, det_count: int, angles: Union[list, np.array, torch.Tensor, tuple],
-                 det_spacing: float = 1.0, volume: Union[Volume2D, None, int, tuple] = None):
+                 det_spacing: float = 1.0, volume: Volume2D = None):
 
         if volume is None:
-            volume = Volume2D(det_count, det_count)
-        elif isinstance(volume, int):
-            volume = Volume2D(volume, volume)
-        elif isinstance(volume, tuple):
-            volume = Volume2D(*volume)
+            volume = Volume2D()
 
         projection = Projection.parallel_beam(det_count, det_spacing)
 
@@ -195,14 +190,14 @@ class FanBeam(BaseRadon):
     :param src_dist: Distance between the source of rays and the origin. If not specified is set equals to :attr:`det_count`. 
     :param det_dist: Distance between the detector plane and the origin. If not specified is set equals to :attr:`det_dist`.
     :param det_spacing: Distance between two contiguous rays. By default is `(src_dist + det_dist) / src_dist`.
-    :param volume: Specifies the volume position and scale. By default a square uniform volume 
-        of size :attr:`det_count` is used. To create a non-uniform volume specify an instance of :class:`torch_radon.Volume2D`.
+    :param volume: Specifies the volume position and scale. By default a square uniform volume is used.
+        To create a non-uniform volume specify an instance of :class:`torch_radon.Volume2D`.
 
     """
 
     def __init__(self, det_count: int, angles: Union[list, np.array, torch.Tensor, tuple],
                  src_dist: float = None, det_dist: float = None, det_spacing: float = None,
-                 volume: Union[Volume2D, None, int, tuple] = None):
+                 volume: Volume2D = None):
 
         if src_dist is None:
             src_dist = det_count
@@ -214,11 +209,7 @@ class FanBeam(BaseRadon):
             det_spacing = (src_dist + det_dist) / src_dist
 
         if volume is None:
-            volume = Volume2D(det_count, det_count)
-        elif isinstance(volume, int):
-            volume = Volume2D(volume, volume)
-        elif isinstance(volume, tuple):
-            volume = Volume2D(*volume)
+            volume = Volume2D()
 
         projection = Projection.fanbeam(src_dist, det_dist, det_count, det_spacing)
 
@@ -229,7 +220,7 @@ class ConeBeam(BaseRadon):
     def __init__(self, det_count_u: int, angles: Union[list, np.array, torch.Tensor, tuple],
                  src_dist: float = None, det_dist: float = None, det_count_v: int = -1, det_spacing_u: float = 1.0,
                  det_spacing_v: float = -1.0, pitch: float = 0.0, base_z: float = 0.0,
-                 volume: Union[Volume3D, None, int, tuple] = None):
+                 volume: Volume3D = None):
 
         if src_dist is None:
             src_dist = det_count_u
@@ -241,11 +232,7 @@ class ConeBeam(BaseRadon):
         det_spacing_v = det_spacing_v if det_spacing_v > 0 else det_spacing_u
 
         if volume is None:
-            volume = Volume3D(det_count_u, det_count_u, det_count_u)
-        elif isinstance(volume, int):
-            volume = Volume3D(volume, volume, volume)
-        elif isinstance(volume, tuple):
-            volume = Volume3D(*volume)
+            volume = Volume3D()
 
         projection = Projection.coneflat(src_dist, det_dist, det_count_u, det_spacing_u,
                                          det_count_v, det_spacing_v, pitch, base_z)

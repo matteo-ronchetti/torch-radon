@@ -9,6 +9,8 @@ from .utils import random_symbolic_function, symbolic_discretize, symbolic_forwa
 from torch_radon.volumes import Volume2D
 import torch_radon as tr
 
+# tr.set_log_level(tr.DEBUG)
+
 random.seed(42)
 device = torch.device('cuda')
 test_helper = TestHelper("fanbeam")
@@ -18,31 +20,42 @@ params = []
 
 # check different batch sizes
 for batch_size in [1, 3, 17, 32]:
-    params.append((batch_size, (0, 2*np.pi, 128), 128, 2.0, 128, 128, 128))
+    params.append((batch_size, (0, 2*np.pi, 128), None, 2.0, 128, 128, 128))
 
 # check few and many angles which are not multiples of 16
 for angles in [(0, 2*np.pi, 19), (0, 2*np.pi, 803)]:
-    params.append((4, angles, 128, 2.0, 128, 128, 128))
+    params.append((4, angles, None, 2.0, 128, 128, 128))
 
 # change volume size
 for height, width in [(128, 256), (256, 128), (75, 149), (81, 81)]:
     s = max(height, width)
-    params.append((4, (0, 2*np.pi, 64), Volume2D(height, width), 2.0, s, s, s))
+    volume = Volume2D()
+    volume.set_size(height, width)
+    params.append((4, (0, 2*np.pi, 64), volume, 2.0, s, s, s))
 
 # change volume scale and center
 for center in [(0, 0), (17, -25), (53, 49)]:
     for voxel_size in [(1, 1), (0.75, 0.75), (1.5, 1.5), (0.7, 1.3), (1.3, 0.7)]:
         det_count = int(179 * max(voxel_size[0], 1) * max(voxel_size[1], 1) * np.sqrt(2))
-        params.append((4, (0, 2*np.pi, 128), Volume2D(179, 123, center, voxel_size), 2.0, det_count, det_count, det_count))
+        volume = Volume2D(center, voxel_size)
+        volume.set_size(179, 123)
+        params.append((4, (0, 2*np.pi, 128), volume, 2.0, det_count, det_count, det_count))
 
 for spacing in [1.0, 0.5, 1.3, 2.0]:
     for det_count in [79, 128, 243]:
         for src_dist, det_dist in [(128, 128), (64, 128), (128, 64), (503, 503)]:
-            params.append((4, (0, 2*np.pi, 128), 128, spacing, det_count, src_dist, det_dist))
+            volume = Volume2D()
+            volume.set_size(128, 128)
+            params.append((4, (0, 2*np.pi, 128), volume, spacing, det_count, src_dist, det_dist))
+
+# params.append((4, (0, 6.283185307179586, 128), 128, 2.0, 243, 128, 64))
 
 
 @parameterized(params)
 def test_error(batch_size, angles, volume, spacing, det_count, src_dist, det_dist):
+    if volume is None:
+        volume = Volume2D()
+        volume.set_size(det_count, det_count)
     radon = tr.FanBeam(det_count, angles, src_dist, det_dist, spacing, volume)
 
     f = random_symbolic_function(radon.volume.height, radon.volume.width)

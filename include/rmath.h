@@ -8,7 +8,7 @@
 #define EXPECT_TRUE(x) __builtin_expect(x, true)
 
 #pragma GCC push_options
-#pragma GCC optimize ("03", "no-fast-math")
+#pragma GCC optimize("03", "no-fast-math")
 
 namespace rosh
 {
@@ -260,19 +260,20 @@ namespace rosh
         // use double precision
         const double xd = double(x);
 
-        // (x * N)/log(2) = k + r   where k is an integer and r is in [-1/2, 1/2]
+        // (x * n)/log(2) = k + r   where k is an integer and r is in [-1/2, 1/2]
         double z = xd * inv_ln2_n;
         double kd = z + shift;
         uint64_t ki = internals::as_uint64(kd);
         kd -= shift;
         double r = z - kd;
 
-        // exp(x) = 2^(floor(k/n) + k%n + r/n)
-        // 2^(k%n) is looked up in the table
+        // x = log(2) * (k/n + r/n)
+        // exp(x) = 2^(floor(k/n) + (k%n)/n + r/n)
+        // 2^((k%n)/n) is looked up in the table
         uint64_t t = table[ki % N];
 
         // 2^floor(k/n) is a shift of -5 to divide by n and a shift of 52 to put floor(k/n) into the exponent bits
-        // summing on the unit representation is used to compute the product because the mantissa of 2^floor(k/n) is zero
+        // summing on the uint representation is used to compute the product because the mantissa of 2^floor(k/n) is zero
         t += ki << (52 - 5);
 
         double s = internals::as_double(t);
@@ -317,7 +318,9 @@ namespace rosh
         double logc = table[i].logc;
 
         double z = double(internals::as_float(iz));
-        /* log(x) = log1p(z/c-1) + log(c) + k*Ln2 */
+        // x = z * 2^k
+        // x = (z / c) * c * 2^k
+        // log(x) = log1p(z/c-1) + log(c) + k*Ln2
         double r = z * invc - 1;
         double y0 = logc + double(k) * ln2;
         /* Pipelined polynomial evaluation to approximate log1p(r).  */

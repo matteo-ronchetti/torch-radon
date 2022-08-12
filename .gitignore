@@ -16,6 +16,7 @@ tests/output/
 benchmarks/**/*.npy
 benchmarks/**/*.ipynb
 
+*.so
 *.pyc
 *.ncu-rep
 test
