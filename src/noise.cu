@@ -1,6 +1,7 @@
+#include <iostream>
+
 #include "noise.h"
 #include "rmath.h"
-#include <iostream>
 
 __global__ void initialize_random_states(curandState *state, const uint seed) {
     const uint sequence_id = threadIdx.x + blockIdx.x * blockDim.x;

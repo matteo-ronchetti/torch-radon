@@ -1,17 +1,17 @@
-#include <torch/extension.h>
 #include <iostream>
-#include <vector>
 #include <math.h>
+#include <torch/extension.h>
+#include <vector>
 
-#include "parameter_classes.h"
-#include "forward.h"
 #include "backprojection.h"
+#include "fft.h"
+#include "forward.h"
+#include "log.h"
 #include "noise.h"
+#include "parameter_classes.h"
+#include "symbolic.h"
 #include "texture.h"
 #include "utils.h"
-#include "symbolic.h"
-#include "log.h"
-#include "fft.h"
 
 #define CHECK_CUDA(x) TORCH_CHECK(x.device().is_cuda(), #x " must be a CUDA tensor")
 #define CHECK_CONTIGUOUS(x) TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")

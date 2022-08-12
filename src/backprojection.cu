@@ -48,7 +48,7 @@ radon_backward_kernel(T *__restrict__ output, cudaTextureObject_t texture, const
 
         if (parallel_beam) {
             const int n_angles = proj_cfg.n_angles;
-            
+
             // keep a float version of i to avoid expensive int2float conversions inside the main loop
             float fi = 0.5f;
             #pragma unroll(16)
@@ -69,14 +69,14 @@ radon_backward_kernel(T *__restrict__ output, cudaTextureObject_t texture, const
         } else {
             const float k = proj_cfg.s_dist + proj_cfg.d_dist;
             const int n_angles = proj_cfg.n_angles;
-            
+
             // keep a float version of i to avoid expensive int2float conversions inside the main loop
             float fi = 0.5f;
             #pragma unroll(16)
             for (int i = 0; i < n_angles; i++) {
                 float iden;
                 float den = fmaf(sincos[i].y, -dy, sincos[i].x * dx + proj_cfg.s_dist);
-                
+
                 // iden = __fdividef(k, den);
                 asm("div.approx.ftz.f32 %0, %1, %2;" : "=f"(iden) : "f"(k), "f"(den));
 
@@ -185,7 +185,7 @@ radon_backward_kernel_3d(T *__restrict__ output, cudaTextureObject_t texture, co
     const float cz = vol_cfg.depth / 2.0f;
     const float cu = proj_cfg.det_count_u / 2.0f;
     const float cv = proj_cfg.det_count_v / 2.0f;
-    
+
     const float dx = (float(x) - cx) * vol_cfg.sx + vol_cfg.dx + 0.5f;
     const float dy = (float(y) - cy) * vol_cfg.sy + vol_cfg.dy + 0.5f;
     const float dz = (float(z) - cz) * vol_cfg.sz + vol_cfg.dz + 0.5f - proj_cfg.initial_z;
@@ -214,7 +214,7 @@ radon_backward_kernel_3d(T *__restrict__ output, cudaTextureObject_t texture, co
 
     if (x < vol_cfg.width && y < vol_cfg.height && z < vol_cfg.depth) {
         float accumulator[channels];
-        
+
         #pragma unroll
         for (int i = 0; i < channels; i++) accumulator[i] = 0.0f;
 

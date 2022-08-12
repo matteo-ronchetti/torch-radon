@@ -49,7 +49,7 @@ write_to_surface(const float *data, cudaSurfaceObject_t surface, const int width
         tmp.y = data[1 * pitch + offset];
         tmp.z = data[2 * pitch + offset];
         tmp.w = data[3 * pitch + offset];
-        
+
         switch(texture_type){
             case TEX_1D_LAYERED:
                 surf1DLayeredwrite<float4>(tmp, surface, x * sizeof(float4), y);
@@ -106,7 +106,7 @@ cudaChannelFormatDesc get_channel_desc(int channels, int precision) {
     if (precision == PRECISION_HALF && channels == 4) {
         return cudaCreateChannelDesc(16, 16, 16, 16, cudaChannelFormatKindFloat);
     }
-    
+
     LOG_WARNING("Unsupported number of channels and precision (channels:" << channels << ", precision: " << precision << ")");
     return cudaCreateChannelDesc(16, 16, 16, 16, cudaChannelFormatKindFloat);
 }
@@ -121,7 +121,7 @@ Texture::Texture(TextureConfig c) :cfg(c) {
     auto allocation_type = cfg.is_layered ? cudaArrayLayered : cudaArrayDefault;
 
     const cudaExtent extent = make_cudaExtent(cfg.width, cfg.height, cfg.depth);
-    checkCudaErrors(cudaMalloc3DArray(&array, &channelDesc, extent, allocation_type));       
+    checkCudaErrors(cudaMalloc3DArray(&array, &channelDesc, extent, allocation_type));
 
     // Create resource descriptor
     cudaResourceDesc resDesc;
