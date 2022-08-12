@@ -7,7 +7,7 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setup(
-    name='torch_radon',
+    name="torch_radon",
     version="2.0.0",
     author="Matteo Ronchetti",
     author_email="mttronchetti@gmail.com",
@@ -15,13 +15,13 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/matteo-ronchetti/torch-radon",
-    packages=['torch_radon'],
+    packages=["torch_radon"],
     package_dir={
-        '': 'src/python',
+        "": "src/python",
     },
     ext_modules=[
         CUDAExtension(
-            name='torch_radon_cuda',
+            name="torch_radon_cuda",
             sources=[
                 "src/backprojection.cu",
                 "src/fft.cu",
@@ -33,19 +33,19 @@ setup(
                 "src/symbolic.cpp",
                 "src/texture.cu",
             ],
-            include_dirs=[os.path.abspath('include')],
+            include_dirs=[os.path.abspath("include")],
             extra_compile_args={
-                'cxx': [
+                "cxx": [
                     # GNU++14 required for hexfloat extension used in rmath.h
-                    '-std=gnu++14',
+                    "-std=gnu++14",
                 ],
-                'nvcc': [
+                "nvcc": [
                     # __half conversions required in backprojection
-                    '-U__CUDA_NO_HALF_CONVERSIONS__',
+                    "-U__CUDA_NO_HALF_CONVERSIONS__",
                 ],
             }),
     ],
-    cmdclass={'build_ext': BuildExtension},
+    cmdclass={"build_ext": BuildExtension},
     zip_safe=False,
     classifiers=[
         "Programming Language :: Python :: 3",
@@ -53,7 +53,21 @@ setup(
         "License :: OSI Approved :: GNU General Public License v3 (GPLv3)"
     ],
     install_requires=[
+        "torch",
         "scipy",
+        "numpy",
         "alpha-transform",
     ],
+    extras_require={
+        "testing": [
+            "astra-toolbox",
+            "dxchange",
+            "matplotlib",
+            "nose",
+            "numpy",
+            "parameterized",
+            "scikit-image",
+        ]
+    },
+
 )
