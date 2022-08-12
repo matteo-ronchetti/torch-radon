@@ -20,9 +20,11 @@ class ParallelRadonModule(torch_radon.ParallelBeam, torch.nn.Module):
         self,
         det_count: int,
         angles: Union[list, np.array, torch.Tensor, tuple],
-        volume: int,
+        width: int,
         det_spacing: float = 1.0,
     ):
+        volume = torch_radon.Volume2D()
+        volume.set_size(width, width)
         torch.nn.Module.__init__(self)
         torch_radon.ParallelBeam.__init__(
             self,
@@ -32,7 +34,7 @@ class ParallelRadonModule(torch_radon.ParallelBeam, torch.nn.Module):
             volume=volume,
         )
         self.weight = torch.nn.Parameter(
-            torch.zeros(volume, volume, dtype=torch.float32))
+            torch.zeros(width, width, dtype=torch.float32))
 
     def forward(self):
         return torch_radon.ParallelBeam.forward(self, self.weight)
@@ -74,7 +76,7 @@ class TestParallelRadonModule(unittest.TestCase):
         model = ParallelRadonModule(
             det_count=data.shape[-1],
             angles=theta,
-            volume=data.shape[-1],
+            width=data.shape[-1],
         ).to(device)
 
         lossf = torch.nn.GaussianNLLLoss().to(device)
@@ -99,7 +101,7 @@ class TestParallelRadonModule(unittest.TestCase):
 def _save_lamino_result(result, algorithm):
     try:
         import matplotlib.pyplot as plt
-        fname = os.path.join(os.path.dirname(__file__), 'tooth')
+        fname = os.path.join(os.path.dirname(__file__), 'output', 'tooth')
         os.makedirs(fname, exist_ok=True)
         plt.figure()
         plt.title(algorithm)

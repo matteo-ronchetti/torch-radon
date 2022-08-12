@@ -88,13 +88,16 @@ def test_simple_integrals(image_size=17):
     When we project at angles 0 and PI/2, the foward operator should be the
     same as taking the sum over the object array along each axis.
     """
+    volume = tr.Volume2D()
+    volume.set_size(image_size, image_size)
+
     angles = torch.tensor(
-        [0.0, -np.pi / 2, np.pi, np.pi / 2],
+        [0.0, np.pi, -np.pi / 2, np.pi / 2],
         dtype=torch.float32,
         device='cuda',
     )
     radon = tr.ParallelBeam(
-        volume=image_size,
+        volume=volume,
         angles=angles,
         det_spacing=1.0,
         det_count=image_size,
@@ -107,44 +110,49 @@ def test_simple_integrals(image_size=17):
         device='cuda',
     )
     original[image_size // 4, :] += 1
-    # original[:, image_size // 2] += 1
+    original[:, image_size // 2] += 1
 
     data = radon.forward(original)
     data0 = torch.sum(original, axis=0)
     data1 = torch.sum(original, axis=1)
 
+    print('\n', data0.cpu().numpy())
     print('\n', data[0].cpu().numpy())
-    print(data0.cpu().numpy())
     print('\n', data[1].cpu().numpy())
-    print(data1.cpu().numpy())
+    torch.testing.assert_allclose(data[0], data0)
+    torch.testing.assert_allclose(data[1], data0)
+    print('\n')
+    print('\n', data1.cpu().numpy())
     print('\n', data[2].cpu().numpy())
-    print(data0.cpu().numpy()[::-1])
     print('\n', data[3].cpu().numpy())
-    print(data1.cpu().numpy()[::-1])
-
-    # torch.testing.assert_allclose(data[0], data0)
-    # torch.testing.assert_allclose(data[1], data1)
-    # torch.testing.assert_allclose(data[2], data0)
-    # torch.testing.assert_allclose(data[3], data1)
+    torch.testing.assert_allclose(data[2], data1)
+    torch.testing.assert_allclose(data[3], torch.flip(data1, (0, )))
 
 
-def test_simple_back(image_size=17):
+def test_simple_back(image_size=5):
 
     data = torch.zeros(4, image_size, device='cuda')
     data[:, image_size // 4] = torch.tensor([1, 2, 3, 4], device='cuda')
 
+    volume = tr.Volume2D()
+    volume.set_size(image_size, image_size)
     angles = torch.tensor(
         [0.0, np.pi / 2, np.pi, -np.pi / 2],
         dtype=torch.float32,
         device='cuda',
     )
     radon = tr.ParallelBeam(
-        volume=image_size,
+        volume=volume,
         angles=angles,
         det_spacing=1.0,
         det_count=image_size,
     )
 
     original = radon.backward(data)
-    print()
-    print(original)
+    print('\n', original)
+
+    ref = torch.tensor(
+        [[0., 1., 0., 3., 0.], [4., 5., 4., 7., 4.], [0., 1., 0., 3., 0.],
+         [2., 3., 2., 5., 2.], [0., 1., 0., 3., 0.]], )
+
+    torch.testing.assert_allclose(original.cpu(), ref)
