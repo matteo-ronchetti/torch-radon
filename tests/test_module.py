@@ -15,30 +15,48 @@ import torch_radon
 assert torch_radon.__version__ == "2.0"
 
 
-class ParallelRadonModule(torch_radon.ParallelBeam, torch.nn.Module):
+class RadonWeightsModule(torch.nn.Module):
+    def __init__(
+        self,
+        width: int,
+    ):
+        super().__init__()
+        self.weight = torch.nn.Parameter(
+            torch.zeros(width, width, dtype=torch.float32))
+
+    def forward(self):
+        return self.weight
+
+class ParallelRadonLoss(torch.nn.Module):
     def __init__(
         self,
         det_count: int,
-        angles: Union[list, np.array, torch.Tensor, tuple],
+        angles: torch.Tensor,
         width: int,
         det_spacing: float = 1.0,
+        lossf = torch.nn.GaussianNLLLoss,
     ):
+        super().__init__()
+        self.width = width
         volume = torch_radon.Volume2D()
         volume.set_size(width, width)
-        torch.nn.Module.__init__(self)
-        torch_radon.ParallelBeam.__init__(
-            self,
+        self.radon = torch_radon.ParallelBeam(
             det_count=det_count,
             angles=angles,
             det_spacing=det_spacing,
             volume=volume,
         )
-        self.weight = torch.nn.Parameter(
-            torch.zeros(width, width, dtype=torch.float32))
+        self.lossf = lossf()
 
-    def forward(self):
-        return torch_radon.ParallelBeam.forward(self, self.weight)
+    def forward(self, x: torch.Tensor, targets: torch.Tensor, *lossfargs):
+        """Apply the forward radon transform to x.
 
+        Parameters
+        ----------
+        """
+        assert x.shape == (self.width, self.width)
+        f = self.radon.forward(x)
+        return self.lossf(f, targets, *lossfargs)
 
 class TestParallelRadonModule(unittest.TestCase):
     """Tests the ParallelRadonModule by reconstructing the tooth dataset."""
@@ -73,13 +91,16 @@ class TestParallelRadonModule(unittest.TestCase):
             requires_grad=True,
         ).to(device)
 
-        model = ParallelRadonModule(
-            det_count=data.shape[-1],
-            angles=theta,
+        model = RadonWeightsModule(
             width=data.shape[-1],
         ).to(device)
 
-        lossf = torch.nn.GaussianNLLLoss().to(device)
+        lossf = ParallelRadonLoss(
+            det_count=data.shape[-1],
+            angles=theta,
+            width=data.shape[-1],
+            lossf=torch.nn.GaussianNLLLoss,
+        ).to(device)
 
         optimizer = torch.optim.Adam(model.parameters())
 
