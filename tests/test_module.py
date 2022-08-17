@@ -16,6 +16,7 @@ assert torch_radon.__version__ == "2.0"
 
 
 class RadonWeightsModule(torch.nn.Module):
+
     def __init__(
         self,
         width: int,
@@ -27,14 +28,16 @@ class RadonWeightsModule(torch.nn.Module):
     def forward(self):
         return self.weight
 
+
 class ParallelRadonLoss(torch.nn.Module):
+
     def __init__(
         self,
         det_count: int,
         angles: torch.Tensor,
         width: int,
         det_spacing: float = 1.0,
-        lossf = torch.nn.GaussianNLLLoss,
+        lossf=torch.nn.GaussianNLLLoss,
     ):
         super().__init__()
         self.width = width
@@ -58,8 +61,10 @@ class ParallelRadonLoss(torch.nn.Module):
         f = self.radon.forward(x)
         return self.lossf(f, targets, *lossfargs)
 
+
 class TestParallelRadonModule(unittest.TestCase):
     """Tests the ParallelRadonModule by reconstructing the tooth dataset."""
+
     def setUp(self):
         # Load the tooth dataset
         self.proj, flat, dark, self.theta = dxchange.read_aps_32id(
@@ -85,15 +90,14 @@ class TestParallelRadonModule(unittest.TestCase):
 
         theta = torch.from_numpy(self.theta).type(torch.float32).to(device)
         data = torch.from_numpy(self.proj).type(torch.float32).to(device)
+
         var = torch.ones(
             data.shape,
             dtype=torch.float32,
             requires_grad=True,
         ).to(device)
 
-        model = RadonWeightsModule(
-            width=data.shape[-1],
-        ).to(device)
+        model = RadonWeightsModule(width=data.shape[-1], ).to(device)
 
         lossf = ParallelRadonLoss(
             det_count=data.shape[-1],
