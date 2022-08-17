@@ -1,3 +1,10 @@
+"""Since this package is a pytorch extension, this setup file uses the custom
+CUDAExtension build system from pytorch. This ensures that compatible compiler
+args, headers, etc for pytorch.
+
+Read more at the pytorch docs:
+https://pytorch.org/docs/stable/cpp_extension.html#torch.utils.cpp_extension.CUDAExtension
+"""
 import os.path
 
 from setuptools import setup
@@ -69,5 +76,4 @@ setup(
             "scikit-image",
         ]
     },
-
 )
