@@ -2,13 +2,18 @@ import numpy as np
 import random
 import os
 import shutil
-from nose.tools import assert_less, assert_equal
 import matplotlib.pyplot as plt
 import random
 import torch
 
 from torch_radon_cuda import SymbolicFunction, symbolic_discretize, symbolic_forward
 
+
+def assert_less(x, y):
+    assert x < y
+
+def assert_equal(x, y):
+    assert x == y
 
 def relative_error(ref, x):
     return np.linalg.norm(ref - x) / (np.linalg.norm(ref) + 1e-6)

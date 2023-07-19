@@ -1,13 +1,11 @@
 import numpy as np
 import torch
-from nose.tools import assert_equal
-from parameterized import parameterized
+import pytest
 import random
 
-from .utils import random_symbolic_function, symbolic_discretize, symbolic_forward, TestHelper
+import torch_radon
 
-from torch_radon.volumes import Volume2D
-import torch_radon as tr
+from .utils import random_symbolic_function, symbolic_discretize, symbolic_forward, TestHelper, assert_equal
 
 random.seed(42)
 device = torch.device('cuda')
@@ -27,7 +25,7 @@ for angles in [(0, np.pi, 19), (0, np.pi, 803)]:
 # change volume size
 for height, width in [(128, 256), (256, 128), (75, 149), (81, 81)]:
     s = max(height, width)
-    volume = Volume2D()
+    volume = torch_radon.volumes.Volume2D()
     volume.set_size(height, width)
     params.append((4, (0, np.pi, 64), volume, 2.0, s))
 
@@ -35,25 +33,25 @@ for height, width in [(128, 256), (256, 128), (75, 149), (81, 81)]:
 for center in [(0, 0), (17, -25), (53, 49)]:
     for voxel_size in [(1, 1), (0.75, 0.75), (1.5, 1.5), (0.7, 1.3), (1.3, 0.7)]:
         det_count = int(179 * max(voxel_size[0], 1) * max(voxel_size[1], 1) * np.sqrt(2))
-        volume = Volume2D(center, voxel_size)
+        volume = torch_radon.volumes.Volume2D(center, voxel_size)
         volume.set_size(179, 123)
         params.append((4, (0, np.pi, 128), volume, 2.0, det_count))
 
 for spacing in [1.0, 0.5, 1.3, 2.0]:
     for det_count in [79, 128, 243]:
         for src_dist, det_dist in [(128, 128), (64, 128), (128, 64), (503, 503)]:
-            volume = Volume2D()
+            volume = torch_radon.volumes.Volume2D()
             volume.set_size(128, 128)
             params.append((4, (0, np.pi, 128), volume, spacing, det_count))
 
 
-@parameterized(params)
+@pytest.mark.parametrize('batch_size, angles, volume, spacing, det_count', params)
 def test_error(batch_size, angles, volume, spacing, det_count):
     if volume is None:
-        volume = Volume2D()
+        volume = torch_radon.volumes.Volume2D()
         volume.set_size(det_count, det_count)
 
-    radon = tr.ParallelBeam(det_count, angles, spacing, volume)
+    radon = torch_radon.ParallelBeam(det_count, angles, spacing, volume)
 
     f = random_symbolic_function(radon.volume.height, radon.volume.width)
     x = symbolic_discretize(f, radon.volume.height, radon.volume.width)
@@ -88,7 +86,7 @@ def test_simple_integrals(image_size=17):
     When we project at angles 0 and PI/2, the foward operator should be the
     same as taking the sum over the object array along each axis.
     """
-    volume = tr.Volume2D()
+    volume = torch_radon.volumes.Volume2D()
     volume.set_size(image_size, image_size)
 
     angles = torch.tensor(
@@ -96,7 +94,7 @@ def test_simple_integrals(image_size=17):
         dtype=torch.float32,
         device='cuda',
     )
-    radon = tr.ParallelBeam(
+    radon = torch_radon.ParallelBeam(
         volume=volume,
         angles=angles,
         det_spacing=1.0,
@@ -134,14 +132,14 @@ def test_simple_back(image_size=5):
     data = torch.zeros(4, image_size, device='cuda')
     data[:, image_size // 4] = torch.tensor([1, 2, 3, 4], device='cuda')
 
-    volume = tr.Volume2D()
+    volume = torch_radon.volumes.Volume2D()
     volume.set_size(image_size, image_size)
     angles = torch.tensor(
         [0.0, np.pi / 2, np.pi, -np.pi / 2],
         dtype=torch.float32,
         device='cuda',
     )
-    radon = tr.ParallelBeam(
+    radon = torch_radon.ParallelBeam(
         volume=volume,
         angles=angles,
         det_spacing=1.0,

@@ -1,12 +1,12 @@
-from torch_radon.volumes import Volume3D
-from .utils import relative_error
 import astra
-from nose.tools import assert_less, assert_equal
-import torch
-import numpy as np
-import torch_radon as tr
-from parameterized import parameterized
 import matplotlib.pyplot as plt
+import numpy as np
+import pytest
+import torch
+
+import torch_radon
+
+from .utils import relative_error, assert_less
 
 device = torch.device('cuda')
 
@@ -25,7 +25,7 @@ for batch_size in [1, 8]:
 half_params = [x for x in params if x[1] % 4 == 0]
 
 
-@parameterized(params)
+@pytest.mark.parametrize('device, batch_size, volume_size, angles, det_spacing, distances, det_count', params)
 def test_fanflat_error(device, batch_size, volume_size, angles, det_spacing, distances, det_count):
     # generate random images
     det_count = int(det_count * volume_size)
@@ -55,9 +55,9 @@ def test_fanflat_error(device, batch_size, volume_size, angles, det_spacing, dis
     # TODO clean astra structures
 
     # our implementation
-    volume = Volume3D()
+    volume = torch_radon.volumes.Volume3D()
     volume.set_size(volume_size, volume_size, volume_size)
-    radon = tr.ConeBeam(det_count, angles, s_dist, d_dist, det_spacing_u=det_spacing, volume=volume)
+    radon = torch_radon.ConeBeam(det_count, angles, s_dist, d_dist, det_spacing_u=det_spacing, volume=volume)
     x = torch.FloatTensor(x).view(1, x.shape[0], x.shape[1], x.shape[2]).repeat(batch_size, 1, 1, 1).to(device)
 
     our_fp = radon.forward(x)
@@ -94,7 +94,7 @@ def test_fanflat_error(device, batch_size, volume_size, angles, det_spacing, dis
     assert_less(back_error, 3e-3)
 
 
-@parameterized(half_params)
+@pytest.mark.parametrize('device, batch_size, volume_size, angles, det_spacing, distances, det_count', half_params)
 def test_half(device, batch_size, volume_size, angles, det_spacing, distances, det_count):
     # generate random images
     det_count = int(det_count * volume_size)
@@ -104,9 +104,9 @@ def test_half(device, batch_size, volume_size, angles, det_spacing, distances, d
     s_dist *= volume_size
     d_dist *= volume_size
 
-    volume = Volume3D()
+    volume = torch_radon.volumes.Volume3D()
     volume.set_size(volume_size, volume_size, volume_size)
-    radon = tr.ConeBeam(det_count, angles, s_dist, d_dist, det_spacing_u=det_spacing, volume=volume)
+    radon = torch_radon.ConeBeam(det_count, angles, s_dist, d_dist, det_spacing_u=det_spacing, volume=volume)
     x = torch.FloatTensor(x).to(device)
 
     single_fp = radon.forward(x) / len(angles)

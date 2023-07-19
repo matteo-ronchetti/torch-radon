@@ -63,15 +63,12 @@ setup(
         "torch",
         "scipy",
         "numpy",
-        "alpha-transform",
     ],
     extras_require={
         "testing": [
             "astra-toolbox",
             "dxchange",
             "matplotlib",
-            "nose",
-            "numpy",
             "parameterized",
             "scikit-image",
         ]

@@ -1,15 +1,11 @@
 import numpy as np
-import torch
-from nose.tools import assert_equal
-from parameterized import parameterized
+import pytest
 import random
+import torch
 
-from .utils import random_symbolic_function, symbolic_discretize, symbolic_forward, TestHelper
+import torch_radon
 
-from torch_radon.volumes import Volume2D
-import torch_radon as tr
-
-# tr.set_log_level(tr.DEBUG)
+from .utils import random_symbolic_function, symbolic_discretize, symbolic_forward, TestHelper, assert_equal
 
 random.seed(42)
 device = torch.device('cuda')
@@ -29,7 +25,7 @@ for angles in [(0, 2*np.pi, 19), (0, 2*np.pi, 803)]:
 # change volume size
 for height, width in [(128, 256), (256, 128), (75, 149), (81, 81)]:
     s = max(height, width)
-    volume = Volume2D()
+    volume = torch_radon.volumes.Volume2D()
     volume.set_size(height, width)
     params.append((4, (0, 2*np.pi, 64), volume, 2.0, s, s, s))
 
@@ -37,26 +33,26 @@ for height, width in [(128, 256), (256, 128), (75, 149), (81, 81)]:
 for center in [(0, 0), (17, -25), (53, 49)]:
     for voxel_size in [(1, 1), (0.75, 0.75), (1.5, 1.5), (0.7, 1.3), (1.3, 0.7)]:
         det_count = int(179 * max(voxel_size[0], 1) * max(voxel_size[1], 1) * np.sqrt(2))
-        volume = Volume2D(center, voxel_size)
+        volume = torch_radon.volumes.Volume2D(center, voxel_size)
         volume.set_size(179, 123)
         params.append((4, (0, 2*np.pi, 128), volume, 2.0, det_count, det_count, det_count))
 
 for spacing in [1.0, 0.5, 1.3, 2.0]:
     for det_count in [79, 128, 243]:
         for src_dist, det_dist in [(128, 128), (64, 128), (128, 64), (503, 503)]:
-            volume = Volume2D()
+            volume = torch_radon.volumes.Volume2D()
             volume.set_size(128, 128)
             params.append((4, (0, 2*np.pi, 128), volume, spacing, det_count, src_dist, det_dist))
 
 # params.append((4, (0, 6.283185307179586, 128), 128, 2.0, 243, 128, 64))
 
 
-@parameterized(params)
+@pytest.mark.parametrize('batch_size, angles, volume, spacing, det_count, src_dist, det_dist', params)
 def test_error(batch_size, angles, volume, spacing, det_count, src_dist, det_dist):
     if volume is None:
-        volume = Volume2D()
+        volume = torch_radon.volumes.Volume2D()
         volume.set_size(det_count, det_count)
-    radon = tr.FanBeam(det_count, angles, src_dist, det_dist, spacing, volume)
+    radon = torch_radon.FanBeam(det_count, angles, src_dist, det_dist, spacing, volume)
 
     f = random_symbolic_function(radon.volume.height, radon.volume.width)
     x = symbolic_discretize(f, radon.volume.height, radon.volume.width)
@@ -102,7 +98,7 @@ def test_error(batch_size, angles, volume, spacing, det_count, src_dist, det_dis
 # half_params = [x for x in params if x[1] % 4 == 0]
 
 
-# @parameterized(params)
+# @pytest.mark.parametrize('device, batch_size, image_size, angles, spacing, distances, det_count', params)
 # def test_fanbeam_error(device, batch_size, image_size, angles, spacing, distances, det_count):
 #     # generate random images
 #     # generate random images
@@ -124,7 +120,7 @@ def test_error(batch_size, angles, volume, spacing, det_count, src_dist, det_dis
 #     # TODO clean astra structures
 
 #     # our implementation
-#     radon = tr.FanBeam(det_count=det_count, det_spacing=spacing, angles=angles,
+#     radon = torch_radon.FanBeam(det_count=det_count, det_spacing=spacing, angles=angles,
 #                        src_dist=s_dist, det_dist=d_dist, volume=image_size)
 #     x = torch.FloatTensor(x).to(device).view(1, x.shape[0], x.shape[1])
 #     # repeat data to fill batch size
@@ -150,7 +146,7 @@ def test_error(batch_size, angles, volume, spacing, det_count, src_dist, det_dis
 #     assert_less(back_error, 5e-3)
 
 
-# @parameterized(half_params)
+# @pytest.mark.parametrize('device, batch_size, image_size, angles, spacing, distances, det_count', half_params)
 # def test_half(device, batch_size, image_size, angles, spacing, distances, det_count):
 #     # generate random images
 #     det_count = int(det_count * image_size)
@@ -161,7 +157,7 @@ def test_error(batch_size, angles, volume, spacing, det_count, src_dist, det_dis
 #     d_dist *= image_size
 
 #     # our implementation
-#     radon = tr.FanBeam(det_count=det_count, det_spacing=spacing, angles=angles,
+#     radon = torch_radon.FanBeam(det_count=det_count, det_spacing=spacing, angles=angles,
 #                        src_dist=s_dist, det_dist=d_dist, volume=image_size)
 #     x = torch.FloatTensor(x).to(device)
 
