@@ -12,7 +12,7 @@ import numpy as np
 import torch
 import torch_radon
 
-assert torch_radon.__version__ == "2.0"
+assert int(torch_radon.__version__.split('.')[0]) > 1
 
 
 class RadonWeightsModule(torch.nn.Module):
