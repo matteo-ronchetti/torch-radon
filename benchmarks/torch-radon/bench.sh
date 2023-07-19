@@ -1,1 +1,0 @@
-python -u bench.py

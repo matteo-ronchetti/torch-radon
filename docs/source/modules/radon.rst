@@ -9,22 +9,22 @@ Parallel Beam
    :noindex:
 
 
-.. autoclass:: Radon
+.. autoclass:: ParallelBeam
 
-    .. automethod:: forward(self, x)
+    .. automethod:: forward
 
-    .. automethod:: backprojection(self, sinogram)
+    .. automethod:: backprojection
 
-    .. automethod:: backward(self, sinogram)
+    .. automethod:: backward
 
 
 Fanbeam
 ---------------
 
-.. autoclass:: RadonFanbeam
+.. autoclass:: FanBeam
 
-    .. automethod:: forward(self, x)
+    .. automethod:: forward
 
-    .. automethod:: backprojection(self, sinogram)
+    .. automethod:: backprojection
 
-    .. automethod:: backward(self, sinogram)
+    .. automethod:: backward

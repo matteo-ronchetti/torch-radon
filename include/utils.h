@@ -6,50 +6,34 @@
 #include <cuda.h>
 #include <cufft.h>
 #include <cuda_runtime.h>
+#include "defines.h"
+#include <memory>
+#include <string>
+#include <stdexcept>
 
-
-typedef unsigned int uint;
-
-class RaysCfg {
-public:
-    int width;
-    int height;
-
-    int det_count;
-    float det_spacing;
-
-    int n_angles;
-    bool clip_to_circle;
-
-    // source and detector distances (for fanbeam)
-    float s_dist = 0.0;
-    float d_dist = 0.0;
-
-    bool is_fanbeam = false;
-
-    RaysCfg(int w, int h, int dc, float ds, int na, bool ctc) : width(w), height(h), det_count(dc), det_spacing(ds),
-                                                      n_angles(na), clip_to_circle(ctc) {}
-
-    RaysCfg(int w, int h, int dc, float ds, int na, bool ctc, float sd, float dd) : width(w), height(h), det_count(dc),
-                                                                          det_spacing(ds),
-                                                                          n_angles(na), clip_to_circle(ctc), s_dist(sd),
-                                                                          d_dist(dd), is_fanbeam(true) {}
-};
+template<typename ... Args>
+std::string string_format(const std::string &format, Args ... args) {
+    size_t size = snprintf(nullptr, 0, format.c_str(), args ...) + 1; // Extra space for '\0'
+    if (size <= 0) { throw std::runtime_error("Error during formatting."); }
+    std::unique_ptr<char[]> buf(new char[size]);
+    snprintf(buf.get(), size, format.c_str(), args ...);
+    return std::string(buf.get(), buf.get() + size - 1); // We don't want the '\0' inside
+}
 
 inline int roundup_div(const int x, const int y) {
     return x / y + (x % y != 0);
 }
 
-inline unsigned int next_power_of_two(unsigned int v) {
-    v--;
-    v |= v >> 1;
-    v |= v >> 2;
-    v |= v >> 4;
-    v |= v >> 8;
-    v |= v >> 16;
-    v++;
-    return v;
-}
+//inline unsigned int next_power_of_two(unsigned int v) {
+//    v--;
+//    v |= v >> 1;
+//    v |= v >> 2;
+//    v |= v >> 4;
+//    v |= v >> 8;
+//    v |= v >> 16;
+//    v++;
+//    return v;
+//}
 
 template<typename T>
 void check_cuda(T result, const char *func, const char *file, const int line) {

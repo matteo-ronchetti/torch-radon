@@ -1,103 +1,83 @@
 import numpy as np
 import torch
-from nose.tools import assert_less
-from parameterized import parameterized
+import pytest
+import random
 
-from torch_radon import Radon
-from .astra_wrapper import AstraWrapper
-from .utils import generate_random_images, relative_error, circle_mask
-import matplotlib.pyplot as plt
+import torch_radon
 
+from .utils import random_symbolic_function, symbolic_discretize, symbolic_forward, TestHelper, assert_equal
+
+random.seed(42)
 device = torch.device('cuda')
+test_helper = TestHelper("parallel_beam")
 
-full_angles = np.linspace(0, 2 * np.pi, 180).astype(np.float32)
-limited_angles = np.linspace(0.2 * np.pi, 0.5 * np.pi, 50).astype(np.float32)
-sparse_angles = np.linspace(0, 2 * np.pi, 60).astype(np.float32)
-many_angles = np.linspace(0, 2 * np.pi, 800).astype(np.float32)
+# (batch_size, angles, volume, spacing, det_count)
+params = []
 
-params = []  # [(device, 8, 128, full_angles)]
-for batch_size in [1, 8, 16]:  # , 64, 128]:  # , 256, 512]:
-    for image_size in [128, 245, 256]:  # , 512]:
-        for angles in [full_angles, limited_angles, sparse_angles, many_angles]:
-            for spacing in [1.0, 0.5, 1.3, 2.0]:
-                for det_count in [1.0, 1.5]:
-                    for clip_to_circle in [False, True]:
-                        params.append((device, batch_size, image_size, angles, spacing, det_count, clip_to_circle))
+# check different batch sizes
+for batch_size in [1, 3, 17, 32]:
+    params.append((batch_size, (0, np.pi, 128), None, 1.0, 128))
 
-half_params = [x for x in params if x[1] % 4 == 0]
+# check few and many angles which are not multiples of 16
+for angles in [(0, np.pi, 19), (0, np.pi, 803)]:
+    params.append((4, angles, None, 1.0, 128))
 
+# change volume size
+for height, width in [(128, 256), (256, 128), (75, 149), (81, 81)]:
+    s = max(height, width)
+    volume = torch_radon.volumes.Volume2D()
+    volume.set_size(height, width)
+    params.append((4, (0, np.pi, 64), volume, 2.0, s))
 
-@parameterized(params)
-def test_error(device, batch_size, image_size, angles, spacing, det_count, clip_to_circle):
-    # generate random images
-    det_count = int(det_count * image_size)
-    mask_radius = det_count / 2.0 if clip_to_circle else -1
-    x = generate_random_images(batch_size, image_size, mask_radius)
+# change volume scale and center
+for center in [(0, 0), (17, -25), (53, 49)]:
+    for voxel_size in [(1, 1), (0.75, 0.75), (1.5, 1.5), (0.7, 1.3), (1.3, 0.7)]:
+        det_count = int(179 * max(voxel_size[0], 1) * max(voxel_size[1], 1) * np.sqrt(2))
+        volume = torch_radon.volumes.Volume2D(center, voxel_size)
+        volume.set_size(179, 123)
+        params.append((4, (0, np.pi, 128), volume, 2.0, det_count))
 
-    # astra
-    astra = AstraWrapper(angles)
-
-    astra_fp_id, astra_fp = astra.forward(x, spacing, det_count)
-    astra_bp = astra.backproject(astra_fp_id, image_size, batch_size)
-    if clip_to_circle:
-        astra_bp *= circle_mask(image_size, mask_radius)
-
-    # our implementation
-    radon = Radon(image_size, angles, det_spacing=spacing, det_count=det_count, clip_to_circle=clip_to_circle)
-    x = torch.FloatTensor(x).to(device)
-
-    our_fp = radon.forward(x)
-    our_bp = radon.backprojection(our_fp)
-
-    forward_error = relative_error(astra_fp, our_fp.cpu().numpy())
-    back_error = relative_error(astra_bp, our_bp.cpu().numpy())
-
-    if back_error > 1e-2:
-        plt.figure()
-        plt.title('ASTRA backprojection')
-        plt.imshow(astra_bp[0])
-        plt.colorbar()
-        plt.figure()
-        plt.title('torch-radon difference')
-        plt.imshow(np.abs(our_bp[0].cpu().numpy() - astra_bp[0])/astra_bp[0])
-        plt.colorbar()
-        plt.show()
-
-    print(
-        f"batch: {batch_size}, size: {image_size}, angles: {len(angles)}, spacing: {spacing}, det_count: {det_count}, circle: {clip_to_circle}, forward: {forward_error}, back: {back_error}")
-    # TODO better checks
-    assert_less(forward_error, 1e-2)
-    assert_less(back_error, 5e-3)
+for spacing in [1.0, 0.5, 1.3, 2.0]:
+    for det_count in [79, 128, 243]:
+        for src_dist, det_dist in [(128, 128), (64, 128), (128, 64), (503, 503)]:
+            volume = torch_radon.volumes.Volume2D()
+            volume.set_size(128, 128)
+            params.append((4, (0, np.pi, 128), volume, spacing, det_count))
 
 
-@parameterized(half_params)
-def test_half(device, batch_size, image_size, angles, spacing, det_count, clip_to_circle):
-    # generate random images
-    det_count = int(det_count * image_size)
-    mask_radius = det_count / 2.0 if clip_to_circle else -1
-    x = generate_random_images(batch_size, image_size, mask_radius)
+@pytest.mark.parametrize('batch_size, angles, volume, spacing, det_count', params)
+def test_error(batch_size, angles, volume, spacing, det_count):
+    if volume is None:
+        volume = torch_radon.volumes.Volume2D()
+        volume.set_size(det_count, det_count)
 
-    # scale used to avoid overflow in BP
-    bp_scale = np.pi / len(angles)
+    radon = torch_radon.ParallelBeam(det_count, angles, spacing, volume)
 
-    # our implementation
-    radon = Radon(image_size, angles, det_spacing=spacing, det_count=det_count, clip_to_circle=clip_to_circle)
-    x = torch.FloatTensor(x).to(device)
+    f = random_symbolic_function(radon.volume.height, radon.volume.width)
+    x = symbolic_discretize(f, radon.volume.height, radon.volume.width)
 
-    sinogram = radon.forward(x)
-    single_precision = radon.backprojection(sinogram)
+    f.scale(*radon.volume.voxel_size)
+    f.move(*radon.volume.center)
 
-    h_sino = radon.forward(x.half())
-    half_precision = radon.backprojection(h_sino * bp_scale)
+    tx = torch.FloatTensor(x).unsqueeze(0).repeat(batch_size, 1, 1).to(device)
 
-    forward_error = relative_error(sinogram.cpu().numpy(), h_sino.cpu().numpy())
-    back_error = relative_error(single_precision.cpu().numpy(), half_precision.cpu().float().numpy() / bp_scale)
+    y = symbolic_forward(f, radon.angles.cpu(), radon.projection.cfg).cpu().numpy()
+    ty = radon.forward(tx)
+    assert_equal(ty.size(0), batch_size)
 
-    print(
-        f"batch: {batch_size}, size: {image_size}, angles: {len(angles)}, spacing: {spacing}, circle: {clip_to_circle}, forward: {forward_error}, back: {back_error}")
+    max_error = 2e-3 * (512 / y.shape[0]) * (512 / y.shape[1])
 
-    assert_less(forward_error, 1e-3)
-    assert_less(back_error, 1e-3)
+    description = f"Angles: {angles}\nVolume: {volume}\nSpacing: {spacing}, Count: {det_count}, Precision: float"
+    test_helper.compare_images(y, ty, max_error, description)
+
+    back_max_error = 1e-3
+    test_helper.backward_check(tx, ty, radon, description, back_max_error)
+
+    if batch_size % 4 == 0:
+        ty = radon.forward(tx.half())
+
+        description = f"Angles: {angles}\nVolume: {volume}\nSpacing: {spacing}, Count: {det_count}, Precision: half"
+        test_helper.compare_images(y, ty, max_error, description)
 
 
 def test_simple_integrals(image_size=17):
@@ -106,17 +86,19 @@ def test_simple_integrals(image_size=17):
     When we project at angles 0 and PI/2, the foward operator should be the
     same as taking the sum over the object array along each axis.
     """
+    volume = torch_radon.volumes.Volume2D()
+    volume.set_size(image_size, image_size)
+
     angles = torch.tensor(
-        [0.0, -np.pi / 2, np.pi, np.pi / 2],
+        [0.0, np.pi, -np.pi / 2, np.pi / 2],
         dtype=torch.float32,
         device='cuda',
     )
-    radon = Radon(
-        resolution=image_size,
+    radon = torch_radon.ParallelBeam(
+        volume=volume,
         angles=angles,
         det_spacing=1.0,
         det_count=image_size,
-        clip_to_circle=False,
     )
 
     original = torch.zeros(
@@ -126,45 +108,49 @@ def test_simple_integrals(image_size=17):
         device='cuda',
     )
     original[image_size // 4, :] += 1
-    # original[:, image_size // 2] += 1
+    original[:, image_size // 2] += 1
 
     data = radon.forward(original)
     data0 = torch.sum(original, axis=0)
     data1 = torch.sum(original, axis=1)
 
+    print('\n', data0.cpu().numpy())
     print('\n', data[0].cpu().numpy())
-    print(data0.cpu().numpy())
     print('\n', data[1].cpu().numpy())
-    print(data1.cpu().numpy())
+    torch.testing.assert_allclose(data[0], data0)
+    torch.testing.assert_allclose(data[1], data0)
+    print('\n')
+    print('\n', data1.cpu().numpy())
     print('\n', data[2].cpu().numpy())
-    print(data0.cpu().numpy()[::-1])
     print('\n', data[3].cpu().numpy())
-    print(data1.cpu().numpy()[::-1])
-
-    # torch.testing.assert_allclose(data[0], data0)
-    # torch.testing.assert_allclose(data[1], data1)
-    # torch.testing.assert_allclose(data[2], data0)
-    # torch.testing.assert_allclose(data[3], data1)
+    torch.testing.assert_allclose(data[2], data1)
+    torch.testing.assert_allclose(data[3], torch.flip(data1, (0, )))
 
 
-def test_simple_back(image_size=17):
+def test_simple_back(image_size=5):
 
     data = torch.zeros(4, image_size, device='cuda')
     data[:, image_size // 4] = torch.tensor([1, 2, 3, 4], device='cuda')
 
+    volume = torch_radon.volumes.Volume2D()
+    volume.set_size(image_size, image_size)
     angles = torch.tensor(
         [0.0, np.pi / 2, np.pi, -np.pi / 2],
         dtype=torch.float32,
         device='cuda',
     )
-    radon = Radon(
-        resolution=image_size,
+    radon = torch_radon.ParallelBeam(
+        volume=volume,
         angles=angles,
         det_spacing=1.0,
         det_count=image_size,
-        clip_to_circle=False,
     )
 
     original = radon.backward(data)
-    print()
-    print(original)
+    print('\n', original)
+
+    ref = torch.tensor(
+        [[0., 1., 0., 3., 0.], [4., 5., 4., 7., 4.], [0., 1., 0., 3., 0.],
+         [2., 3., 2., 5., 2.], [0., 1., 0., 3., 0.]], )
+
+    torch.testing.assert_allclose(original.cpu(), ref)
