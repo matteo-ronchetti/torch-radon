@@ -70,6 +70,7 @@ setup(
             "dxchange",
             "matplotlib",
             "parameterized",
+            "pytest",
             "scikit-image",
         ]
     },
