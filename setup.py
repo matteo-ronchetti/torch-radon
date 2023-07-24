@@ -50,7 +50,11 @@ setup(
                     # __half conversions required in backprojection
                     "-U__CUDA_NO_HALF_CONVERSIONS__",
                 ],
-            }),
+            },
+            libraries=[
+                'cufft',
+            ],
+        ),
     ],
     cmdclass={"build_ext": BuildExtension},
     zip_safe=False,
