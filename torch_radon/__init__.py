@@ -79,32 +79,37 @@ class BaseRadon(abc.ABC):
         return RadonBackprojection.apply(sinogram, self.angles, self.tex_cache, self.rays_cfg)
 
     @normalize_shape(2)
-    def filter_sinogram(self, sinogram, filter_name="ramp"):
-        # if not self.clip_to_circle:
-        #     warnings.warn("Filtered Backprojection with clip_to_circle=True will not produce optimal results."
-        #                   "To avoid this specify clip_to_circle=False inside Radon constructor.")
-
-        # Pad sinogram to improve accuracy
+    def filter_sinogram(self, sinogram, pad_num=64, filter_name="ramp"):
+        # Check input
+        if not (sinogram.dtype == torch.float32 and sinogram.dim() == 3):
+            raise ValueError("sinogram must be a float tensor with 3 dimensions (batch_size, n_angles, size).")
+    
         size = sinogram.size(2)
         n_angles = sinogram.size(1)
-
-        padded_size = max(64, int(2 ** np.ceil(np.log2(2 * size))))
+    
+        # Compute padding size
+        padded_size = max(pad_num, int(2 ** np.ceil(np.log2(2 * size))))
         pad = padded_size - size
-
-        padded_sinogram = F.pad(sinogram.float(), (0, pad, 0, 0))
-        # TODO should be possible to use onesided=True saving memory and time
-        sino_fft = torch.rfft(padded_sinogram, 1, normalized=True, onesided=False)
-
-        # get filter and apply
-        f = self.fourier_filters.get(padded_size, filter_name, sinogram.device)
-        filtered_sino_fft = sino_fft * f
-
-        # Inverse fft
-        filtered_sinogram = torch.irfft(filtered_sino_fft, 1, normalized=True, onesided=False)
-
-        # pad removal and rescaling
-        filtered_sinogram = filtered_sinogram[:, :, :-pad] * (np.pi / (2 * n_angles))
-
+    
+        # Pad sinogram to improve accuracy
+        padded_sinogram = F.pad(sinogram, (0, pad, 0, 0))
+    
+        # Compute the FFT of the sinogram
+        sino_fft = torch.fft.rfft(padded_sinogram, dim=-1, norm="ortho")
+    
+        # Precompute this constant
+        scale_factor = torch.tensor([np.pi / (2 * n_angles)], dtype=padded_sinogram.dtype, device=padded_sinogram.device)
+    
+        # Get the requested filter and apply it to the FFT
+        f = self.fourier_filters.get(padded_size, filter_name, sino_fft.device)
+        filtered_sino_fft = sino_fft.mul_(f)
+    
+        # Compute the inverse FFT of the filtered sinogram
+        filtered_sinogram = torch.fft.irfft(filtered_sino_fft, n=padded_size, dim=-1, norm="ortho")
+    
+        # Remove padding and rescale
+        filtered_sinogram = filtered_sinogram[:, :, :-pad].mul_(scale_factor)
+    
         return filtered_sinogram.to(dtype=sinogram.dtype)
 
     def backward(self, sinogram):
