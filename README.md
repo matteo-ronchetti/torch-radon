@@ -1,8 +1,11 @@
 ![Travis (.com)](https://img.shields.io/travis/com/matteo-ronchetti/torch-radon)
 [![Documentation Status](https://readthedocs.org/projects/torch-radon/badge/?version=latest)](http://torch-radon.readthedocs.io/?badge=latest)
 ![GitHub](https://img.shields.io/github/license/matteo-ronchetti/torch-radon)
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/10GdKHk_6346aR4jl5VjPPAod1gTEsza9)
-# TorchRadon: Fast Differentiable Routines for Computed Tomography
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1A8axh4TMn8C7v4velMgDeovncDKDUXf8?usp=sharing)
+
+
+
+# torch-radon (forked)
 
 TorchRadon is a PyTorch extension written in CUDA that implements differentiable routines
 for solving computed tomography (CT) reconstruction problems.
@@ -26,47 +29,31 @@ Implemented operations:
  - Fan Beam projections
  - Shearlet transform
  
- 
-## Installation
-Currently only Linux is supported, if you are running a different OS please use Google Colab or the Docker image.
-### Precompiled packages
-If you are running Linux you can install Torch Radon by running:
-```shell script
-wget -qO- https://raw.githubusercontent.com/matteo-ronchetti/torch-radon/master/auto_install.py  | python -
-```
+## Google Colab
 
-### Google Colab
 You can try the library from your browser using Google Colab, you can find an example
-notebook [here](https://colab.research.google.com/drive/10GdKHk_6346aR4jl5VjPPAod1gTEsza9?usp=sharing).
+notebook [here](https://colab.research.google.com/drive/1A8axh4TMn8C7v4velMgDeovncDKDUXf8?usp=sharing).
+If you are using this repository in Google Colab, follow these commands to build from source and install the modified version:
 
-### Docker Image
-Docker images with PyTorch CUDA and Torch Radon are available [here](https://hub.docker.com/repository/docker/matteoronchetti/torch-radon).
-```shell script
-docker pull matteoronchetti/torch-radon
 ```
-To use the GPU in docker you need to use [nvidia-docker](https://github.com/NVIDIA/nvidia-docker)
-
-### Build from source
-You need to have [CUDA](https://developer.nvidia.com/cuda-toolkit) and [PyTorch](https://pytorch.org/get-started/locally/) installed, then run:
-```shell script
-git clone https://github.com/matteo-ronchetti/torch-radon.git
-cd torch-radon
-python setup.py install
+!git clone https://github.com/sypsyp97/torch-radon.git
+!wget https://github.com/sypsyp97/torch-radon/raw/master/examples/phantom.npy
+%cd torch-radon
+!pip install .
+%cd ..
 ```
-If you encounter any problem please contact the author or open an issue.
 
-## Benchmarks
-The library is noticeably faster than the Astra Toolbox, especially when data is already on the GPU. Main disadvantage of Astra is that it only takes inputs which are on the CPU, this makes training end-to-end neural networks very inefficient.
-The following benchmark compares the speed of Astra Toolbox and Torch Radon:
-![V100 Benchmark](pictures/v100.png?raw=true)
+## Acknowledgement
 
-If we set `clip_to_circle=True` (consider only the part of the image that is inside the circle) the speed difference is even larger:
-![V100 Benchmark circle](pictures/v100_circle.png?raw=true)
+This is a fork of the [torch-radon](https://github.com/matteo-ronchetti/torch-radon.git) project originally created and maintained by [Matteo Ronchetti](https://github.com/matteo-ronchetti). 
 
-These results hold also on a cheap laptop GPU: 
-![GTX1650 Benchmark](pictures/gtx1650.png?raw=true)
+## TODO List
+
+- [x] `torch.rfft` and `torch.irfft` are not supported any more, move to `torch.fft.rfft` and `torch.fft.irfft`
+- [ ] Extend to Cone Beam projections
 
 ## Cite
+
 If you are using TorchRadon in your research, please cite the following paper:
 ```
 @article{torch_radon,
@@ -76,11 +63,3 @@ Year = {2020},
 Eprint = {arXiv:2009.14788},
 journal={arXiv preprint arXiv:2009.14788},
 }
-```
-
-## Testing
-Install testing dependencies with `pip install -r test_requirements.txt`
-then test with:
-```shell script
-nosetests tests/
-```
