@@ -40,7 +40,7 @@ jobs:
           -c conda-forge
           nvcc_linux-64=${{ matrix.cuda-version }}
           pytorch=${{ matrix.pytorch-version }}=cuda*
-          gxx_linux-64=${{ gxx-version }}
+          gxx_linux-64=${{ matrix.gxx-version }}
           scipy
           numpy
           pip
