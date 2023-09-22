@@ -45,17 +45,13 @@ detailed benchmarks.
 
 Currently only Linux is supported.
 
-### Build from source
+## Install via the Conda package manager and conda-forge channel
 
-You need to have [CUDA](https://developer.nvidia.com/cuda-toolkit) and
-[PyTorch](https://pytorch.org/get-started/locally/) installed, then run:
-```shell script
-git clone https://github.com/matteo-ronchetti/torch-radon.git
-cd torch-radon
-python setup.py install
+Please read about how to setup and use the conda package manager before attempting the following command.
 
+```bash
+conda install --channel conda-forge carterbox-torch-radon
 ```
-If you encounter any problem please contact the author or open an issue.
 
 ## Cite
 
