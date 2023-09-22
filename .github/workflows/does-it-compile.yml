@@ -1,6 +1,17 @@
 name: Test whether it compiles with various compilers
 
-on: [push]
+on:
+  push:
+    branches:
+      - 'main'
+      - 'master'
+  pull_request:
+    types:
+      - opened
+      - synchronize
+    branches:
+      - 'main'
+      - 'master'
 
 jobs:
   build-linux:
