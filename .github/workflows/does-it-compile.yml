@@ -1,0 +1,44 @@
+name: Test whether it compiles with various compilers
+
+on: [push]
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 5
+      matrix:
+        cuda-version: [12]
+        pytorch-version: [1, 2]
+        gxx-version: [12]
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v3
+      with:
+        python-version: '3.10'
+    - name: Add conda to system path
+      run: |
+        # $CONDA is an environment variable pointing to the root of the miniconda directory
+        echo $CONDA/bin >> $GITHUB_PATH
+    - name: Install dependencies
+      run: >
+        conda create
+          -n torch
+          -c conda-forge
+          nvcc_linux-64=${{ matrix.cuda-version }}
+          pytorch=${{ matrix.pytorch-version }}=cuda*
+          gxx_linux-64=${{ gxx-version }}
+          scipy
+          numpy
+          pip
+          setuptools
+    - name: Build torch-radon
+      run: |
+        conda activate torch
+        pip install . -vv --no-deps
+    - name: Test dependencies
+      run: |
+        conda activate torch
+        pip check
