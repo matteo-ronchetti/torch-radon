@@ -101,18 +101,62 @@ radon_forward_kernel(T *__restrict__ output, cudaTextureObject_t texture, const 
         const float vy = rdy / n_steps;
         const float n = ::hypot(vx, vy);
 
-        for (uint j = 0; j <= n_steps; j++) { //changing j and n_steps to int makes everything way slower (WHY???)
-            if (channels == 1) {
-                accumulator[0] += tex2DLayered<float>(texture, rsx, rsy, blockIdx.z);
+        // When ray direction is aligned with an axis, use higher-precision stepping
+        // to avoid accumulated floating point errors
+        const float epsilon = 1e-6f;
+        if (fabsf(vx) < epsilon || fabsf(vy) < epsilon) {
+            // Axis-aligned or nearly axis-aligned ray
+            // Step along the larger component to avoid precision loss
+            if (fabsf(rdx) > fabsf(rdy)) {
+                // Step along x-axis
+                float step_x = (rdx > 0.0f) ? 1.0f : -1.0f;
+                float vy_per_x = rdy / rdx;
+                for (uint j = 0; j <= n_steps; j++) {
+                    if (channels == 1) {
+                        accumulator[0] += tex2DLayered<float>(texture, rsx, rsy, blockIdx.z);
+                    } else {
+                        float4 read = tex2DLayered<float4>(texture, rsx, rsy, blockIdx.z);
+                        accumulator[0] += read.x;
+                        accumulator[1] += read.y;
+                        accumulator[2] += read.z;
+                        accumulator[3] += read.w;
+                    }
+                    rsx += step_x;
+                    rsy += vy_per_x;
+                }
             } else {
-                float4 read = tex2DLayered<float4>(texture, rsx, rsy, blockIdx.z);
-                accumulator[0] += read.x;
-                accumulator[1] += read.y;
-                accumulator[2] += read.z;
-                accumulator[3] += read.w;
+                // Step along y-axis
+                float step_y = (rdy > 0.0f) ? 1.0f : -1.0f;
+                float vx_per_y = rdx / rdy;
+                for (uint j = 0; j <= n_steps; j++) {
+                    if (channels == 1) {
+                        accumulator[0] += tex2DLayered<float>(texture, rsx, rsy, blockIdx.z);
+                    } else {
+                        float4 read = tex2DLayered<float4>(texture, rsx, rsy, blockIdx.z);
+                        accumulator[0] += read.x;
+                        accumulator[1] += read.y;
+                        accumulator[2] += read.z;
+                        accumulator[3] += read.w;
+                    }
+                    rsx += vx_per_y;
+                    rsy += step_y;
+                }
             }
-            rsx += vx;
-            rsy += vy;
+        } else {
+            // Normal ray - use original stepping
+            for (uint j = 0; j <= n_steps; j++) {
+                if (channels == 1) {
+                    accumulator[0] += tex2DLayered<float>(texture, rsx, rsy, blockIdx.z);
+                } else {
+                    float4 read = tex2DLayered<float4>(texture, rsx, rsy, blockIdx.z);
+                    accumulator[0] += read.x;
+                    accumulator[1] += read.y;
+                    accumulator[2] += read.z;
+                    accumulator[3] += read.w;
+                }
+                rsx += vx;
+                rsy += vy;
+            }
         }
 
 

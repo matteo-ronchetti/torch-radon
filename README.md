@@ -53,6 +53,18 @@ git clone https://github.com/matteo-ronchetti/torch-radon.git
 cd torch-radon
 python setup.py install
 ```
+The build now auto-detects CUDA architectures supported by your `nvcc` and includes your current GPU capability when available.
+
+If needed, you can force architectures with `TORCH_CUDA_ARCH_LIST` (same format as PyTorch):
+```shell script
+TORCH_CUDA_ARCH_LIST="12.0+PTX" python setup.py install
+```
+
+You can also pass multiple values, for example:
+```shell script
+TORCH_CUDA_ARCH_LIST="8.9;9.0;12.0+PTX" python setup.py install
+```
+
 If you encounter any problem please contact the author or open an issue.
 
 ## Benchmarks
