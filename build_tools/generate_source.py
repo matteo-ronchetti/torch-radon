@@ -40,12 +40,25 @@ ROTATE_RAY = """
 
 CLIP_TO_SQUARE = """
         // clip to square (to reduce memory reads)
-        const float alpha_x_m = (-v - rsx)/rdx;
-        const float alpha_x_p = (v - rsx)/rdx;
-        const float alpha_y_m = (-v -rsy)/rdy;
-        const float alpha_y_p = (v - rsy)/rdy;
-        const float alpha_s = max(min(alpha_x_p, alpha_x_m), min(alpha_y_p, alpha_y_m));
-        const float alpha_e = min(max(alpha_x_p, alpha_x_m), max(alpha_y_p, alpha_y_m));
+        // Add numerical stability by handling near-zero direction components
+        float alpha_s = 0.0f;
+        float alpha_e = 1.0f;
+        
+        const float epsilon = 1e-6f;
+        
+        if (fabsf(rdx) > epsilon) {
+            const float alpha_x_m = (-v - rsx) / rdx;
+            const float alpha_x_p = (v - rsx) / rdx;
+            alpha_s = max(alpha_s, min(alpha_x_p, alpha_x_m));
+            alpha_e = min(alpha_e, max(alpha_x_p, alpha_x_m));
+        }
+        
+        if (fabsf(rdy) > epsilon) {
+            const float alpha_y_m = (-v - rsy) / rdy;
+            const float alpha_y_p = (v - rsy) / rdy;
+            alpha_s = max(alpha_s, min(alpha_y_p, alpha_y_m));
+            alpha_e = min(alpha_e, max(alpha_y_p, alpha_y_m));
+        }
 
         if(alpha_s > alpha_e){
             #pragma unroll
@@ -85,18 +98,62 @@ ACCUMULATE_LOOP = """
         const float vy = rdy / n_steps;
         const float n = ::hypot(vx, vy);
 
-        for (uint j = 0; j <= n_steps; j++) { //changing j and n_steps to int makes everything way slower (WHY???)
-            if (channels == 1) {
-                accumulator[0] += tex2DLayered<float>(texture, rsx, rsy, blockIdx.z);
+        // When ray direction is aligned with an axis, use higher-precision stepping
+        // to avoid accumulated floating point errors
+        const float epsilon = 1e-6f;
+        if (fabsf(vx) < epsilon || fabsf(vy) < epsilon) {
+            // Axis-aligned or nearly axis-aligned ray
+            // Step along the larger component to avoid precision loss
+            if (fabsf(rdx) > fabsf(rdy)) {
+                // Step along x-axis
+                float step_x = (rdx > 0.0f) ? 1.0f : -1.0f;
+                float vy_per_x = rdy / rdx;
+                for (uint j = 0; j <= n_steps; j++) {
+                    if (channels == 1) {
+                        accumulator[0] += tex2DLayered<float>(texture, rsx, rsy, blockIdx.z);
+                    } else {
+                        float4 read = tex2DLayered<float4>(texture, rsx, rsy, blockIdx.z);
+                        accumulator[0] += read.x;
+                        accumulator[1] += read.y;
+                        accumulator[2] += read.z;
+                        accumulator[3] += read.w;
+                    }
+                    rsx += step_x;
+                    rsy += vy_per_x;
+                }
             } else {
-                float4 read = tex2DLayered<float4>(texture, rsx, rsy, blockIdx.z);
-                accumulator[0] += read.x;
-                accumulator[1] += read.y;
-                accumulator[2] += read.z;
-                accumulator[3] += read.w;
+                // Step along y-axis
+                float step_y = (rdy > 0.0f) ? 1.0f : -1.0f;
+                float vx_per_y = rdx / rdy;
+                for (uint j = 0; j <= n_steps; j++) {
+                    if (channels == 1) {
+                        accumulator[0] += tex2DLayered<float>(texture, rsx, rsy, blockIdx.z);
+                    } else {
+                        float4 read = tex2DLayered<float4>(texture, rsx, rsy, blockIdx.z);
+                        accumulator[0] += read.x;
+                        accumulator[1] += read.y;
+                        accumulator[2] += read.z;
+                        accumulator[3] += read.w;
+                    }
+                    rsx += vx_per_y;
+                    rsy += step_y;
+                }
             }
-            rsx += vx;
-            rsy += vy;
+        } else {
+            // Normal ray - use original stepping
+            for (uint j = 0; j <= n_steps; j++) {
+                if (channels == 1) {
+                    accumulator[0] += tex2DLayered<float>(texture, rsx, rsy, blockIdx.z);
+                } else {
+                    float4 read = tex2DLayered<float4>(texture, rsx, rsy, blockIdx.z);
+                    accumulator[0] += read.x;
+                    accumulator[1] += read.y;
+                    accumulator[2] += read.z;
+                    accumulator[3] += read.w;
+                }
+                rsx += vx;
+                rsy += vy;
+            }
         }
 """
 
